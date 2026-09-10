@@ -54,20 +54,19 @@ def save_categorization(
     """
     Guarda una categorización en la base de datos.
     """
-try:
-    categorization = Categorization(
-        question_id=question_id,
-        category_name=category_name,
-        confidence_score=confidence_score,
-        is_automatic=is_automatic
-    )
+    try:
+        categorization = Categorization(
+            question_id=question_id,
+            category_name=category_name,
+            confidence_score=confidence_score,
+            is_automatic=is_automatic
+        )
 
-    db.add(categorization)
-    db.commit()
-
-except Exception:
-    db.rollback()
-    raise
+        db.add(categorization)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 def categorize_all(
     batch_size: int = 32,
@@ -77,161 +76,168 @@ def categorize_all(
     Función principal que ejecuta el flujo completo de categorización.
     """
 
-db = SessionLocal()
+    db = SessionLocal()
 
-try:
-    # ---------------------------------------------------------
-    # Preparar categorías para la IA
-    # ---------------------------------------------------------
+    try:
+        # ---------------------------------------------------------
+        # Preparar categorías para la IA
+        # ---------------------------------------------------------
 
-    # Mapeo entre el nombre que usa la IA y el nombre interno
-    # que utilizamos en la base de datos.
-    category_names = {
-        category["label"]: category["name"]
-        for category in CATEGORIES
-    }
-
-    # La IA recibe los labels y las descripciones en inglés.
-    category_labels = [
-        f"{category['label']}: {category['description']}"
-        for category in CATEGORIES
-    ]
-
-    # Instanciar clasificador
-    classifier = AIClassifier()
-
-    # Obtener preguntas sin categorizar
-    questions = get_uncategorized_questions(db)
-
-    # Mostrar resumen inicial
-
-    print("\n" + "=" * 64)
-    print("SISTEMA DE CATEGORIZACIÓN CON IA")
-    print("=" * 64)
-    print(f"Preguntas pendientes: {len(questions)}")
-    print(
-        "Categorías disponibles: "
-        + ", ".join(
-            category["label"]
+        # Mapeo entre el nombre que usa la IA y el nombre interno
+        # que utilizamos en la base de datos.
+        category_names = {
+            category["label"]: category["name"]
             for category in CATEGORIES
+        }
+
+        # La IA recibe los labels y las descripciones en inglés.
+        category_labels = [
+            f"{category['label']}: {category['description']}"
+            for category in CATEGORIES
+        ]
+
+        # Instanciar clasificador
+        classifier = AIClassifier()
+
+        # Obtener preguntas sin categorizar
+        questions = get_uncategorized_questions(db)
+
+        # Mostrar resumen inicial
+        print("\n" + "=" * 64)
+        print("SISTEMA DE CATEGORIZACIÓN CON IA")
+        print("=" * 64)
+        print(f"Preguntas pendientes: {len(questions)}")
+        print(
+            "Categorías disponibles: "
+            + ", ".join(
+                category["label"]
+                for category in CATEGORIES
+            )
         )
-    )
-    print(f"Umbral de confianza: {threshold:.0%}")
-    print("=" * 64)
+        print(f"Umbral de confianza: {threshold:.0%}")
+        print("=" * 64)
 
-    automatic_count = 0
-    manual_count = 0
-    skipped_count = 0
+        automatic_count = 0
+        manual_count = 0
+        skipped_count = 0
 
-    # Procesar preguntas
+        # ---------------------------------------------------------
+        # Procesar preguntas
+        # ---------------------------------------------------------
 
-    for question in tqdm(
-        questions,
-        desc="Categorizando preguntas"
-    ):
-        result = classifier.classify(
-            question.question,
-            category_labels
-        )
-
-        # Convertir la categoría de la IA al nombre interno
-        ai_category_label = result.category_name
-
-        internal_category_name = category_names.get(
-            ai_category_label
-        )
-
-        # Si el modelo devuelve el texto completo en lugar del label exacto, buscamos por el comienzo.
-        if internal_category_name is None:
-            for category in CATEGORIES:
-                if ai_category_label.startswith(
-                    category["label"]
-                ):
-                    internal_category_name = category["name"]
-                    break
-
-        # Evitar guardar una categoría desconocida.
-        if internal_category_name is None:
-            raise ValueError(
-                "La IA devolvió una categoría no reconocida: "
-                f"{ai_category_label}"
+        for question in tqdm(
+            questions,
+            desc="Categorizando preguntas"
+        ):
+            result = classifier.classify(
+                question.question,
+                category_labels
             )
 
-        # Clasificación automática
+            # Convertir la categoría de la IA al nombre interno
+            ai_category_label = result.category_name
 
-        if result.confidence_score >= threshold:
-            save_categorization(
-                db=db,
-                question_id=question.id,
-                category_name=internal_category_name,
-                confidence_score=result.confidence_score,
-                is_automatic=True
+            internal_category_name = category_names.get(
+                ai_category_label
             )
 
-            automatic_count += 1
+            # Si el modelo devuelve el texto completo en lugar
+            # del label exacto, buscamos por el comienzo.
+            if internal_category_name is None:
+                for category in CATEGORIES:
+                    if ai_category_label.startswith(
+                        category["label"]
+                    ):
+                        internal_category_name = category["name"]
+                        break
 
-        # Revisión manual
+            # Evitar guardar una categoría desconocida.
+            if internal_category_name is None:
+                raise ValueError(
+                    "La IA devolvió una categoría no reconocida: "
+                    f"{ai_category_label}"
+                )
 
-        else:
-            display_question_context(
-                question_text=question.question,
-                ai_suggestion=ai_category_label,
-                confidence=result.confidence_score,
-                all_scores=result.all_scores
-            )
+            # -----------------------------------------------------
+            # Clasificación automática
+            # -----------------------------------------------------
 
-            accepted = confirm_ai_suggestion(
-                ai_suggestion=ai_category_label,
-                confidence=result.confidence_score
-            )
-
-            if accepted:
+            if result.confidence_score >= threshold:
                 save_categorization(
                     db=db,
                     question_id=question.id,
                     category_name=internal_category_name,
                     confidence_score=result.confidence_score,
-                    is_automatic=False
+                    is_automatic=True
                 )
 
-                manual_count += 1
+                automatic_count += 1
+
+            # -----------------------------------------------------
+            # Revisión manual
+            # -----------------------------------------------------
 
             else:
-                selected_category = ask_human_for_category(
-                    CATEGORIES
+                display_question_context(
+                    question_text=question.question,
+                    ai_suggestion=ai_category_label,
+                    confidence=result.confidence_score,
+                    all_scores=result.all_scores
                 )
 
-                if selected_category is None:
-                    skipped_count += 1
-                    continue
-
-                save_categorization(
-                    db=db,
-                    question_id=question.id,
-                    category_name=selected_category,
-                    confidence_score=result.confidence_score,
-                    is_automatic=False
+                accepted = confirm_ai_suggestion(
+                    ai_suggestion=ai_category_label,
+                    confidence=result.confidence_score
                 )
 
-                manual_count += 1
+                if accepted:
+                    save_categorization(
+                        db=db,
+                        question_id=question.id,
+                        category_name=internal_category_name,
+                        confidence_score=result.confidence_score,
+                        is_automatic=False
+                    )
 
-    # ---------------------------------------------------------
-    # Resumen final
-    # ---------------------------------------------------------
+                    manual_count += 1
 
-    total_processed = automatic_count + manual_count
+                else:
+                    selected_category = ask_human_for_category(
+                        CATEGORIES
+                    )
 
-    print("\n" + "=" * 64)
-    print("CATEGORIZACIÓN FINALIZADA")
-    print("=" * 64)
-    print(f"Total procesadas: {total_processed}")
-    print(f"Automáticas: {automatic_count}")
-    print(f"Manuales: {manual_count}")
-    print(f"Skipped: {skipped_count}")
-    print("=" * 64)
+                    if selected_category is None:
+                        skipped_count += 1
+                        continue
 
-finally:
-    db.close()
+                    save_categorization(
+                        db=db,
+                        question_id=question.id,
+                        category_name=selected_category,
+                        confidence_score=result.confidence_score,
+                        is_automatic=False
+                    )
+
+                    manual_count += 1
+
+        # ---------------------------------------------------------
+        # Resumen final
+        # ---------------------------------------------------------
+
+        total_processed = automatic_count + manual_count
+
+        print("\n" + "=" * 64)
+        print("CATEGORIZACIÓN FINALIZADA")
+        print("=" * 64)
+        print(f"Total procesadas: {total_processed}")
+        print(f"Automáticas: {automatic_count}")
+        print(f"Manuales: {manual_count}")
+        print(f"Skipped: {skipped_count}")
+        print("=" * 64)
+
+    finally:
+        db.close()
+
 
 if __name__ == "__main__":
     categorize_all()
