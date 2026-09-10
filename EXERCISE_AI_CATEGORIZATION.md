@@ -584,7 +584,8 @@ poetry run python -c "from app.database import engine; from app.models import Ba
 poetry run python -c "from app.database import SessionLocal; from app.models import Question; db = SessionLocal(); print(f'Preguntas: {db.query(Question).count()}')"
 
 # 4. Ejecutar el categorizador
-poetry run python app/categorize.py
+poetry run python app/categorize.py // poetry run python -m app.categorize
+
 
 # 5. Levantar la API para consultar resultados
 poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

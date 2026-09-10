@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db, engine
-from app.models import Base, Question
+from app.models import Base, Question, Categorization
 from sqlalchemy import func
 from pydantic import BaseModel
+from app.categories import CATEGORIES
 
 class QuestionCreate(BaseModel):
     question: str
@@ -37,12 +38,33 @@ def get_question(question_id: int, db: Session = Depends(get_db)):
         return {"error": "Pregunta no encontrada"}
     return question
 
-@app.get("/questions/category/{category}")
-def get_questions_by_category(category: str, db: Session = Depends(get_db)):
-    questions = db.query(Question).filter(Question.category == category).all()
-    if not questions:
-        return {"message": f"No se encontraron preguntas para la categoría: {category}"}
-    return questions
+@app.get("/questions/category/{category_name}")
+def list_by_category(
+    category_name: str,
+    skip: int = 0,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    results = (
+        db.query(Question, Categorization)
+        .join(Categorization, Question.id == Categorization.question_id)
+        .filter(Categorization.category_name == category_name)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "question": question,
+            "categorization": categorization
+        }
+        for question, categorization in results
+    ]
+
+@app.get("/categories")
+def list_categories():
+    return CATEGORIES
 
 @app.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
@@ -79,3 +101,49 @@ def create_question(question_data: QuestionCreate, db: Session = Depends(get_db)
         "question": new_question
     }
 
+@app.get("/categories/stats")
+def category_stats(db: Session = Depends(get_db)):
+    total_questions = db.query(Question).count()
+
+    categorized = (
+        db.query(Categorization.question_id)
+        .distinct()
+        .count()
+    )
+
+    uncategorized = total_questions - categorized
+
+    automatic = (
+        db.query(Categorization)
+        .filter(Categorization.is_automatic == True)
+        .count()
+    )
+
+    manual = (
+        db.query(Categorization)
+        .filter(Categorization.is_automatic == False)
+        .count()
+    )
+
+    category_counts = (
+        db.query(
+            Categorization.category_name,
+            func.count(Categorization.id)
+        )
+        .group_by(Categorization.category_name)
+        .all()
+    )
+
+    by_category = {
+        category: count
+        for category, count in category_counts
+    }
+
+    return {
+        "total_questions": total_questions,
+        "categorized": categorized,
+        "uncategorized": uncategorized,
+        "automatic": automatic,
+        "manual": manual,
+        "by_category": by_category
+    }

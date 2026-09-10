@@ -1,58 +1,57 @@
 CATEGORIES = [
-    {
-        "name": "geografia",
-        "label": "Geografía",
-        "description": (
-            "Preguntas sobre países, ciudades, capitales, continentes, "
-            "lugares, fronteras, mapas, accidentes geográficos, culturas "
-            "y características físicas o políticas del mundo."
-        ),
-    },
-    {
-        "name": "ciencia",
-        "label": "Ciencia",
-        "description": (
-            "Preguntas sobre ciencias naturales y exactas, incluyendo física, "
-            "química, biología, astronomía, medicina, matemáticas, animales, "
-            "plantas y fenómenos científicos."
-        ),
-    },
-    {
-        "name": "historia",
-        "label": "Historia",
-        "description": (
-            "Preguntas sobre acontecimientos históricos, civilizaciones, "
-            "personajes históricos, guerras, revoluciones, fechas, imperios "
-            "y acontecimientos importantes del pasado."
-        ),
-    },
-    {
-        "name": "deportes",
-        "label": "Deportes",
-        "description": (
-            "Preguntas sobre deportes, reglas, competiciones, equipos, "
-            "jugadores, atletas, campeonatos, récords y acontecimientos "
-            "deportivos."
-        ),
-    },
-    {
-        "name": "arte",
-        "label": "Arte",
-        "description": (
-            "Preguntas sobre pintura, escultura, literatura, música, cine "
-            "y otras formas de expresión artística, incluyendo artistas, "
-            "obras y movimientos artísticos."
-        ),
-    },
-    {
-        "name": "entretenimiento",
-        "label": "Entretenimiento",
-        "description": (
-            "Preguntas sobre películas, series, televisión, música popular, "
-            "videojuegos, celebridades, cultura pop y otros temas relacionados "
-            "con el entretenimiento."
-        ),
-    },
+{
+"name": "geografia",
+"label": "Geography",
+"description": (
+"Questions about countries, cities, capitals, continents, "
+"places, borders, maps, geographical features, cultures, "
+"and the physical or political characteristics of the world."
+),
+},
+{
+"name": "ciencia",
+"label": "Science",
+"description": (
+"Questions about natural and exact sciences, including physics, "
+"chemistry, biology, astronomy, medicine, mathematics, animals, "
+"plants, and scientific phenomena."
+),
+},
+{
+"name": "historia",
+"label": "History",
+"description": (
+"Questions about historical events, civilizations, historical "
+"figures, wars, revolutions, dates, empires, and important "
+"events from the past."
+),
+},
+{
+"name": "deportes",
+"label": "Sports",
+"description": (
+"Questions about sports, rules, competitions, teams, players, "
+"athletes, championships, records, and sporting events."
+),
+},
+{
+"name": "arte",
+"label": "Art",
+"description": (
+"Questions about painting, sculpture, literature, music, cinema, "
+"and other forms of artistic expression, including artists, "
+"works of art, and artistic movements."
+),
+},
+{
+"name": "entretenimiento",
+"label": "Entertainment",
+"description": (
+"Questions about movies, series, television, popular music, "
+"video games, celebrities, pop culture, and other topics "
+"related to entertainment."
+),
+},
 ]
 
 
