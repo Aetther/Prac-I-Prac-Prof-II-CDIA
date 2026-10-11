@@ -1,17 +1,35 @@
+"""
+Descarga el dataset de trivia desde Hugging Face y lo carga en la base.
+
+1. Descarga kth8/OpenTriviaQA en formato Parquet
+2. Repara errores de codificación del texto con ftfy
+3. Se queda con las preguntas de 4 opciones (correcta + 3 incorrectas)
+4. Agrupa las categorías originales en las 6 de Preguntados
+
+ATENCIÓN: reemplaza las preguntas existentes y borra sus categorizaciones.
+Las decisiones humanas se pueden restaurar después con:
+    poetry run python -m app.restore_decisions
+
+Uso:
+    poetry run python -m app.load_data
+"""
 import os
 import tempfile
 
 import pandas as pd
 import requests
+from ftfy import fix_text
 
 from app.database import SessionLocal, engine
-from app.models import Base, Question
+from app.models import Base, Categorization, Question
 
 DATASET_URL = (
     "https://huggingface.co/datasets/kth8/OpenTriviaQA/resolve/"
     "refs%2Fconvert%2Fparquet/default/train/0000.parquet"
 )
 
+# Categorías del dataset -> categorías estilo Preguntados.
+# Las que no figuran acá se descartan.
 CATEGORY_MAP = {
     "geography": "Geografía",
     "world": "Geografía",
@@ -26,6 +44,11 @@ CATEGORY_MAP = {
     "video-games": "Entretenimiento",
     "sports": "Deportes",
 }
+
+
+def clean(value) -> str:
+    """Repara errores de codificación (ej. 'Queenâ\\x80\\x99s') y quita espacios sobrantes."""
+    return fix_text(str(value)).strip()
 
 
 def download_parquet(url: str) -> str:
@@ -46,9 +69,9 @@ def build_rows(df: pd.DataFrame) -> list[dict]:
         if category is None:
             continue
 
-        answer = str(record["answer"]).strip()
-        # choices viene como array de numpy: lo pasamos a lista de strings
-        choices = [str(c).strip() for c in list(record["choices"])]
+        answer = clean(record["answer"])
+        # choices viene como array de numpy: lo pasamos a lista de strings limpios
+        choices = [clean(c) for c in list(record["choices"])]
 
         # Opciones incorrectas = todas menos la correcta, sin repetidos
         wrong = list(dict.fromkeys(c for c in choices if c and c != answer))
@@ -59,7 +82,7 @@ def build_rows(df: pd.DataFrame) -> list[dict]:
             continue
 
         rows.append({
-            "question": str(record["question"]).strip(),
+            "question": clean(record["question"]),
             "answer": answer,
             "wrong_1": wrong[0],
             "wrong_2": wrong[1],
@@ -85,10 +108,18 @@ def load_questions():
 
     session = SessionLocal()
     try:
+        # Las categorizaciones apuntan a las preguntas (clave foránea),
+        # así que hay que borrarlas antes de reemplazar las preguntas.
+        deleted = session.query(Categorization).delete()
         session.query(Question).delete()
         session.bulk_insert_mappings(Question, rows)
         session.commit()
         print(f"Se insertaron {len(rows)} preguntas correctamente.")
+        if deleted:
+            print(
+                f"Se borraron {deleted} categorizaciones anteriores. Para recuperar "
+                "las decisiones humanas: poetry run python -m app.restore_decisions"
+            )
     except Exception as e:
         session.rollback()
         print(f"Error: {e}")

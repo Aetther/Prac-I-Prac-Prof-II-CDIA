@@ -7,6 +7,8 @@ Junta dos fuentes de ejemplos verificados por una persona:
    (data/precision_review.csv, is_correct = "1")
 
 Genera data/training_data.csv y muestra cuántos ejemplos hay por categoría.
+El mismo archivo sirve para restaurar las decisiones en una base nueva
+(app/restore_decisions.py).
 
 Uso:
     poetry run python -m app.export_training
@@ -22,15 +24,16 @@ from app.models import Categorization, Question
 from app.review_automatic import label, load_reviews
 
 OUTPUT_FILE = Path("data") / "training_data.csv"
-FIELDS = ["question_id", "question", "answer", "category_name", "source"]
+FIELDS = ["question_id", "question", "answer", "category_name", "confidence_score", "source"]
 
 # SetFit necesita, como mínimo, alrededor de 8 ejemplos por categoría
 MIN_PER_CATEGORY = 8
 
 
 def main() -> None:
+    # {question_id: (categoría confirmada, score de la IA)}
     confirmed = {
-        int(r["question_id"]): r["human_category"]
+        int(r["question_id"]): (r["human_category"], r["confidence_score"])
         for r in load_reviews()
         if r["is_correct"] == "1"
     }
@@ -38,7 +41,13 @@ def main() -> None:
     db = SessionLocal()
     try:
         manual: list[Any] = (
-            db.query(Question.id, Question.question, Question.answer, Categorization.category_name)
+            db.query(
+                Question.id,
+                Question.question,
+                Question.answer,
+                Categorization.category_name,
+                Categorization.confidence_score,
+            )
             .join(Categorization, Categorization.question_id == Question.id)
             .filter(Categorization.is_automatic.is_(False))
             .all()
@@ -63,9 +72,11 @@ def main() -> None:
             "question": row.question,
             "answer": row.answer,
             "category_name": row.category_name,
+            "confidence_score": f"{row.confidence_score:.4f}",
             "source": "manual",
         }
     for row in confirmed_questions:
+        category_name, confidence = confirmed[row.id]
         # setdefault: si ya estaba como manual, se conserva esa versión
         examples.setdefault(
             row.id,
@@ -73,7 +84,8 @@ def main() -> None:
                 "question_id": row.id,
                 "question": row.question,
                 "answer": row.answer,
-                "category_name": confirmed[row.id],
+                "category_name": category_name,
+                "confidence_score": confidence,
                 "source": "automatica_verificada",
             },
         )
