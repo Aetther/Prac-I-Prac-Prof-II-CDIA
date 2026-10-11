@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Body, Depends, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -41,14 +41,21 @@ def root():
 
 
 @app.get("/questions")
-def list_questions(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+def list_questions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
     questions = db.query(Question).offset(skip).limit(limit).all()
     return questions
 
 
 @app.get("/questions/category/{category_name}")
 def list_by_category(
-    category_name: str, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)
+    category_name: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
 ):
     """
     Preguntas categorizadas (por la IA o por una persona) con una categoría.

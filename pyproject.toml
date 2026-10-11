@@ -39,6 +39,15 @@ package-mode = false
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "unit: funciones aisladas, sin base de datos ni modelos de IA",
+    "integration: varias piezas juntas (API + base de prueba)",
+    "data_quality: reglas sobre los datos reales (requiere PostgreSQL con datos)",
+    "validation: validación de entradas de la API y de la calidad del modelo",
+    "slow: carga modelos de IA; no corre por defecto (usar -m slow)",
+]
+addopts = "-m \"not slow\""
 filterwarnings = [
     "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+    "ignore:`torch.jit.script` is deprecated:FutureWarning",
 ]

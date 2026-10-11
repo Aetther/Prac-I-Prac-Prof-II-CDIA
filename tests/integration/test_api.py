@@ -1,68 +1,4 @@
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.database import get_db
-from app.main import app
-from app.models import Base, Categorization, Question
-
-# Base de datos SQLite en memoria, solo para los tests
-engine_test = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSession = sessionmaker(bind=engine_test, autoflush=False)
-
-
-def make_question(text, answer, category):
-    return Question(
-        question=text,
-        answer=answer,
-        wrong_1="Opción A",
-        wrong_2="Opción B",
-        wrong_3="Opción C",
-        category=category,
-        source="test",
-    )
-
-
-@pytest.fixture
-def client():
-    # Antes de cada test: 3 preguntas, 2 de ellas categorizadas
-    Base.metadata.create_all(bind=engine_test)
-    db = TestingSession()
-
-    france = make_question("¿Capital de Francia?", "París", "Geografía")
-    italy = make_question("¿Capital de Italia?", "Roma", "Geografía")
-    mona_lisa = make_question("¿Quién pintó la Mona Lisa?", "Da Vinci", "Arte")
-    db.add_all([france, italy, mona_lisa])
-    db.flush()  # asigna los ids sin cerrar la transacción
-
-    db.add_all([
-        Categorization(question_id=france.id, category_name="geografia",
-                       confidence_score=0.95, is_automatic=True),
-        Categorization(question_id=mona_lisa.id, category_name="arte",
-                       confidence_score=0.40, is_automatic=False),
-    ])
-    db.commit()
-    db.close()
-
-    def override_get_db():
-        db = TestingSession()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
-
-    app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=engine_test)
-
+"""Tests de integración de la API: endpoints + base de datos de prueba."""
 
 VALID_QUESTION = {
     "question": "¿Cuál es la capital de Chaco?",
@@ -103,6 +39,11 @@ def test_list_by_category_without_results(client):
 def test_list_by_category_unknown(client):
     r = client.get("/questions/category/inexistente")
     assert r.status_code == 404
+
+
+def test_list_by_category_includes_categorization_id(client):
+    data = client.get("/questions/category/geografia").json()
+    assert data[0]["categorization_id"] == 1
 
 
 # --- Categorías ---
@@ -152,19 +93,6 @@ def test_create_question(client):
     assert stats["by_category"]["Geografía"] == 3
 
 
-def test_create_question_missing_field(client):
-    incomplete = {k: v for k, v in VALID_QUESTION.items() if k != "wrong_3"}
-    r = client.post("/questions", json=incomplete)
-    assert r.status_code == 400
-    assert "wrong_3" in r.json()["detail"]
-
-
-def test_create_question_repeated_options(client):
-    repeated = {**VALID_QUESTION, "wrong_1": "Resistencia"}
-    r = client.post("/questions", json=repeated)
-    assert r.status_code == 400
-
-
 # --- Corregir categorizaciones ---
 
 def test_update_categorization(client):
@@ -193,18 +121,3 @@ def test_update_categorization_ignores_case(client):
 def test_update_categorization_not_found(client):
     r = client.put("/categorizations/999", json={"category_name": "historia"})
     assert r.status_code == 404
-
-
-def test_update_categorization_invalid_category(client):
-    r = client.put("/categorizations/1", json={"category_name": "inexistente"})
-    assert r.status_code == 400
-
-
-def test_update_categorization_missing_field(client):
-    r = client.put("/categorizations/1", json={})
-    assert r.status_code == 400
-
-
-def test_list_by_category_includes_categorization_id(client):
-    data = client.get("/questions/category/geografia").json()
-    assert data[0]["categorization_id"] == 1

@@ -64,11 +64,13 @@ def build_rows(df: pd.DataFrame) -> list[dict]:
     """Convierte el DataFrame en filas listas para insertar,
     descartando las que no cumplen el formato."""
     rows = []
+    seen: set[tuple[str, str]] = set()
     for record in df.to_dict(orient="records"):
         category = CATEGORY_MAP.get(str(record["category"]))
         if category is None:
             continue
 
+        question = clean(record["question"])
         answer = clean(record["answer"])
         # choices viene como array de numpy: lo pasamos a lista de strings limpios
         choices = [clean(c) for c in list(record["choices"])]
@@ -81,8 +83,20 @@ def build_rows(df: pd.DataFrame) -> list[dict]:
         if answer not in choices or len(wrong) != 3:
             continue
 
+        # Verdadero/Falso "disfrazadas" de 4 opciones: las otras opciones
+        # suelen ser fragmentos de texto cortados, no respuestas reales
+        if any(c.lower() in ("true", "false") for c in choices):
+            continue
+
+        # La misma pregunta puede aparecer en varias categorías del dataset:
+        # se conserva solo la primera aparición
+        key = (question, answer)
+        if key in seen:
+            continue
+        seen.add(key)
+
         rows.append({
-            "question": clean(record["question"]),
+            "question": question,
             "answer": answer,
             "wrong_1": wrong[0],
             "wrong_2": wrong[1],
