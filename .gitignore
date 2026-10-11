@@ -13,3 +13,9 @@ __pycache__/
 
 # Variables de entorno (contraseñas, etc.)
 .env
+
+# Modelos entrenados
+models/
+
+# Checkpoints de entrenamiento de SetFit
+checkpoints/

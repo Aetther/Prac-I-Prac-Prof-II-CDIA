@@ -1,0 +1,76 @@
+categorization_id,question_id,question,answer,ai_category,confidence_score,human_category,is_correct,reviewed_at
+9097,18288,This 2003 comedy film stars Eddie Murphy as an unemployed dad who ends up staying home taking care of the kids.,Daddy Day Care,entretenimiento,0.9817,entretenimiento,1,2026-10-11T04:49:37.752232+00:00
+9980,18582,"In Full House, initially D.J.s boyfriend was referred to as Steve Peters. Later on in the series, his name was changed into what?",Steve Hale,entretenimiento,0.9483,entretenimiento,1,2026-10-11T04:49:49.699426+00:00
+16433,23223,What were the two leading city-states of Ancient Greece?,Athens and Sparta,historia,0.9675,historia,1,2026-10-11T04:51:30.799793+00:00
+25509,12713,This famous producer is known for his long-running cooperation with British band Radiohead.,Nigel Godrich,entretenimiento,0.9257,entretenimiento,1,2026-10-11T04:51:54.402110+00:00
+8257,23989,"On 15 September, 1973 King Carl XVI Gustaf became the ruler of which of these modern kingdoms?",Sweden,historia,0.9329,historia,1,2026-10-11T05:10:18.912749+00:00
+17046,22655,What is the Typhoons Rate of Fire in the Crysis games?,500 Rounds Per second,entretenimiento,0.7808,entretenimiento,1,2026-10-11T05:10:31.011783+00:00
+23071,9770,The 1968 song Valleri was a top ten hit for which of the following bands?,The Monkees,entretenimiento,0.9635,entretenimiento,1,2026-10-11T05:11:51.220775+00:00
+23210,14913,"Lets say youre conducting a study to see whether a new experimental medication will cause bald men to grow hair. You divide your patients into 2 groups. To one group you give the medication. To the other group, you give a placebo. In this study, the correct terms for the taking of the medication and the growth of hair are the following.","The medication is the independent variable, and the hair growth is the dependent variable.",ciencia,0.9545,ciencia,1,2026-10-11T05:11:59.753664+00:00
+17281,11800,"In 1955, he sang bass for the Homeland Harmony Quartet and in 1957 he joined the LeFevres that later became known as the Rex Nelon Singers. He passed away while on tour with the Gaithers in Europe in 2000.",Rex Nelon,entretenimiento,0.8278,entretenimiento,1,2026-10-11T05:12:08.347681+00:00
+25605,12049,"The last musician signed by John Hammond was a young guitarist from Texas. He was famous for his use of extra heavy guitar strings. His albums included Texas Flood, Soul to Soul, and The Sky Is Crying.",Stevie Ray Vaughan,entretenimiento,0.8543,entretenimiento,1,2026-10-11T05:13:09.567630+00:00
+12965,11808,This former Beatle gave us the hit song from 1974 called Youre Sixteen.,Ringo Starr,entretenimiento,0.9414,entretenimiento,1,2026-10-11T05:13:22.367639+00:00
+16447,15654,"Chicago Bulls drafted this player in 1984, who is probably the best in the NBA ever. He played his final game on April 16, 2003.",Michael Jordan,deportes,0.9842,deportes,1,2026-10-11T05:14:02.095417+00:00
+25412,7283,What was the tagline on the theatrical poster of the 1980 comedy golf movie Caddyshack?,Some people just dont belong.,entretenimiento,0.9581,entretenimiento,1,2026-10-11T05:14:10.024668+00:00
+20464,16287,Which one of these players won an MVP Award while playing with the Houston Astros?,Jeff Bagwell,deportes,0.9639,deportes,1,2026-10-11T05:14:17.464107+00:00
+7786,10256,"In this musical later made into a movie, Sandy is a major character with very few lines.",Annie,entretenimiento,0.9168,entretenimiento,1,2026-10-11T05:14:28.397955+00:00
+24238,13904,How much does human hair grow in a year?,9 inches,ciencia,0.8853,ciencia,1,2026-10-11T05:15:22.484326+00:00
+24188,1032,"The Nile is generally considered the longest river in the world.  The source of this mighty river remained unknown for centuries. Finally Lake Victoria was decided to be its source, although there are other theories. Lake Victoria is located on the territories of these three countries.","Uganda, Kenya and Tanzania",geografia,0.7145,geografia,1,2026-10-11T05:15:54.291494+00:00
+18925,24988,Which was the second country after Egypt to normalize its relations with Israel with a peace treaty of 1994?,Jordan,historia,0.9510,historia,1,2026-10-11T05:16:04.228666+00:00
+18714,22142,What Hollywood director had two of his movies parodied in two South Park episodes in a row?,Zak Snyder,entretenimiento,0.9916,entretenimiento,1,2026-10-11T05:19:38.116012+00:00
+22818,26290,What is the capital city of the Socialist Republic of Vietnam?,Hanoi,geografia,0.9011,geografia,1,2026-10-11T05:19:46.993903+00:00
+11013,6876,Which of these great movies was not directed by Frederico Fellini?,Farinelli,entretenimiento,0.8981,entretenimiento,1,2026-10-11T05:21:55.773104+00:00
+12106,17734,What number did the Babe wear for the New York Yankees?,3,deportes,0.8186,deportes,1,2026-10-11T05:22:00.958056+00:00
+27999,13962,"In medical jargon, what is a Well Woman Exam?",A routine gynaecologic exam,ciencia,0.8917,ciencia,1,2026-10-11T05:22:36.060020+00:00
+27076,19792,"Complete this line from Family Guy and name the character who delivered it: Um, you know feel free to say no to this but ...",would you mind shaving my coin purse? Stewie,entretenimiento,0.9827,entretenimiento,1,2026-10-11T05:22:42.518374+00:00
+20414,7532,"In the film industry, the term 2:3 pulldown refers to what?",The conversion of film to video,entretenimiento,0.7731,entretenimiento,1,2026-10-11T05:23:18.060334+00:00
+10388,1264,What is the name of the sea that borders the Netherlands?,North Sea,geografia,0.8102,geografia,1,2026-10-11T05:25:09.967036+00:00
+12903,2280,The following words belong to which famous World War II general: Crete was the grave of the German parachutists.â?,General Kurt Student,historia,0.9824,historia,1,2026-10-11T05:27:14.579081+00:00
+10667,2372,"In their attempt to knock Italy out of WW2, the Allies met a fierce competitor on the Italian peninsula. Which German general gave the Allies such a hard time?",Kesselring,historia,0.9908,historia,1,2026-10-11T05:36:58.296919+00:00
+26349,7118,Robert De Niro won his first Academy Award for Best Actor for his performance in this movie.,Raging Bull,entretenimiento,0.8814,entretenimiento,1,2026-10-11T05:37:04.495392+00:00
+11305,4429,What Shakespeare play opens with a street brawl in Verona between the servants of two feuding noble families?,Romeo and Juliet,arte,0.9467,arte,1,2026-10-11T05:37:08.769928+00:00
+20798,15266,Socrates had a successful service in this state institution in Athens.,Military,historia,0.9572,historia,1,2026-10-11T05:37:26.318830+00:00
+18674,19255,"In an episode of the show Saved by the Bell, Zack falls for a homeless girl who works at the mall. What is her name?",Laura,entretenimiento,0.9793,entretenimiento,1,2026-10-11T05:37:33.233737+00:00
+25468,13298,Who became lead vocalist of American band Korn in 1993?,Jonathan Davis,entretenimiento,0.9676,entretenimiento,1,2026-10-11T05:37:38.563043+00:00
+14144,15951,Which of these Hall of Famers was first baseman for the San Francisco Giants?,Orlando Cepeda,deportes,0.9192,deportes,1,2026-10-11T05:37:48.820007+00:00
+10675,6653,What title was initially considered for the Greys Anatomy TV series?,Complications,entretenimiento,0.7537,entretenimiento,1,2026-10-11T05:37:55.994069+00:00
+11616,1444,"This island, sometimes called island of inspiration, is part of a very large country, and has a unique fauna.",Tasmania,geografia,0.8147,geografia,1,2026-10-11T05:38:03.509347+00:00
+25417,16746,Which White Sox hitter had the highest career batting average?,Joe Jackson,deportes,0.8323,deportes,1,2026-10-11T05:38:10.329768+00:00
+8609,9812,"Heavy metal had its origins with Black Sabbath back in 1970, but it was this bands 1980 heavy metal masterpiece, British Steel, that sent metal on its path to world domination.  By the latter half of the 1980s, bands like Ratt, Def Leppard, and Motley Crue would emerge that were perfectly suited for the excesses that characterized the 80s.",Judas Priest,entretenimiento,0.8337,entretenimiento,1,2026-10-11T05:41:48.989436+00:00
+14633,20846,"On the TV show Martin, what was the name of Martins boss at the WZUP radio station?",Stan,entretenimiento,0.9526,entretenimiento,1,2026-10-11T05:41:52.864713+00:00
+19656,16987,This Hall of Fame Quarterback led the Steelers to 4 Super Bowl victories in the 1970s.,Terry Bradshaw,deportes,0.9770,deportes,1,2026-10-11T05:41:56.295048+00:00
+7609,2153,"What device was invented in 1879 by James Ritty, the owner of a tavern in Dayton, Ohio?",The cash register,ciencia,0.8648,ciencia,1,2026-10-11T05:43:22.513723+00:00
+16555,6163,"In the movie Napoleon Dynamite, when Napoleon decides that he needs a job, where does he end up working and how much money did he get on his first day?",a chicken farm---6 dollars,entretenimiento,0.9846,entretenimiento,1,2026-10-11T05:43:28.615682+00:00
+22389,13679,"The most complete Australopithecus skeleton, dubbed Lucy,  was found in 1974.  She was 1.10m (3 7) tall and weighed about 30kg (66lbs).  Anthropologists named the skeleton after this Lucy.",Lucy from The Beatles song Lucy in the Sky with Diamonds,ciencia,0.7953,ciencia,1,2026-10-11T05:43:51.919260+00:00
+21227,15825,Brad Miller of the Sacramento Kings played basketball at what Big Ten University?,Purdue,deportes,0.9399,deportes,1,2026-10-11T05:43:56.611323+00:00
+20066,8234,"What actor played the character of Goldfinger, in the motion picture of the same name?",Gert Frobe,entretenimiento,0.9612,entretenimiento,1,2026-10-11T05:44:04.549631+00:00
+12238,2395,"Classic Maya kings carried this title, meaning supreme and sacred ruler.",Kâul ahau,historia,0.8864,historia,1,2026-10-11T05:44:10.080841+00:00
+26028,26127,Bolivia is unusual in that the official capital is not the seat of government. What city is the official capital?,Sucre,geografia,0.9291,geografia,1,2026-10-11T05:44:17.998747+00:00
+27734,10834,Name this 90s western-based drama.,Dr. Quinn Medicine Woman,entretenimiento,0.8931,entretenimiento,1,2026-10-11T05:44:23.346902+00:00
+25134,13884,Which one of the following medications treats Alzheimers Disease (dementia)?,Aricept (donepezil),ciencia,0.8321,ciencia,1,2026-10-11T05:44:28.504845+00:00
+24407,15897,Which one of these teams is not in the Big Ten Conference?,Iowa State,deportes,0.8950,deportes,1,2026-10-11T05:44:33.427507+00:00
+19169,22571,What is the name of the suit Samus starts out with in almost every Metroid video game?,Varia Suit,entretenimiento,0.9090,entretenimiento,1,2026-10-11T05:44:39.055827+00:00
+26399,330,Triceratops is the official State Dinosaur of which state?,Wyoming,ciencia,0.9583,ciencia,1,2026-10-11T05:44:42.606818+00:00
+18875,11307,"This Michigan-born jazz great was never as popular as other vocalists but was admired by her peers. Her signature song was âOpen the Door, her own composition and a song featured in the movie American Beauty. She died in 1998 at the age of 69.",Betty Carter,entretenimiento,0.7410,entretenimiento,1,2026-10-11T05:45:09.794089+00:00
+26466,3125,"On September 27th, 1779 this politician was appointed by American Congress to start negotiating peace with the British.",John Adams,historia,0.9920,historia,1,2026-10-11T05:45:14.050276+00:00
+18244,2188,The Rosetta stone helped scientists to decipher the alphabet of this ancient civilization.,Ancient Egypt,historia,0.8163,historia,1,2026-10-11T05:45:29.688942+00:00
+19617,16208,Which player of the the St. Louis Cardinals set a major league record by hitting two grand slams in a single inning against the Los Angeles Dodgers?,Fernando Tatis,deportes,0.9761,deportes,1,2026-10-11T05:45:35.245107+00:00
+19343,8821,"What did Mel Gibson, the director of  The Passion Of The Christ, intend initially concerning the language of the movie?",He said he would use two old languages without subtitles.,entretenimiento,0.8052,entretenimiento,1,2026-10-11T05:45:40.015585+00:00
+27606,25086,"At the time of European contact, the Minnesota region was home to these two large tribal groups.",Ojibwe and Dakota,historia,0.9317,historia,1,2026-10-11T05:45:48.562434+00:00
+24343,22085,Who plays the client in the Office episode The Client?,Tim Meadows,entretenimiento,0.9586,entretenimiento,1,2026-10-11T05:45:54.336505+00:00
+16677,22087,"In season 2 of the TV series The Office, how does Michael get injured?",He burns his foot on a George Foreman Grill.,entretenimiento,0.9796,entretenimiento,1,2026-10-11T05:45:59.853328+00:00
+24114,4637,Which of these is not a book from the Apprentice Adept series by Piers Anthony?,Prostho Plus,arte,0.8670,arte,1,2026-10-11T05:54:39.053961+00:00
+14169,11584,Which wealthy Russian widow was Pyotr Ilyich Tchaikovskys patron?,Nadezhda von Meck,arte,0.7323,arte,1,2026-10-11T05:54:52.834572+00:00
+13955,4469,Which modern author created the character Ari Ben Canaan?,Leon Uris,arte,0.9658,arte,1,2026-10-11T05:55:08.536585+00:00
+9813,4543,Who wrote the poem Childe Roland to the Dark Tower Came that inspired Stephen King to write the first novel in The Drak Tower series?,Robert Browning,arte,0.9179,arte,1,2026-10-11T05:55:12.914986+00:00
+17714,5128,Which story features a character named Jim Smiley who was responsible for one of the tallest tales of the Old West?,The Celebrated Jumping Frog of Calaveras County,arte,0.8421,arte,1,2026-10-11T05:55:23.316731+00:00
+19653,4811,What was John Steinbecks first published novel?,Cup of Gold,arte,0.9640,arte,1,2026-10-11T05:55:27.586701+00:00
+9126,24218,"This author who wrote the novel Get Shorty, was born on 11 October 1925, in New Orleans.",Elmore Leonard,arte,0.9309,arte,1,2026-10-11T05:55:39.365823+00:00
+12803,4040,In Egyptian mythology this is known as the soul/personality of a person. It is sometimes depicted as a human-headed bird.,Ba,arte,0.7242,arte,1,2026-10-11T05:55:58.046589+00:00
+21082,3832,Who wrote Divina Proportione which explored the use of the golden ratio in the Renaissance architecture?,Luca Pacioli,arte,0.8952,arte,1,2026-10-11T05:56:40.619756+00:00
+15009,18955,What was Charles Ingalls middle name on the Little House on the Prairie series?,Philip,arte,0.7649,arte,1,2026-10-11T05:56:47.117640+00:00
+15238,4685,"Why is Joseph K. arrested in Franz Kafkas popular novel, The Trial?",The reason is never explained.,arte,0.9243,arte,1,2026-10-11T05:56:55.126332+00:00
+11469,25480,What Nobel Prize and Pulitzer Prize-winning American author wrote the 1932 novel Light in August?,William Faulkner,arte,0.9772,arte,1,2026-10-11T05:57:01.083956+00:00
+26812,5224,Which of these four books of Terry Pratchetts Discworld series was published first?,The Colour of Magic,arte,0.9576,arte,1,2026-10-11T05:57:15.238265+00:00
+25481,15272,In what type of written form did Aristotle prefer to express and defend his doctrines?,Dialogue,arte,0.7979,arte,1,2026-10-11T05:57:23.551041+00:00
+14381,5223,When was Terry Pratchett appointed an Officer of the Order of the British Empire for services to literature?,1998,arte,0.8374,arte,1,2026-10-11T05:57:32.037608+00:00
