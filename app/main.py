@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import Body, Depends, FastAPI, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -6,15 +8,19 @@ from app.categories import CATEGORIES, find_category_by_name
 from app.database import engine, get_db
 from app.models import Base, Categorization, Question
 
-app = FastAPI(title="Questions API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Al arrancar: crear las tablas si no existen
+    Base.metadata.create_all(bind=engine)
+    yield
+    # Al cerrar: no hace falta liberar nada
+
+
+app = FastAPI(title="Questions API", version="1.0.0", lifespan=lifespan)
 
 # Campos obligatorios para crear una pregunta
 REQUIRED_FIELDS = ["question", "answer", "wrong_1", "wrong_2", "wrong_3", "category"]
-
-
-@app.on_event("startup")
-def on_startup():
-    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")
@@ -29,6 +35,7 @@ def root():
             "/categories",
             "/categories/stats",
             "POST /questions",
+            "PUT /categorizations/{id}",
         ],
     }
 
@@ -66,6 +73,7 @@ def list_by_category(
     return [
         {
             "id": question.id,
+            "categorization_id": categorization.id,
             "question": question.question,
             "answer": question.answer,
             "wrong_1": question.wrong_1,
@@ -139,6 +147,44 @@ def category_stats(db: Session = Depends(get_db)):
         "automatic": automatic,
         "manual": manual,
         "by_category": {name: count for name, count in rows},
+    }
+
+
+@app.put("/categorizations/{categorization_id}")
+def update_categorization(
+    categorization_id: int, data: dict = Body(...), db: Session = Depends(get_db)
+):
+    """
+    Corrige la categoría asignada a una pregunta.
+    La corrección la hace una persona, así que queda como no automática.
+    """
+    categorization = (
+        db.query(Categorization).filter(Categorization.id == categorization_id).first()
+    )
+    if categorization is None:
+        raise HTTPException(status_code=404, detail="Categorización no encontrada")
+
+    category_name = str(data.get("category_name", "")).strip().lower()
+    if not category_name:
+        raise HTTPException(status_code=400, detail="Falta el campo category_name")
+    if find_category_by_name(category_name) is None:
+        raise HTTPException(
+            status_code=400, detail=f"La categoría '{category_name}' no existe"
+        )
+
+    db.query(Categorization).filter(Categorization.id == categorization_id).update(
+        {"category_name": category_name, "is_automatic": False}
+    )
+    db.commit()
+    db.refresh(categorization)
+
+    return {
+        "id": categorization.id,
+        "question_id": categorization.question_id,
+        "category_name": categorization.category_name,
+        "confidence_score": categorization.confidence_score,
+        "is_automatic": categorization.is_automatic,
+        "created_at": categorization.created_at,
     }
 
 

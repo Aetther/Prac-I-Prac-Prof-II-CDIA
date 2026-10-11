@@ -2,21 +2,27 @@
 Banco de pruebas del clasificador.
 
 Clasifica una muestra fija de preguntas (siempre las mismas, gracias a una
-semilla) y mide cobertura y coincidencia con el dataset para varios umbrales.
-No escribe nada en la base de datos.
+semilla) y mide cobertura, coincidencia con el dataset para varios umbrales
+y velocidad de clasificación. No escribe nada en la base de datos.
 
 Permite comparar dos técnicas:
 - zero-shot: clasificación zero-shot con transformers (por defecto)
 - cosine: embeddings de Sentence Transformers + similitud coseno
+
+Y dos formas de nombrar las categorías:
+- descripciones largas de categories.py (por defecto)
+- etiquetas cortas (--short-labels), para modelos NLI más viejos
 
 Uso:
     poetry run python -m app.evaluate
     poetry run python -m app.evaluate --with-answer
     poetry run python -m app.evaluate --model facebook/bart-large-mnli
     poetry run python -m app.evaluate --method cosine --with-answer
+    poetry run python -m app.evaluate --with-answer --short-labels
 """
 import argparse
 import random
+import time
 from collections import Counter
 from typing import Any
 
@@ -30,6 +36,17 @@ from app.models import Question
 
 THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9]
 CHUNK_SIZE = 256
+
+# Etiquetas cortas, alternativa a las descripciones largas de categories.py.
+# Algunos modelos NLI más viejos no saben manejar hipótesis largas.
+SHORT_LABELS = {
+    "geografia": "geography",
+    "historia": "history",
+    "ciencia": "science",
+    "arte": "art and literature",
+    "entretenimiento": "entertainment",
+    "deportes": "sports",
+}
 
 
 def load_sample(size: int, seed: int) -> list[Any]:
@@ -56,8 +73,12 @@ def evaluate(args: argparse.Namespace) -> None:
     sample = load_sample(args.sample, args.seed)
     texts = [build_text(row, args.with_answer) for row in sample]
 
-    descriptions = get_category_descriptions()
-    desc_to_name = dict(zip(descriptions, get_category_names()))
+    # Candidatas: descripciones largas (por defecto) o etiquetas cortas
+    if args.short_labels:
+        candidates = [SHORT_LABELS[name] for name in get_category_names()]
+    else:
+        candidates = get_category_descriptions()
+    candidate_to_name = dict(zip(candidates, get_category_names()))
     label_to_name = {c["label"]: c["name"] for c in CATEGORIES}
 
     # Los dos clasificadores tienen la misma interfaz: el resto del código
@@ -69,18 +90,22 @@ def evaluate(args: argparse.Namespace) -> None:
 
     # (categoría predicha, score, categoría del dataset)
     predictions: list[tuple[str, float, str | None]] = []
+
+    # Medimos solo la clasificación (sin la carga del modelo)
+    start_time = time.perf_counter()
     for start in tqdm(range(0, len(texts), CHUNK_SIZE), desc="Evaluando", unit="tanda"):
         results = classifier.classify_batch(
-            texts[start : start + CHUNK_SIZE], descriptions, args.batch_size
+            texts[start : start + CHUNK_SIZE], candidates, args.batch_size
         )
         for row, result in zip(sample[start : start + CHUNK_SIZE], results):
             predictions.append(
                 (
-                    desc_to_name[result.category_name],
+                    candidate_to_name[result.category_name],
                     result.confidence_score,
                     label_to_name.get(row.category),
                 )
             )
+    elapsed = time.perf_counter() - start_time
 
     total = len(predictions)
     print()
@@ -91,7 +116,9 @@ def evaluate(args: argparse.Namespace) -> None:
         print(f"Método:    zero-shot ({args.model})")
         print(f"Plantilla: {args.template}")
     print(f"Texto:     {'pregunta + respuesta' if args.with_answer else 'solo pregunta'}")
+    print(f"Etiquetas: {'cortas' if args.short_labels else 'descripciones largas'}")
     print(f"Muestra:   {total} preguntas (semilla {args.seed})")
+    print(f"Tiempo:    {elapsed:.1f} s ({total / elapsed:.1f} preguntas/s)")
     print("═" * 64)
 
     top1 = sum(pred == orig for pred, _, orig in predictions)
@@ -145,6 +172,8 @@ def parse_args() -> argparse.Namespace:
                         help="Frase de hipótesis (solo para zero-shot)")
     parser.add_argument("--with-answer", action="store_true",
                         help="Incluir la respuesta correcta en el texto")
+    parser.add_argument("--short-labels", action="store_true",
+                        help="Usar etiquetas cortas en lugar de las descripciones largas")
     parser.add_argument("--batch-size", type=int, default=16)
     return parser.parse_args()
 
