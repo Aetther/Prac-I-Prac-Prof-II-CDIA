@@ -37,7 +37,8 @@ def main() -> None:
     try:
         questions: list[Any] = db.query(Question.id, Question.question, Question.answer).all()
         id_by_text = {(q.question, q.answer): q.id for q in questions}
-        existing: dict[int, Any] = {c.question_id: c for c in db.query(Categorization).all()}
+        categorizations: list[Any] = db.query(Categorization).all()
+        existing: dict[int, Any] = {c.question_id: c for c in categorizations}
 
         for decision in decisions:
             question_id = id_by_text.get((decision["question"], decision["answer"]))
