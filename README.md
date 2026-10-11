@@ -1,71 +1,243 @@
-# Questions API
+# Questions API — Trivia estilo Preguntados con categorización por IA
 
-API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face.
+![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
+![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
+![Tests](https://img.shields.io/badge/tests-92-brightgreen?logo=pytest&logoColor=white)
+
+API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face y se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura.
 
 Proyecto de Práctica Profesional II — CDIA.
 
+## Índice
+
+1. [Tecnologías](#tecnologías)
+2. [Estructura del proyecto](#estructura-del-proyecto)
+3. [Base de datos](#base-de-datos)
+4. [Requisitos](#requisitos)
+5. [Instalación y puesta en marcha](#instalación-y-puesta-en-marcha)
+6. [Uso de GPU (opcional)](#uso-de-gpu-opcional)
+7. [API](#api)
+8. [Dataset](#dataset)
+9. [Categorización con IA](#categorización-con-ia)
+10. [Scripts](#scripts)
+11. [Resultados](#resultados)
+12. [Tests](#tests)
+13. [Problemas frecuentes](#problemas-frecuentes)
+14. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
+15. [Créditos y licencias](#créditos-y-licencias)
+
+---
+
 ## Tecnologías
 
-- **Python 3.13** con **Poetry** para el manejo de dependencias
-- **FastAPI** + **Uvicorn** para la API
-- **SQLAlchemy** como ORM
-- **PostgreSQL** en un contenedor de **Docker**
-- **pandas** + **pyarrow** para leer el dataset en formato Parquet
-- **pytest** + **httpx** para los tests
+| Área | Herramientas |
+|---|---|
+| Lenguaje y dependencias | Python 3.13, Poetry |
+| API | FastAPI, Uvicorn |
+| Base de datos | PostgreSQL (en Docker), SQLAlchemy |
+| Datos | pandas, pyarrow, requests, ftfy |
+| IA | transformers, PyTorch, sentence-transformers, scikit-learn, SetFit |
+| Tests | pytest, httpx |
 
 ## Estructura del proyecto
 
 ```
 ├── app/
 │   ├── __init__.py
-│   ├── database.py      # Conexión a la base de datos y sesión
-│   ├── models.py        # Modelo Question (tabla questions)
-│   ├── load_data.py     # Descarga el dataset y lo carga en la base
-│   └── main.py          # Endpoints de la API
+│   ├── main.py                     # Endpoints de la API
+│   ├── database.py                 # Conexión a PostgreSQL y sesión
+│   ├── models.py                   # Tablas: questions y categorizations
+│   ├── load_data.py                # Descarga, limpia y carga el dataset
+│   ├── categories.py               # Las 6 categorías y sus descripciones
+│   ├── classifier.py               # Clasificador zero-shot (IA)
+│   ├── cosine_classifier.py        # Clasificador alternativo: similitud coseno
+│   ├── human_review.py             # Revisión humana por consola
+│   ├── categorize.py               # Orquestador: IA + revisión humana
+│   ├── review_automatic.py         # Medición de precisión con revisión humana
+│   ├── export_training.py          # Exporta las decisiones humanas a CSV
+│   ├── restore_decisions.py        # Restaura las decisiones humanas desde el CSV
+│   ├── evaluate.py                 # Banco de pruebas para comparar configuraciones
+│   ├── train_classifier.py         # Experimento: clasificador entrenado (pseudo-etiquetado)
+│   ├── train_setfit.py             # Fine-tuning con SetFit
+│   └── fix_encoding.py             # Reparación de codificación (ya integrada en load_data)
+├── data/
+│   ├── training_data.csv           # Decisiones humanas (ejemplos verificados)
+│   └── precision_review.csv        # Registro de la revisión de precisión
 ├── tests/
-│   └── test_api.py      # Tests de los endpoints
-├── docker-compose.yml   # Servicio de PostgreSQL
-└── pyproject.toml       # Dependencias y configuración
+│   ├── conftest.py                 # Marcadores por carpeta, base de prueba y cliente de la API
+│   ├── unit/
+│   │   ├── test_categories.py
+│   │   ├── test_classifier.py
+│   │   ├── test_human_review.py
+│   │   ├── test_load_data.py
+│   │   └── test_statistics.py
+│   ├── integration/
+│   │   ├── test_api.py
+│   │   └── test_restore_decisions.py
+│   ├── data_quality/
+│   │   ├── conftest.py             # Conexión a la base real (saltea si no está disponible)
+│   │   ├── test_categorizations.py
+│   │   ├── test_csv_files.py
+│   │   └── test_questions.py
+│   └── validation/
+│       ├── test_api_inputs.py
+│       └── test_model_quality.py
+├── .vscode/settings.json           # Configura VS Code para usar Poetry
+├── prueba_clasificador.py          # Prueba rápida del clasificador
+├── docker-compose.yml              # Servicio de PostgreSQL
+├── pyproject.toml                  # Dependencias y configuración de pytest
+├── poetry.lock                     # Versiones exactas de las dependencias
+├── EXERCISE.md                     # Consigna del ejercicio base
+├── CONCEPTS.md                     # Conceptos del ejercicio base
+├── EXERCISE_AI_CATEGORIZATION.md   # Consigna de la categorización con IA
+├── CONCEPTS_AI_CATEGORIZATION.md   # Conceptos de la categorización con IA
+└── FIRST_STEPS.md                  # Instrucciones de la cátedra para traer cada consigna
 ```
 
-## Cómo ejecutarlo
+Cada carpeta de `tests/` tiene además un `__init__.py` vacío. Las carpetas `models/` (modelos entrenados) y `checkpoints/` se generan al entrenar y no se suben al repositorio, igual que los entornos virtuales y la caché de Python (ver `.gitignore`).
 
-Todos los comandos se ejecutan desde la raíz del proyecto.
+## Base de datos
 
-1. Instalar las dependencias:
-   ```bash
-   poetry install
+Dos tablas: las preguntas del dataset y la categoría asignada a cada una. Cada pregunta tiene como máximo una categorización.
+
+```mermaid
+erDiagram
+    QUESTIONS ||--o| CATEGORIZATIONS : tiene
+    QUESTIONS {
+        int id PK
+        text question
+        text answer "respuesta correcta"
+        text wrong_1
+        text wrong_2
+        text wrong_3
+        string category "categoría original del dataset"
+        string source
+    }
+    CATEGORIZATIONS {
+        int id PK
+        int question_id FK
+        string category_name "categoría asignada"
+        float confidence_score "confianza de la IA, de 0 a 1"
+        bool is_automatic "true si decidió la IA"
+        datetime created_at
+    }
+```
+
+La categoría original del dataset (`questions.category`) se conserva aparte de la asignada (`categorizations.category_name`), para poder compararlas.
+
+## Requisitos
+
+- **Python 3.11 a 3.13**
+- **[Poetry](https://python-poetry.org/)** para el manejo de dependencias
+- **[Docker](https://www.docker.com/)** para la base de datos
+- **Opcional:** GPU NVIDIA para acelerar la IA. Sin GPU todo funciona igual, pero la categorización completa pasa de ~35 minutos a varias horas.
+- Unos **5 GB libres** en disco para las dependencias de IA y los modelos.
+
+## Instalación y puesta en marcha
+
+Todos los comandos se ejecutan **desde la raíz del proyecto**. Los ejemplos son para PowerShell (Windows), pero funcionan igual en Linux y macOS.
+
+### 1. Instalar las dependencias
+
+```powershell
+poetry install
+```
+
+### 2. Levantar la base de datos
+
+```powershell
+docker compose up -d
+```
+
+El usuario, la contraseña y el nombre de la base están definidos en `docker-compose.yml`.
+
+### 3. Cargar las preguntas
+
+```powershell
+poetry run python -m app.load_data
+```
+
+Descarga el dataset de Hugging Face, repara los errores de codificación, filtra las preguntas válidas y las carga en la base. Ver [Dataset](#dataset).
+
+> [!WARNING]
+> Este script reemplaza todas las preguntas y borra sus categorizaciones. Las decisiones humanas se recuperan con el paso siguiente.
+
+### 4. Restaurar las decisiones humanas
+
+```powershell
+poetry run python -m app.restore_decisions
+```
+
+Recupera las 135 categorizaciones revisadas por una persona, guardadas en `data/training_data.csv`, para no tener que repetir esa revisión.
+
+### 5. Categorizar el resto con IA
+
+```powershell
+poetry run python -m app.categorize --auto-only
+```
+
+Clasifica las preguntas restantes y guarda automáticamente las que superan el 70% de confianza. La primera vez descarga el modelo (~1,7 GB). Tarda ~35 minutos con GPU. Se puede cortar con `Ctrl+C` y retomar: solo procesa lo que falta.
+
+### 6. Levantar la API
+
+```powershell
+poetry run uvicorn app.main:app --reload
+```
+
+- API: `http://localhost:8000`
+- Documentación interactiva: `http://localhost:8000/docs`
+
+Para acceder desde otro dispositivo de la misma red (por ejemplo, una notebook o un celular), agregar `--host 0.0.0.0` y usar la IP local de la computadora, que se obtiene con `ipconfig`. La primera vez, el Firewall de Windows pide permiso para redes privadas.
+
+## Uso de GPU (opcional)
+
+En Windows, el PyTorch que instala Poetry es la versión **solo CPU**. Para usar una GPU NVIDIA:
+
+1. Ver qué versión de CUDA soporta el driver:
+   ```powershell
+   nvidia-smi
    ```
+   Arriba a la derecha dice `CUDA Version: XX.X`.
 
-2. Levantar la base de datos:
-   ```bash
-   docker compose up -d
+2. Elegir en [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/) una versión de CUDA **menor o igual** a esa, y reinstalar PyTorch. Por ejemplo, con CUDA 13.0:
+   ```powershell
+   poetry run pip uninstall -y torch
+   poetry run pip install torch --index-url https://download.pytorch.org/whl/cu130
    ```
+   Las placas de la serie RTX 50 necesitan CUDA 12.8 o superior.
 
-3. Cargar las preguntas (crea la tabla y la llena con el dataset):
-   ```bash
-   poetry run python -m app.load_data
+3. Verificar:
+   ```powershell
+   poetry run python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
    ```
+   Tiene que mostrar una versión terminada en `+cu...` y `True`.
 
-4. Iniciar la API:
-   ```bash
-   poetry run uvicorn app.main:app --reload
-   ```
+> [!IMPORTANT]
+> Cada `poetry install` o `poetry add` vuelve a instalar la versión de CPU. Después de usarlos, verificar y repetir el paso 2 si hace falta.
 
-La API queda disponible en `http://localhost:8000` y la documentación interactiva en `http://localhost:8000/docs`.
+El código detecta la GPU automáticamente: si está disponible la usa, y si no, usa la CPU. La versión de CUDA no se fija en `pyproject.toml` para que el proyecto se pueda instalar en cualquier computadora.
 
-## Endpoints
+## API
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/` | Estado de la API y lista de endpoints |
-| GET | `/questions` | Lista de preguntas, paginada con `skip` y `limit` |
+| GET | `/questions` | Lista de preguntas, paginada |
 | GET | `/questions/{id}` | Una pregunta por su id |
-| GET | `/questions/category/{category}` | Preguntas de una categoría (sin distinguir mayúsculas), paginadas con `skip` y `limit`. Devuelve 404 si no hay resultados |
-| GET | `/stats` | Total de preguntas y cantidad por categoría |
-| POST | `/questions` | Crea una pregunta nueva. Devuelve 201 si se creó y 400 si faltan campos o hay opciones repetidas |
+| GET | `/questions/category/{category_name}` | Preguntas categorizadas (por IA o por una persona) en esa categoría, paginadas. Incluye la categoría original del dataset y la asignada |
+| GET | `/stats` | Total de preguntas y cantidad por categoría original del dataset |
+| GET | `/categories` | Las 6 categorías disponibles |
+| GET | `/categories/stats` | Total, categorizadas, pendientes, automáticas, manuales y cantidad por categoría |
+| POST | `/questions` | Crea una pregunta nueva |
+| PUT | `/categorizations/{id}` | Corrige la categoría de una pregunta (queda registrada como decisión humana) |
 
-Ejemplo de cuerpo para `POST /questions`:
+Los nombres de categoría para las rutas son: `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` y `deportes`. No distinguen mayúsculas.
+
+**Paginación:** `skip` (≥ 0) y `limit` (entre 1 y 100). Por ejemplo, `/questions/category/arte?skip=0&limit=5`.
+
+**Crear una pregunta** (`POST /questions`):
 
 ```json
 {
@@ -78,26 +250,35 @@ Ejemplo de cuerpo para `POST /questions`:
 }
 ```
 
+**Corregir una categorización** (`PUT /categorizations/{id}`). El `id` de la categorización aparece como `categorization_id` en `/questions/category/{category_name}`:
+
+```json
+{
+  "category_name": "arte"
+}
+```
+
+**Códigos de error:**
+
+- **400**: el dato tiene el formato correcto pero viola una regla, como campos vacíos, opciones repetidas o una categoría inexistente.
+- **404**: el recurso no existe, como una categoría o una categorización inexistente.
+- **422**: el dato no tiene el tipo correcto. Lo responde FastAPI automáticamente, por ejemplo con `limit=1000` o un `id` que no es un número.
+
 ## Dataset
 
-### Cambio de dataset
+### Origen
 
-El dataset original propuesto en el ejercicio no estaba disponible (es privado), y además solo tenía pregunta y respuesta. Para una app tipo Preguntados se necesitan **opciones incorrectas** para que el usuario elija, así que se reemplazó por:
+**[kth8/OpenTriviaQA](https://huggingface.co/datasets/kth8/OpenTriviaQA)**: 49.599 preguntas de trivia de opción múltiple, en inglés, en formato Parquet. Es una versión del proyecto [OpenTriviaQA](https://github.com/uberspot/OpenTriviaQA).
 
-**[kth8/OpenTriviaQA](https://huggingface.co/datasets/kth8/OpenTriviaQA)**: unas 49.600 preguntas de trivia de opción múltiple, en formato Parquet. Es una versión del proyecto [OpenTriviaQA](https://github.com/uberspot/OpenTriviaQA), publicada en Hugging Face bajo licencia CC BY 4.0.
+Reemplazó al dataset original de la consigna, que no estaba disponible (era privado) y además no tenía opciones incorrectas, necesarias para un juego de este tipo.
 
-Cada fila del dataset original tiene:
+### Limpieza (`app/load_data.py`)
 
-- `category`: categoría temática
-- `question`: la pregunta
-- `choices`: lista de opciones (incluye la correcta)
-- `answer`: la respuesta correcta
-
-### Transformaciones aplicadas (`app/load_data.py`)
-
-1. **Filtrado por cantidad de opciones:** se conservan solo las preguntas con la respuesta correcta y exactamente 3 opciones incorrectas. Así se descartan las de Verdadero/Falso.
-2. **Separación de opciones:** las incorrectas se guardan en columnas propias (`wrong_1`, `wrong_2`, `wrong_3`), separadas de la correcta (`answer`).
-3. **Mapeo de categorías:** las categorías originales se agrupan en las 6 de Preguntados. Las que no encajan (por ejemplo *celebrities* o *rated*) se descartan.
+1. **Reparación de codificación con `ftfy`**: el dataset tenía 778 preguntas con caracteres mal codificados, por ejemplo `Queenâ\x80\x99s` en lugar de `Queen's`. Algunos de esos caracteres eran códigos de control que llegaban a trabar la terminal.
+2. **Solo preguntas de 4 opciones**: la correcta más exactamente 3 incorrectas distintas. Se descartan las de Verdadero/Falso.
+3. **Preguntas Verdadero/Falso "disfrazadas"**: se descartan las que tienen "True" o "False" entre sus 4 opciones; las otras dos opciones resultaron ser fragmentos de texto cortados.
+4. **Duplicados**: algunas preguntas aparecían en varias categorías del dataset; se conserva solo la primera aparición.
+5. **Mapeo de categorías** a las 6 de Preguntados (las demás, como *celebrities* o *rated*, se descartan):
 
 | Categoría | Categorías originales |
 |---|---|
@@ -108,27 +289,265 @@ Cada fila del dataset original tiene:
 | Entretenimiento | movies, music, television, video-games |
 | Deportes | sports |
 
-### Resultado
+**Resultado: 26.836 preguntas válidas.** Los problemas de duplicados y de Verdadero/Falso disfrazadas los encontraron los [tests de calidad de datos](#tests).
 
-De 49.599 preguntas originales quedaron **26.867** válidas:
+### Una advertencia sobre las categorías originales
 
-| Categoría | Preguntas |
-|---|---:|
-| Arte | 2.033 |
-| Ciencia | 3.118 |
-| Deportes | 2.394 |
-| Entretenimiento | 12.992 |
-| Geografía | 4.892 |
-| Historia | 1.438 |
+La categoría original del dataset **no es una referencia confiable**. La categoría *world* (mapeada a Geografía) resultó ser una mezcla con muchas preguntas de historia y política, y el dataset muchas veces clasificaba según la respuesta y no según el tema: una pregunta sobre el perro de Richard Nixon estaba en *animals* (→ Ciencia). Por eso, la "coincidencia con el dataset" se usó solo como referencia aproximada, y la precisión real se midió con [revisión humana](#precisión-real-revisión-humana).
 
-Las categorías quedan desbalanceadas: Entretenimiento concentra casi la mitad. Para que el juego sea parejo, conviene elegir primero la categoría (como la ruleta de Preguntados) y después una pregunta al azar dentro de ella.
+## Categorización con IA
 
-Las preguntas están en inglés.
+### Cómo funciona
+
+```mermaid
+flowchart LR
+    A[Hugging Face<br/>OpenTriviaQA] -->|load_data| B[(Preguntas)]
+    C[training_data.csv<br/>decisiones humanas] -->|restore_decisions| D[(Categorizaciones)]
+    B --> E{IA zero-shot<br/>confianza ≥ 70%?}
+    E -->|Sí| F[Automática]
+    E -->|No| G[Revisión humana]
+    G -->|Acepta o corrige| H[Manual]
+    G -->|Saltea| I[Queda pendiente]
+    F --> D
+    H --> D
+    D --> J[API FastAPI]
+```
+
+1. **Clasificación *zero-shot***: el modelo [`MoritzLaurer/deberta-v3-large-zeroshot-v2.0`](https://huggingface.co/MoritzLaurer/deberta-v3-large-zeroshot-v2.0) evalúa, para cada categoría, qué tan probable es la frase *"This trivia question is about {descripción de la categoría}."* dado el texto. No necesita entrenamiento previo con estas preguntas.
+2. **El modelo ve la pregunta junto con su respuesta correcta**, que le da más contexto.
+3. **Umbral de confianza del 70%**: si la IA supera el umbral, la categorización se guarda automáticamente; si no, se deriva a una persona.
+4. **Revisión humana**: la persona ve la pregunta, la respuesta, la sugerencia de la IA y los scores de todas las categorías, y acepta la sugerencia, elige otra categoría o saltea la pregunta.
+
+Las categorías y sus descripciones (en inglés, porque el modelo y las preguntas están en inglés) están en `app/categories.py`. Las descripciones de Arte y Entretenimiento se ajustaron para separar mejor la cultura "clásica" (literatura, teatro, música clásica) de la cultura popular (cine, TV, pop, videojuegos).
+
+### Guía de categorización
+
+Criterios que se aplicaron en la revisión humana. La regla general es **clasificar por el tema de la pregunta, no por el tipo de respuesta**: una pregunta sobre un músico es Entretenimiento aunque la respuesta sea una ciudad.
+
+| Tema | Categoría |
+|---|---|
+| Símbolos, lemas, apodos, idiomas y códigos de área de países, estados o ciudades | Geografía |
+| Religiones vigentes, festividades y tradiciones | Historia |
+| Mitología antigua (griega, nórdica, egipcia) | Arte |
+| Literatura, novelas y sus personajes | Arte |
+| Compositores y obras clásicas (música clásica, ragtime, ópera), teatro clásico | Arte |
+| Cantantes, bandas e intérpretes del espectáculo; musicales de Broadway | Entretenimiento |
+| Cine, series, manga, anime, cómics, videojuegos | Entretenimiento |
+| Científicos, matemáticos, inventos, psicología, nutrición | Ciencia |
+| Ajedrez, lucha libre profesional | Deportes |
+| Gastronomía, negocios no relacionados con los medios, preguntas sin contexto | Saltear |
+
+## Scripts
+
+Todos se ejecutan desde la raíz con `poetry run python -m app.<script>`. Los que usan IA descargan el modelo la primera vez.
+
+| Script | Para qué |
+|---|---|
+| `load_data` | Descarga, limpia y carga el dataset |
+| `restore_decisions` | Restaura las decisiones humanas desde `data/training_data.csv`. Es seguro correrlo varias veces |
+| `categorize` | Categoriza con IA y revisión humana |
+| `review_automatic` | Mide la precisión real revisando categorizaciones automáticas al azar |
+| `export_training` | Exporta las decisiones humanas a `data/training_data.csv` |
+| `evaluate` | Banco de pruebas: compara modelos y configuraciones sin escribir en la base |
+| `train_classifier` | Experimento de pseudo-etiquetado (ver resultados) |
+| `train_setfit` | Fine-tuning con SetFit y comparación con el zero-shot |
+| `fix_encoding` | Repara la codificación en una base ya cargada (ya no hace falta: `load_data` lo hace al cargar) |
+
+### `categorize`
+
+```powershell
+poetry run python -m app.categorize --limit 50        # 50 preguntas al azar, con revisión humana
+poetry run python -m app.categorize --auto-only       # todas, sin revisión humana
+```
+
+| Opción | Descripción |
+|---|---|
+| `--limit N` | Procesar como máximo N preguntas pendientes, elegidas al azar |
+| `--threshold X` | Umbral de confianza, entre 0 y 1 (por defecto 0.70) |
+| `--batch-size N` | Preguntas que procesa la GPU en paralelo (por defecto 16) |
+| `--auto-only` / `--no-review` | Guardar solo las de alta confianza y saltear las demás |
+
+### `review_automatic`
+
+```powershell
+poetry run python -m app.review_automatic --sample 60                    # 60 al azar
+poetry run python -m app.review_automatic --sample 15 --category arte    # solo de una categoría
+poetry run python -m app.review_automatic --sample 0                     # solo ver el reporte
+```
+
+Cada revisión se registra en `data/precision_review.csv`. Si la persona marca una categorización como incorrecta, se corrige en la base. El reporte calcula la precisión con un intervalo de confianza del 95% (método de Wilson).
+
+### `evaluate`
+
+```powershell
+poetry run python -m app.evaluate --with-answer
+poetry run python -m app.evaluate --model facebook/bart-large-mnli --with-answer
+poetry run python -m app.evaluate --method cosine --with-answer --short-labels
+```
+
+| Opción | Descripción |
+|---|---|
+| `--method` | `zero-shot` (por defecto) o `cosine` |
+| `--model` | Modelo de Hugging Face para zero-shot |
+| `--template` | Frase de hipótesis |
+| `--with-answer` | Incluir la respuesta correcta en el texto |
+| `--short-labels` | Usar etiquetas cortas ("geography") en lugar de las descripciones largas |
+| `--sample N` / `--seed N` | Tamaño y semilla de la muestra (por defecto 2000 y 42) |
+
+Usa siempre la misma muestra para una semilla dada, así las comparaciones son reproducibles. Muestra el acierto top-1, la cobertura y la coincidencia para varios umbrales, el detalle por categoría y la velocidad.
+
+### `prueba_clasificador.py`
+
+```powershell
+poetry run python prueba_clasificador.py
+```
+
+Clasifica 6 preguntas de ejemplo. Sirve para comprobar rápido que el modelo se descarga bien y que la GPU funciona antes de correr procesos largos.
+
+## Resultados
+
+### Resultado final
+
+| | |
+|---|---|
+| Preguntas | 26.836 |
+| Categorizadas automáticamente por la IA | ~77% |
+| Decisiones humanas | 135 (60 casos difíciles + 75 automáticas verificadas) |
+| Pendientes de revisión humana | ~6.000 (~22%) |
+| **Precisión de las automáticas (revisión humana)** | **100% en 60 al azar; entre 94% y 100% con 95% de confianza** |
+
+### Evolución del sistema
+
+Medido con `evaluate` sobre las mismas 2.000 preguntas (semilla 42). "Coincidencia" es con la categoría del dataset, sin contar Geografía (la más ruidosa).
+
+| Configuración | Top-1 | Cobertura al 70% | Coincidencia al 70% |
+|---|---:|---:|---:|
+| BART, solo pregunta (inicial) | 68,5% | 26,9% | 94,8% |
+| BART + respuesta | 70,0% | 20,8% | 95,6% |
+| DeBERTa v2.0, solo pregunta | 77,0% | 79,5% | 92,9% |
+| DeBERTa v2.0 + respuesta | 77,5% | 81,2% | 92,8% |
+| **DeBERTa v2.0 + respuesta + descripciones nuevas (final)** | **77,8%** | **76,7%** | **94,0%** |
+
+Con el mismo umbral del 70% y prácticamente la misma calidad, la automatización pasó del **27% al 77%**, y las revisiones manuales necesarias bajaron de ~19.600 a ~6.000. La configuración final se validó con otra muestra (semilla 7): top-1 de 78,2%, cobertura de 77,8% y coincidencia de 94,0%, lo que descarta que la mejora sea casualidad de una muestra (*overfitting*).
+
+Otros hallazgos:
+
+- **La frase de hipótesis casi no importa con DeBERTa v2.0**: tres variantes dieron el mismo top-1 (~77,5%); solo cambia la calibración de la confianza.
+- **El umbral depende del modelo**: DeBERTa da scores más altos que BART, así que un mismo umbral no significa lo mismo en los dos.
+- **Las descripciones nuevas** subieron el acierto en Arte de 41% a 63%, a costa de bajar Entretenimiento de 97,6% a 94,8%.
+
+### Comparación de modelos (actividad 6)
+
+Top-1 sobre 2.000 preguntas (semilla 42), con pregunta + respuesta, en una RTX 5070 Ti:
+
+| Modelo | Parámetros | Descripciones largas | Etiquetas cortas | Velocidad |
+|---|---:|---:|---:|---:|
+| **deberta-v3-large-zeroshot-v2.0** (elegido) | 435 M | **77,9%** | **77,7%** | ~25 preguntas/s |
+| bart-large-mnli | 407 M | 71,2% | 61,8% | 27 a 36 preguntas/s |
+| DeBERTa-v3-base-mnli-fever-anli | 184 M | 20,2% | 67,8% | ~45 preguntas/s |
+| Similitud coseno (all-mpnet-base-v2) | 110 M | 63,3% | 43,0% | **~500 preguntas/s** |
+
+- **DeBERTa-v3-base se rompe con las descripciones largas** (20%, prácticamente azar: con 6 categorías el azar es 16,7%). Un diagnóstico mostró que elegía "Deportes" para casi cualquier pregunta. Con etiquetas cortas funciona bien y supera a BART. No es un modelo malo, sino incompatible con hipótesis largas.
+- **Cada modelo responde distinto a la forma de las etiquetas**: no existe una configuración que sea la mejor para todos, y comparar modelos con una sola configuración puede llevar a conclusiones equivocadas.
+- **Similitud coseno (actividad 1)**: unas 20 veces más rápida, pero bastante menos precisa. Mide qué tan parecidos son dos textos, no si uno pertenece a la categoría que describe el otro.
+- Advertencia: las descripciones largas se ajustaron usando el modelo elegido, así que esa columna lo favorece un poco. En la columna de etiquetas cortas, que es neutral, igual sigue ganando.
+
+### Precisión real (revisión humana)
+
+La "coincidencia con el dataset" subestima a la IA, porque el dataset tiene errores. La precisión real se midió revisando a mano categorizaciones automáticas al azar (actividad 5):
+
+| Muestra | Correctas | Intervalo de confianza 95% |
+|---|---:|---|
+| 60 al azar (todas las categorías) | 60/60 | 94,0% a 100% |
+| 15 adicionales solo de Arte (la categoría más difícil) | 15/15 | — |
+
+Con las 16 revisiones de Arte en total (16/16), la precisión de Arte está entre 81% y 100%. Las cifras por categoría tienen pocos casos y deben leerse con cuidado. La medición la hizo **un solo revisor**: en una evaluación formal se usan varios y se mide cuánto coinciden entre sí.
+
+De las ~600 "diferencias" con el dataset en Historia, una muestra mostró que la mayoría eran **aciertos de la IA**: preguntas históricas que el dataset tenía en *world*.
+
+### Fine-tuning con SetFit (actividad 2)
+
+SetFit ajusta un modelo de `sentence-transformers` con pocos ejemplos. Se entrenó con las 135 decisiones humanas y se evaluó con validación cruzada de 5 partes, comparando con el zero-shot sobre los mismos ejemplos:
+
+| Grupo | N | Zero-shot | SetFit |
+|---|---:|---:|---:|
+| **Manuales (casos difíciles)** | 60 | 68,3% | **76,7%** |
+| Automáticos verificados | 75 | 100%* | 90,7% |
+| Todos | 135 | 85,9% | 84,4% |
+
+\* Por construcción: son las que el zero-shot resolvió con confianza y una persona confirmó.
+
+SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de diferencia sobre 60: es un resultado prometedor, no concluyente. Empeora en los casos fáciles y en Arte, por el desbalance de ejemplos (51 de Entretenimiento contra 20 de Arte). Con un 77% de acierto no alcanza para decidir solo, pero podría mejorar la sugerencia que ve la persona en la revisión humana.
+
+### Pseudo-etiquetado (experimento sin éxito)
+
+`train_classifier` entrena una regresión logística sobre embeddings, usando como ejemplos las ~20.800 preguntas que la IA categorizó con confianza, para clasificar las ~6.000 pendientes. Imita muy bien las decisiones de la IA (95,9%), pero en las pendientes casi no mejora al zero-shot, y su confianza no es confiable (al 90% de confianza, solo ~70% de coincidencia). Las preguntas pendientes son genuinamente difíciles (ambiguas o fuera del esquema de categorías), y aprender de los casos fáciles no enseña a resolverlas. Ese es justamente el espacio donde tiene sentido la revisión humana.
 
 ## Tests
 
-```bash
-poetry run pytest -v
+92 tests organizados en cuatro tipos:
+
+| Tipo | Carpeta | Qué verifica | Requisitos |
+|---|---|---|---|
+| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, revisión humana, estadística | Ninguno |
+| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, restauración de decisiones | Ninguno (usa SQLite en memoria) |
+| Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes | PostgreSQL con datos (si no está, esos tests se saltean) |
+| Validación | `tests/validation/` | Entradas inválidas en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
+
+```powershell
+poetry run pytest -v                  # todos, salvo los lentos
+poetry run pytest -m unit -v          # solo un tipo: unit, integration, data_quality o validation
+poetry run pytest -m slow -v          # validación del modelo de IA (~1 minuto)
 ```
 
-Los tests usan una base **SQLite en memoria** que reemplaza a PostgreSQL mediante `dependency_overrides` de FastAPI. No tocan los datos reales ni necesitan Docker levantado. Cubren el filtro por categoría, las estadísticas y la creación de preguntas, tanto en los casos válidos como en los de error.
+Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tests/conftest.py`). Los tests de la API y de restauración usan una base SQLite en memoria y un CSV temporal, así que nunca modifican los datos reales.
+
+## Problemas frecuentes
+
+| Problema | Solución |
+|---|---|
+| `ModuleNotFoundError: No module named 'app'` | Ejecutar desde la raíz del proyecto y con `-m`: `poetry run python -m app.load_data`, no `python app/load_data.py` |
+| `No module named 'app.xxx'` | El archivo no está dentro de `app/`, tiene otro nombre o no está guardado |
+| PyTorch dice `+cpu` o `cuda.is_available()` da `False` | Reinstalar PyTorch con CUDA ([Uso de GPU](#uso-de-gpu-opcional)). Pasa después de cada `poetry install` o `poetry add` |
+| En el intérprete de Python 3.13 no se pueden escribir llaves `{ }` con teclado en español | Usar el intérprete clásico: `$env:PYTHON_BASIC_REPL = "1"` antes de `poetry run python` |
+| `poetry install` dice que no encuentra el paquete del proyecto | Ya está resuelto con `package-mode = false` en `pyproject.toml` |
+| VS Code marca los imports como no resueltos | Elegir el intérprete del entorno de Poetry: `Ctrl+Shift+P` → *Python: Select Interpreter* (la ruta se obtiene con `poetry env info --path`) |
+| `psql` muestra la salida en un visor y no vuelve | Salir con `q`, o agregar `-P pager=off` al comando |
+| El contenedor nuevo no arranca porque el puerto 5432 está ocupado | Quedó un contenedor viejo corriendo: bajarlo con `docker compose down` desde la carpeta donde se creó |
+| La API devuelve 404 en `/questions/category/xxx` | La categoría no existe: usar `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` o `deportes` |
+| Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
+
+## Limitaciones conocidas y posibles mejoras
+
+**Datos**
+
+- Unas **84 preguntas dependen de contenido que se perdió** del dataset original, como un audio o una imagen ("¿en qué película escuchamos esto?"). No se descartan automáticamente porque algunas incluyen ese contenido en el texto; habría que revisarlas una por una.
+- **Las preguntas están en inglés.** Para mostrarlas en español, la propuesta es traducirlas una sola vez con un modelo de traducción, guardarlas en una tabla aparte (`question_translations`) y elegir el idioma con un parámetro de la API (`?lang=es`), revisando una muestra de la calidad igual que con la categorización.
+- **Temas sin categoría**: gastronomía, negocios y economía no encajan en ninguna de las 6 categorías.
+
+**Categorización**
+
+- Agregar *mathematics*, *psychology* e *inventors* a la descripción de Ciencia: en la revisión se vieron preguntas de esos temas que la IA mandaba a Historia o Arte.
+- El sistema no recuerda las preguntas salteadas en la revisión humana, que pueden volver a aparecer.
+- Usar SetFit para mejorar la sugerencia de la revisión humana en los casos difíciles, confirmándolo antes con más ejemplos manuales.
+- Acelerar la clasificación con media precisión (`float16`) o pasando los textos al pipeline como un `Dataset`.
+
+**Evaluación**
+
+- La precisión la midió un solo revisor; lo ideal serían varios, midiendo cuánto coinciden entre sí.
+
+**Proyecto**
+
+- Separar las dependencias de IA en un grupo opcional de Poetry, para que la API se pueda instalar sin PyTorch.
+- Empaquetar la API en Docker junto con una copia de la base ya categorizada, para levantar todo con `docker compose up` sin instalar Python.
+- `starlette.testclient` avisa que en versiones futuras usará `httpx2` en lugar de `httpx`. Cuando el ecosistema complete la transición, habrá que migrar.
+
+## Créditos y licencias
+
+- **Dataset:** [kth8/OpenTriviaQA](https://huggingface.co/datasets/kth8/OpenTriviaQA), publicado bajo licencia CC BY 4.0, basado en el proyecto [OpenTriviaQA](https://github.com/uberspot/OpenTriviaQA).
+- **Modelos:**
+  - [MoritzLaurer/deberta-v3-large-zeroshot-v2.0](https://huggingface.co/MoritzLaurer/deberta-v3-large-zeroshot-v2.0) (licencia MIT)
+  - [facebook/bart-large-mnli](https://huggingface.co/facebook/bart-large-mnli)
+  - [MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli](https://huggingface.co/MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli) (licencia MIT)
+  - [sentence-transformers/all-mpnet-base-v2](https://huggingface.co/sentence-transformers/all-mpnet-base-v2)
+- **Consignas:** `EXERCISE.md`, `CONCEPTS.md`, `EXERCISE_AI_CATEGORIZATION.md` y `CONCEPTS_AI_CATEGORIZATION.md`, provistas por la cátedra.
