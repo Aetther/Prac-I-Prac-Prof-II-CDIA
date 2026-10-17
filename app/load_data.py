@@ -1,7 +1,8 @@
 """
 Descarga el dataset de trivia desde Hugging Face y lo carga en la base.
 
-1. Descarga kth8/OpenTriviaQA en formato Parquet
+1. Descarga kth8/OpenTriviaQA en formato Parquet, en una versión fija,
+   y verifica que el archivo sea exactamente el esperado (hash SHA-256)
 2. Repara errores de codificación del texto con ftfy
 3. Se queda con las preguntas de 4 opciones (correcta + 3 incorrectas)
 4. Agrupa las categorías originales en las 6 de Preguntados
@@ -13,6 +14,7 @@ Las decisiones humanas se pueden restaurar después con:
 Uso:
     poetry run python -m app.load_data
 """
+import hashlib
 import os
 import tempfile
 
@@ -23,10 +25,17 @@ from ftfy import fix_text
 from app.database import SessionLocal, engine
 from app.models import Base, Categorization, Question
 
+# Versión fija del dataset: un commit no cambia nunca, a diferencia de la rama
+# refs/convert/parquet, que Hugging Face regenera sola. Así todos obtienen
+# exactamente las mismas preguntas.
+DATASET_REVISION = "e7722ebb15ac58f252aa9f8fae8c8efb95e8446d"
 DATASET_URL = (
     "https://huggingface.co/datasets/kth8/OpenTriviaQA/resolve/"
-    "refs%2Fconvert%2Fparquet/default/train/0000.parquet"
+    f"{DATASET_REVISION}/default/train/0000.parquet"
 )
+# "Huella digital" del archivo esperado. Si el archivo descargado no coincide,
+# la carga se detiene en lugar de cargar datos distintos o alterados.
+DATASET_SHA256 = "daef760658d2b3f39be17a769d4de499282bd7f565af26eb650a9b58009d3b59"
 
 # Categorías del dataset -> categorías estilo Preguntados.
 # Las que no figuran acá se descartan.
@@ -51,10 +60,22 @@ def clean(value) -> str:
     return fix_text(str(value)).strip()
 
 
-def download_parquet(url: str) -> str:
+def verify_sha256(content: bytes, expected: str) -> None:
+    """Lanza un error si el hash SHA-256 del contenido no es el esperado."""
+    actual = hashlib.sha256(content).hexdigest()
+    if actual != expected:
+        raise ValueError(
+            "El archivo descargado no coincide con la versión esperada "
+            f"(sha256 esperado {expected}, obtenido {actual}). No se cargó nada."
+        )
+
+
+def download_parquet(url: str, expected_sha256: str) -> str:
     print(f"Descargando {url}...")
     r = requests.get(url, timeout=60)
     r.raise_for_status()
+    verify_sha256(r.content, expected_sha256)
+    print("Archivo verificado (sha256 correcto).")
     with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp:
         tmp.write(r.content)
         return tmp.name
@@ -110,7 +131,7 @@ def build_rows(df: pd.DataFrame) -> list[dict]:
 def load_questions():
     Base.metadata.create_all(bind=engine)
 
-    parquet_path = download_parquet(DATASET_URL)
+    parquet_path = download_parquet(DATASET_URL, DATASET_SHA256)
     try:
         df = pd.read_parquet(parquet_path)
     finally:

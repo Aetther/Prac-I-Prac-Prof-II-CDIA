@@ -15,6 +15,8 @@ from typing import Any
 import torch
 from transformers import pipeline
 
+from app.model_versions import get_revision
+
 # Modelo elegido tras comparar variantes con app/evaluate.py
 DEFAULT_MODEL = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"
 
@@ -68,7 +70,10 @@ class AIClassifier:
         print(f"Cargando modelo {model_name} en {device_name}...")
         print("(La primera vez se descarga el modelo, puede tardar unos minutos)")
         self.pipeline = pipeline(
-            "zero-shot-classification", model=model_name, device=self.device
+            "zero-shot-classification",
+            model=model_name,
+            revision=get_revision(model_name),  # versión fija (app/model_versions.py)
+            device=self.device,
         )
         print("Modelo cargado.")
 

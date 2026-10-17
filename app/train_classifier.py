@@ -27,6 +27,7 @@ from sqlalchemy import select
 from app.categories import CATEGORIES
 from app.classifier import build_input_text
 from app.database import SessionLocal
+from app.model_versions import get_revision
 from app.models import Categorization, Question
 
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
@@ -81,7 +82,9 @@ def main() -> None:
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Cargando {EMBEDDING_MODEL} en {device}...")
-    encoder = SentenceTransformer(EMBEDDING_MODEL, device=device)
+    encoder = SentenceTransformer(
+        EMBEDDING_MODEL, device=device, revision=get_revision(EMBEDDING_MODEL)
+    )
 
     print("Generando embeddings de las preguntas categorizadas...")
     X = embed(encoder, labeled)

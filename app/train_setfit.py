@@ -23,6 +23,7 @@ from sklearn.model_selection import StratifiedKFold
 from app.categories import get_category_descriptions, get_category_names
 from app.classifier import AIClassifier, build_input_text
 from app.export_training import OUTPUT_FILE as TRAINING_FILE
+from app.model_versions import get_revision
 from app.review_automatic import label
 
 BASE_MODEL = "sentence-transformers/all-mpnet-base-v2"
@@ -39,7 +40,7 @@ def load_examples() -> list[dict[str, str]]:
 
 def train_setfit(texts: list[str], label_ids: list[int]) -> SetFitModel:
     """Fine-tuning de un modelo SetFit con los textos y categorías dados."""
-    model = SetFitModel.from_pretrained(BASE_MODEL)
+    model = SetFitModel.from_pretrained(BASE_MODEL, revision=get_revision(BASE_MODEL))
     args = TrainingArguments(
         output_dir=str(Path("models") / "setfit-checkpoints"),
         save_strategy="no",  # no guardar copias intermedias del modelo

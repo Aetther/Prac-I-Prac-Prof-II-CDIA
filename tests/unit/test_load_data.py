@@ -1,6 +1,18 @@
-import pandas as pd
+import hashlib
+import re
 
-from app.load_data import build_rows, clean
+import pandas as pd
+import pytest
+
+from app.load_data import (
+    DATASET_REVISION,
+    DATASET_SHA256,
+    DATASET_URL,
+    build_rows,
+    clean,
+    download_parquet,
+    verify_sha256,
+)
 
 
 def make_df(records: list[dict]) -> pd.DataFrame:
@@ -71,6 +83,7 @@ def test_text_is_repaired_when_building_rows():
     rows = build_rows(make_df([record]))
     assert rows[0]["question"] == "Which is the Queen's castle?"
 
+
 def test_duplicated_question_is_kept_once():
     rows = build_rows(make_df([valid_record(), valid_record(category="world")]))
     assert len(rows) == 1
@@ -82,3 +95,43 @@ def test_disguised_true_false_question_is_discarded():
         answer="True",
     )
     assert build_rows(make_df([record])) == []
+
+
+# --- Descarga verificada ---
+
+class FakeResponse:
+    """Imita la respuesta de requests.get, sin conectarse a internet."""
+
+    def __init__(self, content: bytes):
+        self.content = content
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+def test_verify_sha256_accepts_matching_content():
+    content = b"preguntas de trivia"
+    verify_sha256(content, hashlib.sha256(content).hexdigest())  # no lanza error
+
+
+def test_verify_sha256_rejects_different_content():
+    expected = hashlib.sha256(b"preguntas de trivia").hexdigest()
+    with pytest.raises(ValueError, match="no coincide"):
+        verify_sha256(b"preguntas de trivia alteradas", expected)
+
+
+def test_download_stops_if_hash_does_not_match(monkeypatch):
+    # Hugging Face "devuelve" otro archivo: la descarga tiene que detenerse
+    monkeypatch.setattr(
+        "app.load_data.requests.get",
+        lambda url, timeout: FakeResponse(b"otro archivo"),
+    )
+    with pytest.raises(ValueError, match="no coincide"):
+        download_parquet("https://ejemplo.com/archivo.parquet", DATASET_SHA256)
+
+
+def test_dataset_url_uses_fixed_revision():
+    assert DATASET_REVISION in DATASET_URL
+    assert "refs" not in DATASET_URL  # no la rama que Hugging Face regenera
+    assert re.fullmatch(r"[0-9a-f]{40}", DATASET_REVISION)
+    assert re.fullmatch(r"[0-9a-f]{64}", DATASET_SHA256)

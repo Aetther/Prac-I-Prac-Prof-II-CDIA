@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-128-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-139-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face y se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura.
 
@@ -53,6 +53,7 @@ Proyecto de Práctica Profesional II — CDIA.
 │   ├── load_data.py                # Descarga, limpia y carga el dataset
 │   ├── categories.py               # Las 6 categorías y sus descripciones
 │   ├── classifier.py               # Clasificador zero-shot (IA)
+│   ├── model_versions.py           # Versiones fijas (commits) de los modelos de IA
 │   ├── cosine_classifier.py        # Clasificador alternativo: similitud coseno
 │   ├── human_review.py             # Revisión humana por consola
 │   ├── categorize.py               # Orquestador: IA + revisión humana
@@ -73,6 +74,7 @@ Proyecto de Práctica Profesional II — CDIA.
 │   │   ├── test_classifier.py
 │   │   ├── test_human_review.py
 │   │   ├── test_load_data.py
+│   │   ├── test_model_versions.py
 │   │   └── test_statistics.py
 │   ├── integration/
 │   │   ├── test_api.py
@@ -375,6 +377,10 @@ Reglas (definidas en `app/schemas.py`):
 
 Reemplazó al dataset original de la consigna, que no estaba disponible (era privado) y además no tenía opciones incorrectas, necesarias para un juego de este tipo.
 
+**Versión fija y verificada.** `load_data` no descarga "la última versión" del dataset, sino un commit fijo (`DATASET_REVISION`), y antes de cargar nada compara el hash SHA-256 del archivo con el esperado (`DATASET_SHA256`). Si no coinciden, se detiene sin tocar la base. Así todos obtienen exactamente las mismas preguntas, y un cambio en el dataset (o un archivo alterado) no pasa desapercibido.
+
+Para actualizar el dataset a propósito, hay que cambiar esas dos constantes en `app/load_data.py`, volver a cargar y categorizar, y actualizar los resultados de este README.
+
 ### Limpieza (`app/load_data.py`)
 
 1. **Reparación de codificación con `ftfy`**: el dataset tenía 778 preguntas con caracteres mal codificados, por ejemplo `Queenâ\x80\x99s` en lugar de `Queen's`. Algunos de esos caracteres eran códigos de control que llegaban a trabar la terminal.
@@ -420,6 +426,8 @@ flowchart LR
 2. **El modelo ve la pregunta junto con su respuesta correcta**, que le da más contexto.
 3. **Umbral de confianza del 70%**: si la IA supera el umbral, la categorización se guarda automáticamente; si no, se deriva a una persona.
 4. **Revisión humana**: la persona ve la pregunta, la respuesta, la sugerencia de la IA y los scores de todas las categorías, y acepta la sugerencia, elige otra categoría o saltea la pregunta.
+
+**Versiones fijas de los modelos.** Cada modelo de Hugging Face se descarga en un commit fijo, definido en `app/model_versions.py`, que es la versión con la que se midieron los resultados. Sin esto, si el autor publicara una versión nueva, los resultados podrían cambiar sin tocar el código. Un modelo que no esté en esa lista (por ejemplo, uno nuevo que se prueba con `evaluate --model`) funciona igual, con la versión más reciente y un aviso.
 
 Las categorías y sus descripciones (en inglés, porque el modelo y las preguntas están en inglés) están en `app/categories.py`. Las descripciones de Arte y Entretenimiento se ajustaron para separar mejor la cultura "clásica" (literatura, teatro, música clásica) de la cultura popular (cine, TV, pop, videojuegos).
 
@@ -588,11 +596,11 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-128 tests organizados en cuatro tipos:
+139 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
-| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, revisión humana, estadística | Ninguno |
+| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, revisión humana, estadística | Ninguno |
 | Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego, restauración de decisiones | Ninguno (usa SQLite en memoria) |
 | Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes | PostgreSQL con datos (si no está, esos tests se saltean) |
 | Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
@@ -623,6 +631,8 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 | `password authentication failed for user "admin"` | La contraseña del `.env` no coincide con la de la base. Cambiarla en la base con `\password admin` (ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos)) |
 | El contenedor nuevo no arranca porque el puerto 5432 está ocupado | Quedó un contenedor viejo corriendo: bajarlo con `docker compose down` desde la carpeta donde se creó |
 | La API devuelve 404 en `/questions/category/xxx` | La categoría no existe: usar `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` o `deportes` |
+| `load_data` dice `El archivo descargado no coincide con la versión esperada` | El archivo del dataset cambió en Hugging Face o se corrompió en la descarga. Volver a intentar; si sigue igual, revisar si el dataset se actualizó (ver [Origen](#origen)) |
+| `Aviso: ... no tiene versión fija` al cargar un modelo | El modelo no está en `app/model_versions.py`: se usa la versión más reciente. Si es un modelo que se va a usar de forma permanente, agregar su commit a esa lista |
 | Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
 
 ## Limitaciones conocidas y posibles mejoras

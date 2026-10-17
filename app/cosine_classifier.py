@@ -12,6 +12,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 
 from app.classifier import ClassificationResult
+from app.model_versions import get_revision
 
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 
@@ -28,7 +29,9 @@ class CosineClassifier:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         print(f"Cargando modelo {model_name} en {device}...")
-        self.encoder = SentenceTransformer(model_name, device=device)
+        self.encoder = SentenceTransformer(
+            model_name, device=device, revision=get_revision(model_name)
+        )
         print("Modelo cargado.")
 
         # Embeddings de las categorías: se calculan una sola vez
