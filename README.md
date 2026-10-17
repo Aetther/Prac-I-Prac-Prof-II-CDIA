@@ -626,7 +626,8 @@ Medidas aplicadas tras una revisión de seguridad del proyecto:
 | Datos de entrada sin control | Validación con Pydantic: tipos, largos máximos, categorías válidas y campos permitidos (`app/schemas.py`) |
 | Trampa en el juego mirando la respuesta | Endpoints de juego que revelan la correcta recién después de responder (ver [Juego](#juego)) |
 | Dataset o modelos cambiados sin aviso | Versiones fijas (commits) y verificación del hash del dataset (ver [Origen](#origen)) |
-| Librerías con vulnerabilidades conocidas | Auditoría de dependencias con `pip-audit` (abajo) |
+| Librerías con vulnerabilidades conocidas | Auditoría de dependencias con `pip-audit` (abajo) y alertas automáticas de Dependabot en GitHub |
+| Email personal visible en el repositorio | Commits y `pyproject.toml` con la dirección *noreply* de GitHub |
 
 ### Auditoría de dependencias
 
@@ -648,7 +649,7 @@ Remove-Item audit_torch.txt
 **Última auditoría (octubre de 2026):** sin vulnerabilidades conocidas, incluidas PyTorch y torchvision.
 
 > [!TIP]
-> La auditoría es una foto del momento: pueden descubrirse vulnerabilidades nuevas en cualquier momento. Conviene repetirla antes de cada entrega o publicación.
+> La auditoría es una foto del momento: pueden descubrirse vulnerabilidades nuevas en cualquier momento. Conviene repetirla antes de cada entrega o publicación. Además, el repositorio tiene activadas las **alertas de Dependabot**: GitHub revisa el `poetry.lock` y avisa si alguna dependencia pasa a tener una vulnerabilidad conocida.
 
 ## Problemas frecuentes
 

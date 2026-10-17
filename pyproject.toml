@@ -3,7 +3,7 @@ name = "fastapi-questions"
 version = "0.1.0"
 description = "API de preguntas con FastAPI y Hugging Face"
 authors = [
-    {name = "Aetther",email = "gonza_ale@live.com"}
+    {name = "Aetther", email = "88803164+Aetther@users.noreply.github.com"}
 ]
 requires-python = ">=3.11,<3.14"
 dependencies = [
