@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-108-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-128-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face y se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura.
 
@@ -76,6 +76,7 @@ Proyecto de Práctica Profesional II — CDIA.
 │   │   └── test_statistics.py
 │   ├── integration/
 │   │   ├── test_api.py
+│   │   ├── test_game.py
 │   │   └── test_restore_decisions.py
 │   ├── data_quality/
 │   │   ├── conftest.py             # Conexión a la base real (saltea si no está disponible)
@@ -164,7 +165,7 @@ python -c "import secrets; print(secrets.token_urlsafe(24))"
 
 Usar solo letras, números, `-` y `_` (otros caracteres como `$` o `#` pueden dar problemas en el `.env`).
 
-En el mismo `.env`, completar `API_KEY` con otra clave generada con el mismo comando (distinta de la contraseña). Es la que pide la API para crear o modificar datos (ver [Autenticación](#autenticación)). Si queda vacía, la API funciona igual, pero solo para leer.
+En el mismo `.env`, completar `API_KEY` con otra clave generada con el mismo comando (distinta de la contraseña). Es la que pide la API para los endpoints de administración (ver [Autenticación](#autenticación)). Si queda vacía, el juego y las estadísticas funcionan igual, pero la administración queda deshabilitada.
 
 Después, levantar la base:
 
@@ -247,24 +248,57 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 
 ## API
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/` | Estado de la API y lista de endpoints |
-| GET | `/questions` | Lista de preguntas, paginada |
-| GET | `/questions/{id}` | Una pregunta por su id |
-| GET | `/questions/category/{category_name}` | Preguntas categorizadas (por IA o por una persona) en esa categoría, paginadas. Incluye la categoría original del dataset y la asignada |
-| GET | `/stats` | Total de preguntas y cantidad por categoría original del dataset |
-| GET | `/categories` | Las 6 categorías disponibles |
-| GET | `/categories/stats` | Total, categorizadas, pendientes, automáticas, manuales y cantidad por categoría |
-| POST | `/questions` | Crea una pregunta nueva |
-| PUT | `/categorizations/{id}` | Corrige la categoría de una pregunta (queda registrada como decisión humana) |
+| Método | Ruta | Clave | Descripción |
+|---|---|:---:|---|
+| GET | `/` | | Estado de la API y lista de endpoints |
+| GET | `/game/question` | | Una pregunta al azar para jugar, con las opciones mezcladas y **sin revelar la correcta**. Filtro opcional `?category=` |
+| POST | `/game/answer` | | Comprueba la opción elegida y recién ahí revela la correcta |
+| GET | `/stats` | | Total de preguntas y cantidad por categoría original del dataset |
+| GET | `/categories` | | Las 6 categorías disponibles |
+| GET | `/categories/stats` | | Total, categorizadas, pendientes, automáticas, manuales y cantidad por categoría |
+| GET | `/questions` | 🔒 | Lista de preguntas con sus respuestas, paginada |
+| GET | `/questions/{id}` | 🔒 | Una pregunta por su id |
+| GET | `/questions/category/{category_name}` | 🔒 | Preguntas categorizadas (por IA o por una persona) en esa categoría, paginadas. Incluye la categoría original del dataset y la asignada |
+| POST | `/questions` | 🔒 | Crea una pregunta nueva |
+| PUT | `/categorizations/{id}` | 🔒 | Corrige la categoría de una pregunta (queda registrada como decisión humana) |
+
+🔒 = requiere API key (ver [Autenticación](#autenticación)).
+
+### Juego
+
+Los endpoints del juego nunca muestran la respuesta correcta antes de que el jugador elija, así que no se puede hacer trampa mirando lo que devuelve la API (por ejemplo, con las herramientas de desarrollador del navegador). Solo usan preguntas categorizadas, y la categoría que muestran es la asignada.
+
+**Pedir una pregunta** (`GET /game/question?category=ciencia`; sin `category`, sale de cualquiera):
+
+```json
+{
+  "id": 1,
+  "question": "Three of these animals hibernate. Which one does not?",
+  "category": "ciencia",
+  "options": ["Frog", "Sloth", "Snake", "Mouse"]
+}
+```
+
+Las opciones se mezclan en cada pedido.
+
+**Responder** (`POST /game/answer`), con el texto de la opción elegida:
+
+```json
+{ "question_id": 1, "answer": "Frog" }
+```
+
+```json
+{ "correct": false, "correct_answer": "Sloth" }
+```
+
+No distingue mayúsculas ni espacios al principio o al final. Responde **404** si la pregunta (o la categoría pedida) no existe.
 
 ### Autenticación
 
-Los endpoints que **leen** datos son públicos. Los que **modifican** datos (`POST /questions` y `PUT /categorizations/{id}`) piden una clave en el encabezado `X-API-Key`, que tiene que coincidir con `API_KEY` del `.env`:
+El juego, las categorías y las estadísticas son públicos. Los endpoints de **administración** (🔒 en la tabla) piden una clave en el encabezado `X-API-Key`, que tiene que coincidir con `API_KEY` del `.env`. Son los que modifican datos y los que muestran las respuestas correctas:
 
 - Sin clave o con una clave incorrecta, responden **401**.
-- Si el `.env` no tiene `API_KEY`, responden **503**: la escritura queda deshabilitada.
+- Si el `.env` no tiene `API_KEY`, responden **503**: la administración queda deshabilitada.
 
 **Desde la documentación interactiva** (`/docs`): botón **Authorize** arriba a la derecha, pegar la clave y confirmar. Desde ahí, los pedidos de prueba la mandan solos.
 
@@ -276,7 +310,7 @@ Invoke-RestMethod -Method Put -Uri http://localhost:8000/categorizations/1 -Head
 ```
 
 > [!NOTE]
-> Es una única clave compartida, pensada para que solo quien administra el proyecto pueda modificar datos. Si la API se publica en internet, tiene que ir detrás de HTTPS: sin cifrado, la clave viaja a la vista.
+> Es una única clave compartida, pensada para que solo quien administra el proyecto pueda ver las respuestas y modificar datos. Si la API se publica en internet, tiene que ir detrás de HTTPS: sin cifrado, la clave viaja a la vista.
 
 ### Uso
 
@@ -317,8 +351,8 @@ Reglas (definidas en `app/schemas.py`):
 
 **Códigos de error:**
 
-- **401**: falta la API key o es incorrecta (solo en los endpoints que modifican datos).
-- **503**: la escritura está deshabilitada porque el `.env` no tiene `API_KEY`.
+- **401**: falta la API key o es incorrecta (solo en los endpoints de administración).
+- **503**: la administración está deshabilitada porque el `.env` no tiene `API_KEY`.
 - **404**: el recurso no existe, como una categoría o una categorización inexistente.
 - **422**: los datos enviados no cumplen las reglas: falta un campo, está vacío, es demasiado largo, no es texto, las opciones se repiten, la categoría no existe, sobra un campo, `limit=1000` o un `id` que no es un número. Lo responde FastAPI automáticamente, e indica en `detail` qué campo falló y por qué:
 
@@ -554,12 +588,12 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-108 tests organizados en cuatro tipos:
+128 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
 | Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, revisión humana, estadística | Ninguno |
-| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, restauración de decisiones | Ninguno (usa SQLite en memoria) |
+| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego, restauración de decisiones | Ninguno (usa SQLite en memoria) |
 | Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes | PostgreSQL con datos (si no está, esos tests se saltean) |
 | Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
 
@@ -583,9 +617,9 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 | VS Code marca los imports como no resueltos | Elegir el intérprete del entorno de Poetry: `Ctrl+Shift+P` → *Python: Select Interpreter* (la ruta se obtiene con `poetry env info --path`) |
 | `psql` muestra la salida en un visor y no vuelve | Salir con `q`, o agregar `-P pager=off` al comando |
 | `docker compose up` dice `Falta POSTGRES_PASSWORD en el archivo .env` | Falta crear el `.env`: ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos) de la instalación |
-| `POST` o `PUT` responden 401 | Falta el encabezado `X-API-Key` o la clave no coincide con `API_KEY` del `.env`. En `/docs`, usar el botón **Authorize** |
+| `/questions`, `POST` o `PUT` responden 401 | Falta el encabezado `X-API-Key` o la clave no coincide con `API_KEY` del `.env`. En `/docs`, usar el botón **Authorize** |
 | `POST` o `PUT` responden 422 | Los datos no cumplen las reglas. En la respuesta, `detail` indica el campo (`loc`) y el motivo (`msg`). Ver [Uso](#uso) |
-| `POST` o `PUT` responden 503 | Completar `API_KEY` en el `.env` y reiniciar la API |
+| `/questions`, `POST` o `PUT` responden 503 | Completar `API_KEY` en el `.env` y reiniciar la API |
 | `password authentication failed for user "admin"` | La contraseña del `.env` no coincide con la de la base. Cambiarla en la base con `\password admin` (ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos)) |
 | El contenedor nuevo no arranca porque el puerto 5432 está ocupado | Quedó un contenedor viejo corriendo: bajarlo con `docker compose down` desde la carpeta donde se creó |
 | La API devuelve 404 en `/questions/category/xxx` | La categoría no existe: usar `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` o `deportes` |
@@ -609,6 +643,10 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 **Evaluación**
 
 - La precisión la midió un solo revisor; lo ideal serían varios, midiendo cuánto coinciden entre sí.
+
+**Juego**
+
+- La API del juego entrega preguntas sueltas al azar: todavía no evita repetir preguntas dentro de una partida ni lleva puntaje, vidas o tiempo. Esa lógica se va a definir junto con la interfaz.
 
 **Proyecto**
 

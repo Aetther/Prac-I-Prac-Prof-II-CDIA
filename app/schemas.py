@@ -116,3 +116,39 @@ class CategorizationUpdate(BaseModel):
     def category_must_exist(cls, value: str) -> str:
         # Las categorizaciones guardan el nombre ("arte"), no la etiqueta
         return find_category(value)["name"]
+
+
+# --- Juego ---
+# Los endpoints del juego nunca revelan la respuesta correcta antes de que
+# el jugador elija: las 4 opciones van mezcladas en una sola lista.
+
+
+class GameQuestion(BaseModel):
+    """Pregunta para jugar (GET /game/question). No indica cuál es la correcta."""
+
+    id: int
+    question: str
+    category: str = Field(description="Categoría asignada (por la IA o una persona)")
+    options: list[str] = Field(description="Las 4 opciones, mezcladas al azar")
+
+
+class GameAnswer(BaseModel):
+    """Respuesta del jugador (POST /game/answer)."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        json_schema_extra={
+            "examples": [{"question_id": 1, "answer": "Leonardo da Vinci"}]
+        },
+    )
+
+    question_id: int = Field(gt=0)
+    answer: OptionText = Field(description="El texto de la opción elegida")
+
+
+class GameResult(BaseModel):
+    """Resultado de una respuesta: si acertó y cuál era la correcta."""
+
+    correct: bool
+    correct_answer: str

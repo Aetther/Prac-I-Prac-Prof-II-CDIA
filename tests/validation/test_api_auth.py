@@ -1,4 +1,9 @@
-"""Autenticación: solo se pueden modificar datos con la API key correcta."""
+"""
+Autenticación: el juego y las estadísticas son públicos; la administración
+(ver respuestas, crear y corregir) requiere la API key correcta.
+"""
+import pytest
+
 from tests.conftest import TEST_API_KEY
 
 NEW_QUESTION = {
@@ -10,6 +15,8 @@ NEW_QUESTION = {
     "category": "Geografía",
 }
 
+
+# --- Escritura ---
 
 def test_post_without_key_is_rejected(anon_client):
     r = anon_client.post("/questions", json=NEW_QUESTION)
@@ -35,17 +42,39 @@ def test_put_without_key_does_not_change_anything(anon_client):
     assert r.status_code == 401
 
     # La categorización 1 (Francia) sigue igual que antes
-    rows = anon_client.get("/questions/category/geografia").json()
+    rows = anon_client.get(
+        "/questions/category/geografia", headers={"X-API-Key": TEST_API_KEY}
+    ).json()
     assert rows[0]["categorization_id"] == 1
     assert rows[0]["is_automatic"] is True
 
 
-def test_reading_does_not_need_key(anon_client):
-    assert anon_client.get("/questions").status_code == 200
-    assert anon_client.get("/categories/stats").status_code == 200
+# --- Lectura ---
+
+@pytest.mark.parametrize("path", [
+    "/game/question",
+    "/stats",
+    "/categories",
+    "/categories/stats",
+])
+def test_public_endpoints_do_not_need_key(anon_client, path):
+    assert anon_client.get(path).status_code == 200
 
 
-def test_writing_is_disabled_if_server_has_no_key(client, monkeypatch):
+@pytest.mark.parametrize("path", [
+    "/questions",
+    "/questions/1",
+    "/questions/category/arte",
+])
+def test_admin_endpoints_need_key(anon_client, path):
+    # Muestran la respuesta correcta: sin clave, no
+    assert anon_client.get(path).status_code == 401
+    assert anon_client.get(path, headers={"X-API-Key": TEST_API_KEY}).status_code == 200
+
+
+# --- Servidor sin clave configurada ---
+
+def test_admin_is_disabled_if_server_has_no_key(client, monkeypatch):
     monkeypatch.delenv("API_KEY")
     r = client.post("/questions", json=NEW_QUESTION)
     assert r.status_code == 503

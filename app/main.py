@@ -1,6 +1,8 @@
 import os
+import random
 import secrets
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Security
 from fastapi.security import APIKeyHeader
@@ -10,7 +12,13 @@ from sqlalchemy.orm import Session
 from app.categories import CATEGORIES, find_category_by_name
 from app.database import engine, get_db
 from app.models import Base, Categorization, Question
-from app.schemas import CategorizationUpdate, QuestionCreate
+from app.schemas import (
+    CategorizationUpdate,
+    GameAnswer,
+    GameQuestion,
+    GameResult,
+    QuestionCreate,
+)
 
 
 @asynccontextmanager
@@ -23,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Questions API", version="1.0.0", lifespan=lifespan)
 
-# --- Autenticación para los endpoints que modifican datos ---
+# --- Autenticación para los endpoints de administración ---
 # La clave se manda en el encabezado X-API-Key y se compara con API_KEY del .env
 # (app.database ya cargó el .env al importarse).
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -33,10 +41,11 @@ def require_api_key(api_key: str | None = Security(api_key_header)) -> None:
     """Deja pasar el pedido solo si trae la API key correcta."""
     expected = os.getenv("API_KEY")
     if not expected:
-        # Sin clave configurada, escribir queda deshabilitado (más seguro que abierto)
+        # Sin clave configurada, la administración queda deshabilitada
+        # (más seguro que dejarla abierta)
         raise HTTPException(
             status_code=503,
-            detail="Escritura deshabilitada: falta configurar API_KEY en el archivo .env",
+            detail="Administración deshabilitada: falta configurar API_KEY en el archivo .env",
         )
     # compare_digest tarda lo mismo acierte o no: no da pistas sobre la clave
     if api_key is None or not secrets.compare_digest(
@@ -52,20 +61,82 @@ def require_api_key(api_key: str | None = Security(api_key_header)) -> None:
 def root():
     return {
         "message": "Questions API funcionando",
-        "endpoints": [
-            "/questions",
-            "/questions/{id}",
-            "/questions/category/{category_name}",
-            "/stats",
-            "/categories",
-            "/categories/stats",
-            "POST /questions (requiere X-API-Key)",
-            "PUT /categorizations/{id} (requiere X-API-Key)",
-        ],
+        "endpoints": {
+            "juego": [
+                "/game/question?category={category_name}",
+                "POST /game/answer",
+            ],
+            "publicos": ["/stats", "/categories", "/categories/stats"],
+            "administracion (requieren X-API-Key)": [
+                "/questions",
+                "/questions/{id}",
+                "/questions/category/{category_name}",
+                "POST /questions",
+                "PUT /categorizations/{id}",
+            ],
+        },
     }
 
 
-@app.get("/questions")
+# --- Juego (público): nunca revela la respuesta antes de que el jugador elija ---
+
+
+@app.get("/game/question", response_model=GameQuestion)
+def game_question(
+    category: str | None = Query(
+        None, max_length=100, description="Opcional: geografia, historia, ciencia, ..."
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Una pregunta al azar, con las 4 opciones mezcladas y sin indicar la correcta.
+    Solo usa preguntas categorizadas (la categoría es la asignada).
+    """
+    query = db.query(Question, Categorization).join(
+        Categorization, Categorization.question_id == Question.id
+    )
+    if category is not None:
+        category = category.lower()
+        if find_category_by_name(category) is None:
+            raise HTTPException(
+                status_code=404, detail=f"La categoría '{category}' no existe"
+            )
+        query = query.filter(Categorization.category_name == category)
+
+    row = query.order_by(func.random()).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="No hay preguntas categorizadas")
+
+    # Any: con los modelos estilo Column, Pylance no sabe que son valores comunes
+    question: Any = row[0]
+    categorization: Any = row[1]
+    options = [question.answer, question.wrong_1, question.wrong_2, question.wrong_3]
+    random.shuffle(options)
+    return GameQuestion(
+        id=question.id,
+        question=question.question,
+        category=categorization.category_name,
+        options=options,
+    )
+
+
+@app.post("/game/answer", response_model=GameResult)
+def game_answer(data: GameAnswer, db: Session = Depends(get_db)):
+    """Comprueba la opción elegida y recién ahí revela la respuesta correcta."""
+    question: Any = db.get(Question, data.question_id)
+    if question is None:
+        raise HTTPException(status_code=404, detail="Pregunta no encontrada")
+
+    return GameResult(
+        correct=data.answer.lower() == question.answer.lower(),
+        correct_answer=question.answer,
+    )
+
+
+# --- Administración: muestran las respuestas, así que requieren la API key ---
+
+
+@app.get("/questions", dependencies=[Depends(require_api_key)])
 def list_questions(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
@@ -75,7 +146,9 @@ def list_questions(
     return questions
 
 
-@app.get("/questions/category/{category_name}")
+@app.get(
+    "/questions/category/{category_name}", dependencies=[Depends(require_api_key)]
+)
 def list_by_category(
     category_name: str,
     skip: int = Query(0, ge=0),
@@ -120,7 +193,7 @@ def list_by_category(
     ]
 
 
-@app.get("/questions/{question_id}")
+@app.get("/questions/{question_id}", dependencies=[Depends(require_api_key)])
 def get_question(question_id: int, db: Session = Depends(get_db)):
     question = db.query(Question).filter(Question.id == question_id).first()
     if not question:
