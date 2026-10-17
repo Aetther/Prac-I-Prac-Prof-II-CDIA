@@ -87,6 +87,7 @@ Proyecto de Práctica Profesional II — CDIA.
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
 ├── prueba_clasificador.py          # Prueba rápida del clasificador
 ├── docker-compose.yml              # Servicio de PostgreSQL
+├── .env.example                    # Plantilla de credenciales (copiar como .env)
 ├── pyproject.toml                  # Dependencias y configuración de pytest
 ├── poetry.lock                     # Versiones exactas de las dependencias
 ├── EXERCISE.md                     # Consigna del ejercicio base
@@ -96,7 +97,7 @@ Proyecto de Práctica Profesional II — CDIA.
 └── FIRST_STEPS.md                  # Instrucciones de la cátedra para traer cada consigna
 ```
 
-Cada carpeta de `tests/` tiene además un `__init__.py` vacío. Las carpetas `models/` (modelos entrenados) y `checkpoints/` se generan al entrenar y no se suben al repositorio, igual que los entornos virtuales y la caché de Python (ver `.gitignore`).
+Cada carpeta de `tests/` tiene además un `__init__.py` vacío. Las carpetas `models/` (modelos entrenados) y `checkpoints/` se generan al entrenar y no se suben al repositorio, igual que el archivo `.env` (credenciales), los entornos virtuales y la caché de Python (ver `.gitignore`).
 
 ## Base de datos
 
@@ -145,13 +146,32 @@ Todos los comandos se ejecutan **desde la raíz del proyecto**. Los ejemplos son
 poetry install
 ```
 
-### 2. Levantar la base de datos
+### 2. Configurar y levantar la base de datos
+
+Las credenciales de la base no están en el código: se leen de un archivo `.env`, que no se sube al repositorio. Crearlo a partir de la plantilla:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Abrir `.env` y reemplazar `cambiar_esto` por una contraseña propia. Se puede generar una segura con:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(24))"
+```
+
+Usar solo letras, números, `-` y `_` (otros caracteres como `$` o `#` pueden dar problemas en el `.env`). Después, levantar la base:
 
 ```powershell
 docker compose up -d
 ```
 
-El usuario, la contraseña y el nombre de la base están definidos en `docker-compose.yml`.
+La base queda accesible **solo desde esta computadora** (`127.0.0.1`), no desde la red.
+
+> [!IMPORTANT]
+> La contraseña del `.env` se aplica **solo cuando la base se crea por primera vez**. Si ya existía una base de una instalación anterior (por ejemplo, con la contraseña vieja `admin123`), hay dos opciones:
+> - Cambiar la contraseña de la base existente: `docker compose exec db psql -U admin -d questions_db`, escribir `\password admin`, ingresar la misma contraseña del `.env` y salir con `\q`.
+> - Borrar la base y empezar de cero con `docker compose down -v` y `docker compose up -d` (hay que repetir todos los pasos siguientes).
 
 ### 3. Cargar las preguntas
 
@@ -513,6 +533,8 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 | `poetry install` dice que no encuentra el paquete del proyecto | Ya está resuelto con `package-mode = false` en `pyproject.toml` |
 | VS Code marca los imports como no resueltos | Elegir el intérprete del entorno de Poetry: `Ctrl+Shift+P` → *Python: Select Interpreter* (la ruta se obtiene con `poetry env info --path`) |
 | `psql` muestra la salida en un visor y no vuelve | Salir con `q`, o agregar `-P pager=off` al comando |
+| `docker compose up` dice `Falta POSTGRES_PASSWORD en el archivo .env` | Falta crear el `.env`: ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos) de la instalación |
+| `password authentication failed for user "admin"` | La contraseña del `.env` no coincide con la de la base. Cambiarla en la base con `\password admin` (ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos)) |
 | El contenedor nuevo no arranca porque el puerto 5432 está ocupado | Quedó un contenedor viejo corriendo: bajarlo con `docker compose down` desde la carpeta donde se creó |
 | La API devuelve 404 en `/questions/category/xxx` | La categoría no existe: usar `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` o `deportes` |
 | Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
