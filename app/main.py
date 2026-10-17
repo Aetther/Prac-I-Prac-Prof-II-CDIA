@@ -29,7 +29,29 @@ async def lifespan(app: FastAPI):
     # Al cerrar: no hace falta liberar nada
 
 
-app = FastAPI(title="Questions API", version="1.0.0", lifespan=lifespan)
+def env_flag(name: str, default: bool = True) -> bool:
+    """
+    Lee una variable de entorno de sí/no. Se considera desactivada con
+    false, 0, no u off (sin distinguir mayúsculas); si no existe, usa default.
+    """
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    return value.strip().lower() not in ("false", "0", "no", "off")
+
+
+# Documentación interactiva (/docs, /redoc y /openapi.json). Activada por defecto;
+# en un servidor público se puede apagar con ENABLE_DOCS=false en el .env.
+DOCS_ENABLED = env_flag("ENABLE_DOCS", default=True)
+
+app = FastAPI(
+    title="Questions API",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs" if DOCS_ENABLED else None,
+    redoc_url="/redoc" if DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if DOCS_ENABLED else None,
+)
 
 # --- Autenticación para los endpoints de administración ---
 # La clave se manda en el encabezado X-API-Key y se compara con API_KEY del .env
@@ -57,6 +79,19 @@ def require_api_key(api_key: str | None = Security(api_key_header)) -> None:
         )
 
 
+# Respuestas posibles, para que /docs las muestre con su descripción
+# (sin esto, los 401 y 503 aparecen como "Undocumented")
+ADMIN_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"description": "Falta la API key o es incorrecta (encabezado X-API-Key)"},
+    503: {"description": "Administración deshabilitada: falta API_KEY en el .env"},
+}
+
+
+def not_found(description: str) -> dict[int | str, dict[str, Any]]:
+    """Documenta un 404 con su descripción."""
+    return {404: {"description": description}}
+
+
 @app.get("/")
 def root():
     return {
@@ -81,7 +116,11 @@ def root():
 # --- Juego (público): nunca revela la respuesta antes de que el jugador elija ---
 
 
-@app.get("/game/question", response_model=GameQuestion)
+@app.get(
+    "/game/question",
+    response_model=GameQuestion,
+    responses=not_found("La categoría no existe o no hay preguntas categorizadas"),
+)
 def game_question(
     category: str | None = Query(
         None, max_length=100, description="Opcional: geografia, historia, ciencia, ..."
@@ -120,7 +159,11 @@ def game_question(
     )
 
 
-@app.post("/game/answer", response_model=GameResult)
+@app.post(
+    "/game/answer",
+    response_model=GameResult,
+    responses=not_found("La pregunta no existe"),
+)
 def game_answer(data: GameAnswer, db: Session = Depends(get_db)):
     """Comprueba la opción elegida y recién ahí revela la respuesta correcta."""
     question: Any = db.get(Question, data.question_id)
@@ -136,7 +179,9 @@ def game_answer(data: GameAnswer, db: Session = Depends(get_db)):
 # --- Administración: muestran las respuestas, así que requieren la API key ---
 
 
-@app.get("/questions", dependencies=[Depends(require_api_key)])
+@app.get(
+    "/questions", dependencies=[Depends(require_api_key)], responses=ADMIN_RESPONSES
+)
 def list_questions(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
@@ -147,7 +192,9 @@ def list_questions(
 
 
 @app.get(
-    "/questions/category/{category_name}", dependencies=[Depends(require_api_key)]
+    "/questions/category/{category_name}",
+    dependencies=[Depends(require_api_key)],
+    responses={**ADMIN_RESPONSES, **not_found("La categoría no existe")},
 )
 def list_by_category(
     category_name: str,
@@ -193,11 +240,15 @@ def list_by_category(
     ]
 
 
-@app.get("/questions/{question_id}", dependencies=[Depends(require_api_key)])
+@app.get(
+    "/questions/{question_id}",
+    dependencies=[Depends(require_api_key)],
+    responses={**ADMIN_RESPONSES, **not_found("La pregunta no existe")},
+)
 def get_question(question_id: int, db: Session = Depends(get_db)):
     question = db.query(Question).filter(Question.id == question_id).first()
-    if not question:
-        return {"error": "Pregunta no encontrada"}
+    if question is None:
+        raise HTTPException(status_code=404, detail="Pregunta no encontrada")
     return question
 
 
@@ -256,7 +307,9 @@ def category_stats(db: Session = Depends(get_db)):
 
 
 @app.put(
-    "/categorizations/{categorization_id}", dependencies=[Depends(require_api_key)]
+    "/categorizations/{categorization_id}",
+    dependencies=[Depends(require_api_key)],
+    responses={**ADMIN_RESPONSES, **not_found("La categorización no existe")},
 )
 def update_categorization(
     categorization_id: int, data: CategorizationUpdate, db: Session = Depends(get_db)
@@ -288,7 +341,12 @@ def update_categorization(
     }
 
 
-@app.post("/questions", status_code=201, dependencies=[Depends(require_api_key)])
+@app.post(
+    "/questions",
+    status_code=201,
+    dependencies=[Depends(require_api_key)],
+    responses=ADMIN_RESPONSES,
+)
 def create_question(data: QuestionCreate, db: Session = Depends(get_db)):
     """
     Crea una pregunta nueva. Los datos ya llegan validados por QuestionCreate

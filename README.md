@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-139-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-157-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face y se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura.
 
@@ -89,6 +89,7 @@ Proyecto de Práctica Profesional II — CDIA.
 │   └── validation/
 │       ├── test_api_auth.py
 │       ├── test_api_inputs.py
+│       ├── test_api_robustness.py
 │       └── test_model_quality.py
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
 ├── prueba_clasificador.py          # Prueba rápida del clasificador
@@ -217,7 +218,7 @@ poetry run uvicorn app.main:app --reload
 ```
 
 - API: `http://localhost:8000`
-- Documentación interactiva: `http://localhost:8000/docs`
+- Documentación interactiva: `http://localhost:8000/docs` (se puede ocultar con `ENABLE_DOCS=false` en el `.env`, por ejemplo si la API se publica en internet)
 
 Para acceder desde otro dispositivo de la misma red (por ejemplo, una notebook o un celular), agregar `--host 0.0.0.0` y usar la IP local de la computadora, que se obtiene con `ipconfig`. La primera vez, el Firewall de Windows pide permiso para redes privadas.
 
@@ -356,7 +357,7 @@ Reglas (definidas en `app/schemas.py`):
 
 - **401**: falta la API key o es incorrecta (solo en los endpoints de administración).
 - **503**: la administración está deshabilitada porque el `.env` no tiene `API_KEY`.
-- **404**: el recurso no existe, como una categoría o una categorización inexistente.
+- **404**: el recurso no existe, como una pregunta, una categoría o una categorización inexistente.
 - **422**: los datos enviados no cumplen las reglas: falta un campo, está vacío, es demasiado largo, no es texto, las opciones se repiten, la categoría no existe, sobra un campo, `limit=1000` o un `id` que no es un número. Lo responde FastAPI automáticamente, e indica en `detail` qué campo falló y por qué:
 
 ```json
@@ -597,7 +598,7 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-139 tests organizados en cuatro tipos:
+157 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
@@ -628,6 +629,8 @@ Medidas aplicadas tras una revisión de seguridad del proyecto:
 | Dataset o modelos cambiados sin aviso | Versiones fijas (commits) y verificación del hash del dataset (ver [Origen](#origen)) |
 | Librerías con vulnerabilidades conocidas | Auditoría de dependencias con `pip-audit` (abajo) y alertas automáticas de Dependabot en GitHub |
 | Email personal visible en el repositorio | Commits y `pyproject.toml` con la dirección *noreply* de GitHub |
+| Respuestas incorrectas o sin documentar | `404` cuando una pregunta no existe (antes respondía `200` con un error) y respuestas `401`, `404` y `503` documentadas en `/docs` |
+| Documentación de la API siempre visible | Se puede ocultar con `ENABLE_DOCS=false` en el `.env` |
 
 ### Auditoría de dependencias
 
@@ -663,6 +666,7 @@ Remove-Item audit_torch.txt
 | VS Code marca los imports como no resueltos | Elegir el intérprete del entorno de Poetry: `Ctrl+Shift+P` → *Python: Select Interpreter* (la ruta se obtiene con `poetry env info --path`) |
 | `psql` muestra la salida en un visor y no vuelve | Salir con `q`, o agregar `-P pager=off` al comando |
 | `docker compose up` dice `Falta POSTGRES_PASSWORD en el archivo .env` | Falta crear el `.env`: ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos) de la instalación |
+| `/docs` responde 404 | `ENABLE_DOCS` está en `false` en el `.env`: cambiarlo a `true` (o borrar la línea) y reiniciar la API |
 | `/questions`, `POST` o `PUT` responden 401 | Falta el encabezado `X-API-Key` o la clave no coincide con `API_KEY` del `.env`. En `/docs`, usar el botón **Authorize** |
 | `POST` o `PUT` responden 422 | Los datos no cumplen las reglas. En la respuesta, `detail` indica el campo (`loc`) y el motivo (`msg`). Ver [Uso](#uso) |
 | `/questions`, `POST` o `PUT` responden 503 | Completar `API_KEY` en el `.env` y reiniciar la API |
