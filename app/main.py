@@ -2,7 +2,7 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security
+from fastapi import Depends, FastAPI, HTTPException, Query, Security
 from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.categories import CATEGORIES, find_category_by_name
 from app.database import engine, get_db
 from app.models import Base, Categorization, Question
+from app.schemas import CategorizationUpdate, QuestionCreate
 
 
 @asynccontextmanager
@@ -45,10 +46,6 @@ def require_api_key(api_key: str | None = Security(api_key_header)) -> None:
             status_code=401,
             detail="API key inválida o faltante (encabezado X-API-Key)",
         )
-
-
-# Campos obligatorios para crear una pregunta
-REQUIRED_FIELDS = ["question", "answer", "wrong_1", "wrong_2", "wrong_3", "category"]
 
 
 @app.get("/")
@@ -189,11 +186,12 @@ def category_stats(db: Session = Depends(get_db)):
     "/categorizations/{categorization_id}", dependencies=[Depends(require_api_key)]
 )
 def update_categorization(
-    categorization_id: int, data: dict = Body(...), db: Session = Depends(get_db)
+    categorization_id: int, data: CategorizationUpdate, db: Session = Depends(get_db)
 ):
     """
     Corrige la categoría asignada a una pregunta.
     La corrección la hace una persona, así que queda como no automática.
+    La categoría ya llega validada y normalizada por CategorizationUpdate.
     """
     categorization = (
         db.query(Categorization).filter(Categorization.id == categorization_id).first()
@@ -201,16 +199,8 @@ def update_categorization(
     if categorization is None:
         raise HTTPException(status_code=404, detail="Categorización no encontrada")
 
-    category_name = str(data.get("category_name", "")).strip().lower()
-    if not category_name:
-        raise HTTPException(status_code=400, detail="Falta el campo category_name")
-    if find_category_by_name(category_name) is None:
-        raise HTTPException(
-            status_code=400, detail=f"La categoría '{category_name}' no existe"
-        )
-
     db.query(Categorization).filter(Categorization.id == categorization_id).update(
-        {"category_name": category_name, "is_automatic": False}
+        {"category_name": data.category_name, "is_automatic": False}
     )
     db.commit()
     db.refresh(categorization)
@@ -226,22 +216,12 @@ def update_categorization(
 
 
 @app.post("/questions", status_code=201, dependencies=[Depends(require_api_key)])
-def create_question(data: dict = Body(...), db: Session = Depends(get_db)):
-    missing = [f for f in REQUIRED_FIELDS if not str(data.get(f, "")).strip()]
-    if missing:
-        raise HTTPException(
-            status_code=400, detail=f"Faltan campos: {', '.join(missing)}"
-        )
-
-    values = {f: str(data[f]).strip() for f in REQUIRED_FIELDS}
-
-    options = [values["answer"], values["wrong_1"], values["wrong_2"], values["wrong_3"]]
-    if len({o.lower() for o in options}) != 4:
-        raise HTTPException(
-            status_code=400, detail="Las 4 opciones deben ser distintas"
-        )
-
-    question = Question(**values, source=data.get("source") or "manual")
+def create_question(data: QuestionCreate, db: Session = Depends(get_db)):
+    """
+    Crea una pregunta nueva. Los datos ya llegan validados por QuestionCreate
+    (largos, tipos, categoría existente y 4 opciones distintas).
+    """
+    question = Question(**data.model_dump(), source="manual")
     db.add(question)
     db.commit()
     db.refresh(question)

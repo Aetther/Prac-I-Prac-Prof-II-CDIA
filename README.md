@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-98-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-108-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face y se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura.
 
@@ -47,6 +47,7 @@ Proyecto de Práctica Profesional II — CDIA.
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                     # Endpoints de la API
+│   ├── schemas.py                  # Validación de los datos que recibe la API (Pydantic)
 │   ├── database.py                 # Conexión a PostgreSQL y sesión
 │   ├── models.py                   # Tablas: questions y categorizations
 │   ├── load_data.py                # Descarga, limpia y carga el dataset
@@ -296,6 +297,14 @@ Los nombres de categoría para las rutas son: `geografia`, `historia`, `ciencia`
 }
 ```
 
+Reglas (definidas en `app/schemas.py`):
+
+- Todos los campos son obligatorios y de texto. Se recortan los espacios al principio y al final, y no pueden quedar vacíos.
+- `question` admite hasta **1000** caracteres y cada opción hasta **300**. Los límites se eligieron midiendo el dataset: la pregunta más larga tiene 628 caracteres y la opción más larga, 255.
+- Las 4 opciones tienen que ser distintas (sin distinguir mayúsculas).
+- `category` tiene que ser una de las 6 categorías, como nombre (`geografia`) o etiqueta (`Geografía`). Se guarda siempre como etiqueta.
+- No se aceptan campos de más. El origen (`source`) lo pone la API: siempre `manual`.
+
 **Corregir una categorización** (`PUT /categorizations/{id}`). El `id` de la categorización aparece como `categorization_id` en `/questions/category/{category_name}`:
 
 ```json
@@ -304,13 +313,25 @@ Los nombres de categoría para las rutas son: `geografia`, `historia`, `ciencia`
 }
 ```
 
+`category_name` acepta el nombre (`arte`) o la etiqueta (`Arte`), sin distinguir mayúsculas.
+
 **Códigos de error:**
 
 - **401**: falta la API key o es incorrecta (solo en los endpoints que modifican datos).
 - **503**: la escritura está deshabilitada porque el `.env` no tiene `API_KEY`.
-- **400**: el dato tiene el formato correcto pero viola una regla, como campos vacíos, opciones repetidas o una categoría inexistente.
 - **404**: el recurso no existe, como una categoría o una categorización inexistente.
-- **422**: el dato no tiene el tipo correcto. Lo responde FastAPI automáticamente, por ejemplo con `limit=1000` o un `id` que no es un número.
+- **422**: los datos enviados no cumplen las reglas: falta un campo, está vacío, es demasiado largo, no es texto, las opciones se repiten, la categoría no existe, sobra un campo, `limit=1000` o un `id` que no es un número. Lo responde FastAPI automáticamente, e indica en `detail` qué campo falló y por qué:
+
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "answer"],
+      "msg": "String should have at most 300 characters"
+    }
+  ]
+}
+```
 
 ## Dataset
 
@@ -533,7 +554,7 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-98 tests organizados en cuatro tipos:
+108 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
@@ -563,6 +584,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 | `psql` muestra la salida en un visor y no vuelve | Salir con `q`, o agregar `-P pager=off` al comando |
 | `docker compose up` dice `Falta POSTGRES_PASSWORD en el archivo .env` | Falta crear el `.env`: ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos) de la instalación |
 | `POST` o `PUT` responden 401 | Falta el encabezado `X-API-Key` o la clave no coincide con `API_KEY` del `.env`. En `/docs`, usar el botón **Authorize** |
+| `POST` o `PUT` responden 422 | Los datos no cumplen las reglas. En la respuesta, `detail` indica el campo (`loc`) y el motivo (`msg`). Ver [Uso](#uso) |
 | `POST` o `PUT` responden 503 | Completar `API_KEY` en el `.env` y reiniciar la API |
 | `password authentication failed for user "admin"` | La contraseña del `.env` no coincide con la de la base. Cambiarla en la base con `\password admin` (ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos)) |
 | El contenedor nuevo no arranca porque el puerto 5432 está ocupado | Quedó un contenedor viejo corriendo: bajarlo con `docker compose down` desde la carpeta donde se creó |
@@ -591,6 +613,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 **Proyecto**
 
 - Separar las dependencias de IA en un grupo opcional de Poetry, para que la API se pueda instalar sin PyTorch.
+- Si la API se publica en internet, limitar el tamaño de los pedidos en el servidor web que va delante (por ejemplo, `client_max_body_size` en nginx). Pydantic rechaza los textos demasiado largos, pero recién después de recibir el pedido completo.
 - Empaquetar la API en Docker junto con una copia de la base ya categorizada, para levantar todo con `docker compose up` sin instalar Python.
 - `starlette.testclient` avisa que en versiones futuras usará `httpx2` en lugar de `httpx`. Cuando el ecosistema complete la transición, habrá que migrar.
 
