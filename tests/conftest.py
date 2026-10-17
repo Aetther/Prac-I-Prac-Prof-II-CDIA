@@ -17,6 +17,9 @@ from app.models import Base, Categorization, Question
 
 TEST_TYPES = {"unit", "integration", "data_quality", "validation"}
 
+# API key usada solo en los tests (no es la real del .env)
+TEST_API_KEY = "clave-de-prueba"
+
 
 def pytest_collection_modifyitems(items):
     """Agrega a cada test el marcador del nombre de su carpeta."""
@@ -77,8 +80,9 @@ def seeded_db(db_session):
 
 
 @pytest.fixture
-def client(seeded_db):
-    """Cliente de la API conectado a la base de prueba."""
+def anon_client(seeded_db, monkeypatch):
+    """Cliente de la API conectado a la base de prueba, SIN API key."""
+    monkeypatch.setenv("API_KEY", TEST_API_KEY)
 
     def override_get_db():
         db = TestingSession()
@@ -90,3 +94,10 @@ def client(seeded_db):
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(anon_client):
+    """Cliente de la API con la API key de prueba en todos los pedidos."""
+    anon_client.headers.update({"X-API-Key": TEST_API_KEY})
+    return anon_client

@@ -1,6 +1,9 @@
+import os
+import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security
+from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -19,6 +22,31 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Questions API", version="1.0.0", lifespan=lifespan)
 
+# --- Autenticación para los endpoints que modifican datos ---
+# La clave se manda en el encabezado X-API-Key y se compara con API_KEY del .env
+# (app.database ya cargó el .env al importarse).
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def require_api_key(api_key: str | None = Security(api_key_header)) -> None:
+    """Deja pasar el pedido solo si trae la API key correcta."""
+    expected = os.getenv("API_KEY")
+    if not expected:
+        # Sin clave configurada, escribir queda deshabilitado (más seguro que abierto)
+        raise HTTPException(
+            status_code=503,
+            detail="Escritura deshabilitada: falta configurar API_KEY en el archivo .env",
+        )
+    # compare_digest tarda lo mismo acierte o no: no da pistas sobre la clave
+    if api_key is None or not secrets.compare_digest(
+        api_key.encode(), expected.encode()
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="API key inválida o faltante (encabezado X-API-Key)",
+        )
+
+
 # Campos obligatorios para crear una pregunta
 REQUIRED_FIELDS = ["question", "answer", "wrong_1", "wrong_2", "wrong_3", "category"]
 
@@ -34,8 +62,8 @@ def root():
             "/stats",
             "/categories",
             "/categories/stats",
-            "POST /questions",
-            "PUT /categorizations/{id}",
+            "POST /questions (requiere X-API-Key)",
+            "PUT /categorizations/{id} (requiere X-API-Key)",
         ],
     }
 
@@ -157,7 +185,9 @@ def category_stats(db: Session = Depends(get_db)):
     }
 
 
-@app.put("/categorizations/{categorization_id}")
+@app.put(
+    "/categorizations/{categorization_id}", dependencies=[Depends(require_api_key)]
+)
 def update_categorization(
     categorization_id: int, data: dict = Body(...), db: Session = Depends(get_db)
 ):
@@ -195,7 +225,7 @@ def update_categorization(
     }
 
 
-@app.post("/questions", status_code=201)
+@app.post("/questions", status_code=201, dependencies=[Depends(require_api_key)])
 def create_question(data: dict = Body(...), db: Session = Depends(get_db)):
     missing = [f for f in REQUIRED_FIELDS if not str(data.get(f, "")).strip()]
     if missing:

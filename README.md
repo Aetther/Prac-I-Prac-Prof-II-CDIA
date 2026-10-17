@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-92-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-98-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face y se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura.
 
@@ -82,6 +82,7 @@ Proyecto de Práctica Profesional II — CDIA.
 │   │   ├── test_csv_files.py
 │   │   └── test_questions.py
 │   └── validation/
+│       ├── test_api_auth.py
 │       ├── test_api_inputs.py
 │       └── test_model_quality.py
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
@@ -160,7 +161,11 @@ Abrir `.env` y reemplazar `cambiar_esto` por una contraseña propia. Se puede ge
 python -c "import secrets; print(secrets.token_urlsafe(24))"
 ```
 
-Usar solo letras, números, `-` y `_` (otros caracteres como `$` o `#` pueden dar problemas en el `.env`). Después, levantar la base:
+Usar solo letras, números, `-` y `_` (otros caracteres como `$` o `#` pueden dar problemas en el `.env`).
+
+En el mismo `.env`, completar `API_KEY` con otra clave generada con el mismo comando (distinta de la contraseña). Es la que pide la API para crear o modificar datos (ver [Autenticación](#autenticación)). Si queda vacía, la API funciona igual, pero solo para leer.
+
+Después, levantar la base:
 
 ```powershell
 docker compose up -d
@@ -253,6 +258,27 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 | POST | `/questions` | Crea una pregunta nueva |
 | PUT | `/categorizations/{id}` | Corrige la categoría de una pregunta (queda registrada como decisión humana) |
 
+### Autenticación
+
+Los endpoints que **leen** datos son públicos. Los que **modifican** datos (`POST /questions` y `PUT /categorizations/{id}`) piden una clave en el encabezado `X-API-Key`, que tiene que coincidir con `API_KEY` del `.env`:
+
+- Sin clave o con una clave incorrecta, responden **401**.
+- Si el `.env` no tiene `API_KEY`, responden **503**: la escritura queda deshabilitada.
+
+**Desde la documentación interactiva** (`/docs`): botón **Authorize** arriba a la derecha, pegar la clave y confirmar. Desde ahí, los pedidos de prueba la mandan solos.
+
+**Desde PowerShell:**
+
+```powershell
+$headers = @{ "X-API-Key" = "tu_clave" }
+Invoke-RestMethod -Method Put -Uri http://localhost:8000/categorizations/1 -Headers $headers -ContentType "application/json" -Body '{"category_name": "arte"}'
+```
+
+> [!NOTE]
+> Es una única clave compartida, pensada para que solo quien administra el proyecto pueda modificar datos. Si la API se publica en internet, tiene que ir detrás de HTTPS: sin cifrado, la clave viaja a la vista.
+
+### Uso
+
 Los nombres de categoría para las rutas son: `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` y `deportes`. No distinguen mayúsculas.
 
 **Paginación:** `skip` (≥ 0) y `limit` (entre 1 y 100). Por ejemplo, `/questions/category/arte?skip=0&limit=5`.
@@ -280,6 +306,8 @@ Los nombres de categoría para las rutas son: `geografia`, `historia`, `ciencia`
 
 **Códigos de error:**
 
+- **401**: falta la API key o es incorrecta (solo en los endpoints que modifican datos).
+- **503**: la escritura está deshabilitada porque el `.env` no tiene `API_KEY`.
 - **400**: el dato tiene el formato correcto pero viola una regla, como campos vacíos, opciones repetidas o una categoría inexistente.
 - **404**: el recurso no existe, como una categoría o una categorización inexistente.
 - **422**: el dato no tiene el tipo correcto. Lo responde FastAPI automáticamente, por ejemplo con `limit=1000` o un `id` que no es un número.
@@ -505,14 +533,14 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-92 tests organizados en cuatro tipos:
+98 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
 | Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, revisión humana, estadística | Ninguno |
 | Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, restauración de decisiones | Ninguno (usa SQLite en memoria) |
 | Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes | PostgreSQL con datos (si no está, esos tests se saltean) |
-| Validación | `tests/validation/` | Entradas inválidas en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
+| Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
 
 ```powershell
 poetry run pytest -v                  # todos, salvo los lentos
@@ -534,6 +562,8 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 | VS Code marca los imports como no resueltos | Elegir el intérprete del entorno de Poetry: `Ctrl+Shift+P` → *Python: Select Interpreter* (la ruta se obtiene con `poetry env info --path`) |
 | `psql` muestra la salida en un visor y no vuelve | Salir con `q`, o agregar `-P pager=off` al comando |
 | `docker compose up` dice `Falta POSTGRES_PASSWORD en el archivo .env` | Falta crear el `.env`: ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos) de la instalación |
+| `POST` o `PUT` responden 401 | Falta el encabezado `X-API-Key` o la clave no coincide con `API_KEY` del `.env`. En `/docs`, usar el botón **Authorize** |
+| `POST` o `PUT` responden 503 | Completar `API_KEY` en el `.env` y reiniciar la API |
 | `password authentication failed for user "admin"` | La contraseña del `.env` no coincide con la de la base. Cambiarla en la base con `\password admin` (ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos)) |
 | El contenedor nuevo no arranca porque el puerto 5432 está ocupado | Quedó un contenedor viejo corriendo: bajarlo con `docker compose down` desde la carpeta donde se creó |
 | La API devuelve 404 en `/questions/category/xxx` | La categoría no existe: usar `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` o `deportes` |
