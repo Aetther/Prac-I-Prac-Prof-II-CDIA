@@ -17,6 +17,8 @@ MODEL_REVISIONS: dict[str, str] = {
     # Modelos de la comparación (app/evaluate.py --model ...)
     "facebook/bart-large-mnli": "d7645e127eaf1aefc7862fd59a17a5aa8558b8ce",
     "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli": "6f5cf0a2b59cabb106aca4c287eed12e357e90eb",
+    # Traducción inglés -> español (app/translator.py)
+    "Helsinki-NLP/opus-mt-en-es": "5bc4493d463cf000c1f0b50f8d56886a392ed4ab",
 }
 
 
