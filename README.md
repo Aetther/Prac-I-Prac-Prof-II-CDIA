@@ -24,9 +24,10 @@ Proyecto de Práctica Profesional II — CDIA.
 10. [Scripts](#scripts)
 11. [Resultados](#resultados)
 12. [Tests](#tests)
-13. [Problemas frecuentes](#problemas-frecuentes)
-14. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
-15. [Créditos y licencias](#créditos-y-licencias)
+13. [Seguridad](#seguridad)
+14. [Problemas frecuentes](#problemas-frecuentes)
+15. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
+16. [Créditos y licencias](#créditos-y-licencias)
 
 ---
 
@@ -612,6 +613,42 @@ poetry run pytest -m slow -v          # validación del modelo de IA (~1 minuto)
 ```
 
 Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tests/conftest.py`). Los tests de la API y de restauración usan una base SQLite en memoria y un CSV temporal, así que nunca modifican los datos reales.
+
+## Seguridad
+
+Medidas aplicadas tras una revisión de seguridad del proyecto:
+
+| Riesgo | Medida |
+|---|---|
+| Base de datos accesible desde la red | PostgreSQL escucha solo en `127.0.0.1` (ver `docker-compose.yml`) |
+| Credenciales en el código | Contraseña y API key en un archivo `.env` que no se sube al repositorio (plantilla: `.env.example`) |
+| Cualquiera podía modificar datos o ver las respuestas | Los endpoints de administración piden una API key (ver [Autenticación](#autenticación)) |
+| Datos de entrada sin control | Validación con Pydantic: tipos, largos máximos, categorías válidas y campos permitidos (`app/schemas.py`) |
+| Trampa en el juego mirando la respuesta | Endpoints de juego que revelan la correcta recién después de responder (ver [Juego](#juego)) |
+| Dataset o modelos cambiados sin aviso | Versiones fijas (commits) y verificación del hash del dataset (ver [Origen](#origen)) |
+| Librerías con vulnerabilidades conocidas | Auditoría de dependencias con `pip-audit` (abajo) |
+
+### Auditoría de dependencias
+
+[`pip-audit`](https://github.com/pypa/pip-audit) compara todas las librerías instaladas con la base pública de vulnerabilidades conocidas. Se instala con `pip` dentro del entorno (no con `poetry add`, para no agregarla al proyecto ni cambiar la versión de PyTorch):
+
+```powershell
+poetry run pip install pip-audit
+poetry run pip-audit
+```
+
+PyTorch instalado con CUDA (por ejemplo, `2.14.1+cu130`) no figura en PyPI y se saltea. Se puede auditar su versión equivalente de PyPI, que tiene el mismo código:
+
+```powershell
+"torch==2.14.1`ntorchvision==0.29.1" | Set-Content -Encoding ascii audit_torch.txt
+poetry run pip-audit -r audit_torch.txt --no-deps
+Remove-Item audit_torch.txt
+```
+
+**Última auditoría (octubre de 2026):** sin vulnerabilidades conocidas, incluidas PyTorch y torchvision.
+
+> [!TIP]
+> La auditoría es una foto del momento: pueden descubrirse vulnerabilidades nuevas en cualquier momento. Conviene repetirla antes de cada entrega o publicación.
 
 ## Problemas frecuentes
 
