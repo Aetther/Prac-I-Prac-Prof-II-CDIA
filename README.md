@@ -35,65 +35,29 @@ Proyecto de Práctica Profesional II — CDIA.
 
 ## Visión general
 
-El proyecto tiene dos partes: un **proceso de preparación de los datos**, que se corre una vez con scripts, y una **API** que sirve las preguntas ya preparadas.
+Flujo completo del backend: las preguntas se cargan, se categorizan con IA (con revisión humana cuando la IA no está segura), se traducen al español y quedan disponibles en la API.
 
 ```mermaid
-flowchart TB
-    subgraph SRC["Fuentes"]
-        HF["Hugging Face<br/>dataset OpenTriviaQA"]
-        CSV["data/training_data.csv<br/>decisiones humanas"]
-        MOD["Modelos de IA<br/>(versiones fijas)"]
-    end
-
-    subgraph PREP["Preparación de los datos (scripts)"]
-        LD["1. load_data<br/>verifica el hash, limpia,<br/>filtra y deduplica"]
-        RD["2. restore_decisions"]
-        ZS{"3. categorize<br/>IA zero-shot (DeBERTa)<br/>¿confianza ≥ 70%?"}
-        HR["Revisión humana"]
-        PEN["Queda pendiente"]
-        TR["4. translate_questions<br/>IA de traducción (MarianMT)"]
-        DIS{"¿Las 4 opciones<br/>siguen distintas?"}
-        EN["Queda en inglés"]
-    end
-
-    subgraph DB["PostgreSQL (Docker, solo 127.0.0.1)"]
-        Q[("questions<br/>inglés + español")]
-        C[("categorizations")]
-    end
-
-    subgraph API["API FastAPI"]
-        GAME["Juego (público)<br/>/game/question y /game/answer<br/>?lang=es o en"]
-        PUB["Estadísticas (públicas)<br/>/stats, /categories/stats,<br/>/translation/stats"]
-        ADM["Administración 🔒 X-API-Key<br/>/questions, POST /questions,<br/>PUT /categorizations"]
-    end
-
-    PLAYER(["Jugador<br/>(interfaz web)"])
-    ADMIN(["Administrador<br/>(/docs)"])
-
-    HF -->|descarga| LD --> Q
-    CSV --> RD --> C
-    Q --> ZS
-    ZS -->|"Sí: automática"| C
-    ZS -->|No| HR
-    HR -->|"acepta o corrige: manual"| C
-    HR -->|saltea| PEN
-    C -.->|export_training| CSV
-    Q --> TR --> DIS
-    DIS -->|"Sí: columnas _es"| Q
-    DIS -->|No| EN
-    MOD -.-> ZS
-    MOD -.-> TR
-
-    Q --> GAME
-    C --> GAME
-    Q --> PUB
-    C --> PUB
-    Q --> ADM
-    C --> ADM
-
-    PLAYER --> GAME
-    PLAYER --> PUB
-    ADMIN --> ADM
+flowchart LR
+    A[Hugging Face<br/>OpenTriviaQA] -->|load_data| B[(Preguntas)]
+    C[training_data.csv<br/>decisiones humanas] -->|restore_decisions| D[(Categorizaciones)]
+    B --> E{IA zero-shot<br/>confianza ≥ 70%?}
+    E -->|Sí| F[Automática]
+    E -->|No| G[Revisión humana]
+    G -->|Acepta o corrige| H[Manual]
+    G -->|Saltea| I[Queda pendiente]
+    F --> D
+    H --> D
+    D -->|translate_questions| K[Pregunta sola]
+    D --> L["Cada opción<br/>con su pregunta"]
+    K --> M[Modelo MarianMT<br/>opus-mt-en-es]
+    L --> M
+    M --> N["Post-procesamiento<br/>¿ ¡ y extracción<br/>de la opción"]
+    N --> O{¿Las 4 opciones<br/>siguen distintas?}
+    O -->|Sí| P[(Preguntas en<br/>inglés y español)]
+    O -->|No| Q[Queda en inglés]
+    P --> R[API FastAPI]
+    Q --> R
 ```
 
 1. **Carga** (`load_data`): descarga el dataset en una versión fija, verifica que el archivo sea el esperado, repara la codificación, se queda con las preguntas de 4 opciones y elimina duplicados. Ver [Dataset](#dataset).
