@@ -52,7 +52,7 @@ flowchart LR
     D --> L["Cada opción<br/>con su pregunta"]
     K --> M[Modelo MarianMT<br/>opus-mt-en-es]
     L --> M
-    M --> N["Post-procesamiento<br/>¿ ¡ y extracción<br/>de la opción"]
+    M --> N["Postprocesamiento<br/>agrega los signos ¿ y ¡<br/>y extrae la opción"]
     N --> O{¿Las 4 opciones<br/>siguen distintas?}
     O -->|Sí| P[(Preguntas en<br/>inglés y español)]
     O -->|No| Q[Queda en inglés]
@@ -532,7 +532,7 @@ flowchart LR
     A --> C["Cada opción con su pregunta<br/>(pregunta + Answer: opción)"]
     B --> D[Modelo MarianMT<br/>opus-mt-en-es]
     C --> D
-    D --> E[Post-procesamiento<br/>¿ ¡ y extracción de la opción]
+    D --> E["Postprocesamiento<br/>agrega los signos ¿ y ¡<br/>y extrae la opción"]
     E --> F{¿Las 4 opciones<br/>siguen distintas?}
     F -->|Sí| G[(Se guarda en las<br/>columnas _es)]
     F -->|No| H[Queda en inglés]
