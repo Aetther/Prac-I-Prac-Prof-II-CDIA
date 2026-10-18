@@ -23,6 +23,7 @@ from typing import Any
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+from app.glossary import fix_punctuation
 from app.model_versions import get_revision
 
 TRANSLATION_MODEL = "Helsinki-NLP/opus-mt-en-es"
@@ -36,14 +37,15 @@ def post_process(text: str) -> str:
     """
     Limpia la traducción de una pregunta: quita espacios sobrantes y agrega el
     signo de apertura (¿ o ¡) solo si el modelo no puso ninguno. Si ya hay uno
-    en el texto (por ejemplo, en la última oración), se respeta.
+    en el texto (por ejemplo, en la última oración), se respeta. Al final aplica
+    la regla de puntuación del glosario (app/glossary.py).
     """
     text = text.strip()
     if text.endswith("?") and "¿" not in text:
         text = "¿" + text
     if text.endswith("!") and "¡" not in text:
         text = "¡" + text
-    return text
+    return fix_punctuation(text)
 
 
 def extract_option(translated: str, original: str) -> str | None:

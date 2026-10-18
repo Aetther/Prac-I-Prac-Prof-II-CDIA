@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-211-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-247-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
@@ -54,7 +54,8 @@ flowchart LR
     L --> M
     M --> N["Postprocesamiento<br/>agrega los signos ¿ y ¡<br/>y extrae la opción"]
     N --> O{¿Las 4 opciones<br/>siguen distintas?}
-    O -->|Sí| P[(Preguntas en<br/>inglés y español)]
+    O -->|Sí| S["Glosario: puntuación y<br/>correcciones manuales<br/>(apply_glossary)"]
+    S --> P[(Preguntas en<br/>inglés y español)]
     O -->|No| Q[Queda en inglés]
     P --> R[API FastAPI]
     Q --> R
@@ -63,7 +64,7 @@ flowchart LR
 1. **Carga** (`load_data`): descarga el dataset en una versión fija, verifica que el archivo sea el esperado, repara la codificación, se queda con las preguntas de 4 opciones y elimina duplicados. Ver [Dataset](#dataset).
 2. **Decisiones humanas** (`restore_decisions`): recupera las categorizaciones que revisó una persona, guardadas en el repositorio. Las nuevas se exportan con `export_training`.
 3. **Categorización** (`categorize`): la IA asigna una de las 6 categorías. Si está segura (≥ 70%), se guarda sola; si no, decide una persona o la pregunta queda pendiente. Ver [Categorización con IA](#categorización-con-ia).
-4. **Traducción** (`translate_questions`): la IA traduce cada pregunta y sus opciones al español, sin tocar el inglés. Ver [Traducción con IA](#traducción-con-ia).
+4. **Traducción** (`translate_questions` y `apply_glossary`): la IA traduce cada pregunta y sus opciones al español, sin tocar el inglés, y después se aplica un glosario de correcciones. Ver [Traducción con IA](#traducción-con-ia).
 5. **API**: el juego entrega preguntas categorizadas, en el idioma pedido y sin revelar la respuesta hasta que el jugador elige. Ver [API](#api).
 
 ## Tecnologías
@@ -104,16 +105,20 @@ flowchart LR
 │   ├── translate_questions.py      # Traducción masiva de las preguntas
 │   ├── verify_lang.py              # Muestra preguntas en inglés y español
 │   ├── review_translations.py      # Medición de la calidad de la traducción con revisión humana
+│   ├── glossary.py                 # Glosario: regla de puntuación y correcciones manuales
+│   ├── apply_glossary.py           # Aplica el glosario a las traducciones de la base
 │   └── fix_encoding.py             # Reparación de codificación (ya integrada en load_data)
 ├── data/
 │   ├── training_data.csv           # Decisiones humanas (ejemplos verificados)
 │   ├── precision_review.csv        # Registro de la revisión de precisión
-│   └── translation_review.csv      # Registro de la revisión de las traducciones
+│   ├── translation_review.csv      # Registro de la revisión de las traducciones
+│   └── translation_corrections.csv # Correcciones manuales de la traducción (glosario)
 ├── tests/
 │   ├── conftest.py                 # Marcadores por carpeta, base de prueba y cliente de la API
 │   ├── unit/
 │   │   ├── test_categories.py
 │   │   ├── test_classifier.py
+│   │   ├── test_glossary.py
 │   │   ├── test_human_review.py
 │   │   ├── test_load_data.py
 │   │   ├── test_review_translations.py
@@ -272,9 +277,10 @@ Clasifica las preguntas restantes y guarda automáticamente las que superan el 7
 
 ```powershell
 poetry run python -m app.translate_questions --batch-size 64
+poetry run python -m app.apply_glossary --apply
 ```
 
-Traduce cada pregunta y sus 4 opciones con IA y guarda la traducción junto al inglés original. La primera vez descarga el modelo (~300 MB). Tarda ~45 minutos con GPU. Igual que la categorización, se puede cortar con `Ctrl+C` y retomar. Ver [Traducción con IA](#traducción-con-ia).
+Traduce cada pregunta y sus 4 opciones con IA y guarda la traducción junto al inglés original. La primera vez descarga el modelo (~300 MB). Tarda ~45 minutos con GPU. Igual que la categorización, se puede cortar con `Ctrl+C` y retomar. Después, `apply_glossary` aplica las correcciones del glosario. Ver [Traducción con IA](#traducción-con-ia).
 
 Para ver el resultado: `poetry run python -m app.verify_lang` muestra algunas preguntas en inglés y en español, y cuántas están traducidas.
 
@@ -538,6 +544,7 @@ flowchart LR
     D --> E["Postprocesamiento<br/>agrega los signos ¿ y ¡<br/>y extrae la opción"]
     E --> F{¿Las 4 opciones<br/>siguen distintas?}
     F -->|Sí| G[(Se guarda en las<br/>columnas _es)]
+    G -->|apply_glossary| I["Glosario<br/>puntuación y<br/>correcciones manuales"]
     F -->|No| H[Queda en inglés]
 ```
 
@@ -546,6 +553,7 @@ flowchart LR
 3. **Cada opción se traduce junto con su pregunta**, como *"pregunta Answer: opción"*, y después se extrae lo que quedó después de *"Respuesta:"*. Así el modelo sabe de qué trata la pregunta (ver la comparación más abajo).
 4. **Post-procesamiento**: agrega el `¿` o `¡` de apertura **solo si el modelo no puso ninguno**. La regla de la consigna ("si termina en `?`, agregar `¿` al principio") rompía las preguntas de varias oraciones: *"¿En el Japón antiguo... ¿Cómo?"*.
 5. **Si dos opciones quedan iguales** al traducirlas, la pregunta queda en inglés: con opciones repetidas no se puede jugar. Pasa en preguntas que dependen del idioma, como *"¿Cómo se llaman las crías de tiburón?"*, donde *pups* y *cubs* se traducen las dos como "cachorros".
+6. **Glosario de correcciones** (`apply_glossary`): una regla de puntuación y correcciones hechas a mano para los errores que dependen del contexto. Ver [Glosario de correcciones](#glosario-de-correcciones).
 
 El inglés original nunca se modifica, así que el juego se puede ofrecer en los dos idiomas.
 
@@ -600,22 +608,55 @@ Tipos de problema encontrados:
 | Problema | Ejemplo | ¿Se puede corregir? |
 |---|---|---|
 | **Omite partes del texto** | *"Scrubs character nurse Roberts"* → "la enfermera Roberts" (sin la serie, la pregunta no tiene respuesta) | No con reglas: limitación del modelo |
-| **Traduce nombres que no debía** | La banda *Poison* → "Veneno" | Sí: glosario |
-| **Elige mal el sentido de una palabra** | *show* → "espectáculo" (era una serie); *loves* → "amantes" (eran novios); *What coach* → "Lo que" | En parte: glosario para los casos repetidos |
+| **Traduce nombres que no debía** | La banda *Poison* → "Veneno" | Sí: corregido en el glosario |
+| **Elige mal el sentido de una palabra** | *show* → "espectáculo" (era una serie); *loves* → "amantes" (eran novios); *What coach* → "Lo que" | Caso por caso: los de la revisión se corrigieron en el glosario |
 | **Términos técnicos inconsistentes** | *rate* → "tarifa", "tasa" y "tipo de interés" en la misma pregunta | No con reglas |
 | **Concordancia de género** | "estas películas ... no fue lanzad**o**" | No con reglas |
-| **Puntuación** | El original termina en `.` siendo pregunta → "¿Qué puerto ... de Guinea." | Sí: post-procesamiento |
+| **Puntuación** | El original termina en `.` siendo pregunta → "¿Qué puerto ... de Guinea." | Sí: regla de puntuación del glosario |
 
 Varios errores vienen del **texto original**: al dataset le faltan los apóstrofos (*Ill*, *bands*, *Gilmores*) y algunas preguntas terminan en `.` o `.?`. La calidad de la traducción depende de la calidad del texto de entrada.
 
+Los porcentajes miden **al modelo solo**, antes del glosario. Los errores de esta muestra se corrigieron después a mano, así que no se pueden volver a contar: para medir el sistema con el glosario habría que revisar preguntas nuevas.
+
 También hubo aciertos que muestran que la estrategia de traducir las opciones con su pregunta funciona: deja en inglés los nombres de supermercados y de bandas (*Big Star*, *Winn Dixie*), pero traduce los títulos de poemas que tienen nombre en español (*Ode To A Grecian Urn* → "Oda a una urna griega"); pasa los números al formato español (`300,000,000` → `300.000.000`) sin tocar los años; y corrige erratas del original (*"is is"*).
+
+### Glosario de correcciones
+
+Corresponde al paso 9 de la consigna (post-procesamiento). Antes de escribir cada regla se midió en la base a cuántas preguntas afectaba. Muchas reglas que parecían obvias rompían más de lo que arreglaban:
+
+| Candidata | Lo que mostraron los datos | Decisión |
+|---|---|---|
+| *Poison* → dejar en inglés | 16 de 23 son la banda de los 80 traducida como "Veneno", pero 5 son el **tipo Veneno** de Pokémon y la magia de veneno de *Fairy Tail*, donde "Veneno" es lo correcto | Corrección pregunta por pregunta |
+| *Sloth* → "Perezoso" | Es el animal (2 preguntas), el pecado de *Seven* ("Pereza", correcto) y el personaje de *Los Goonies* ("Sloth") | Corrección pregunta por pregunta |
+| "espectáculo" → "serie" | 105 preguntas: en la mayoría "espectáculo" está bien ("espectáculo musical", "espectáculo unipersonal") | Descartada |
+| "amantes" → "novios" | 20 preguntas: en la mayoría está bien ("amantes de las matemáticas") | Descartada |
+| `¿ ... .` → `¿ ... ?` | Sirve, pero solo si el texto no tiene ningún `?`: "¿Por qué tan serio? es un lema de esta película." está bien así | Regla general |
+
+Por eso el glosario tiene dos partes:
+
+1. **Una regla general de puntuación** (`fix_punctuation`, en `app/glossary.py`): si la pregunta abre con `¿`, termina en punto y no tiene ningún `?`, cambia el punto final por `?`. Respeta los puntos suspensivos (`cuando...` → `cuando...?`) y las abreviaturas (`St.` → `St.?`). `post_process` la aplica, así que las traducciones nuevas ya salen corregidas. Corrigió **42 preguntas**.
+2. **Correcciones por pregunta** en `data/translation_corrections.csv`, escritas a mano: **32**, entre ellas las 16 de *Poison*, las 4 de *Sloth* y los errores encontrados en la revisión humana. Cada fila dice qué pregunta, qué se corrige (`question` o el texto en inglés de la opción) y cómo tiene que quedar:
+
+   ```csv
+   question_id,target,es,note
+   1,Sloth,Perezoso,el animal (no el pecado)
+   20650,question,¿Qué médico fue jefe de cirugía en la serie St. Elsewhere?,el modelo cortó la pregunta en St.
+   ```
+
+`app/apply_glossary.py` aplica las dos partes a la base. Por defecto **solo muestra los cambios**; con `--apply` los guarda. Si una corrección apunta a una opción que no existe o deja opciones repetidas, no guarda nada. Dos tests de calidad de datos verifican que la base tenga el glosario aplicado.
+
+> [!WARNING]
+> **Revisar siempre los cambios antes de guardarlos.** Una versión intermedia de la regla de puntuación también cambiaba `.?` por `?`, y se guardó sin revisar: rompió 185 abreviaturas (*EE.UU.?* → *EE.UU?*, *a.C.?* → *a.C?*). Se restauraron volviendo a traducir esas preguntas: el modelo, con su versión fija, da exactamente la misma traducción, así que se pudo comprobar que cada pregunta restaurada era la original. Esos casos quedaron como tests.
 
 ### Errores conocidos
 
-- **Palabras ambiguas sin suficiente contexto**: *Sloth* (el animal) sale "Pereza" en lugar de "Perezoso", incluso con la pregunta como contexto.
+- **Palabras ambiguas sin suficiente contexto**: *Sloth* (el animal) sale "Pereza" en lugar de "Perezoso", incluso con la pregunta como contexto. Los casos encontrados se corrigieron en el glosario, pero el modelo lo sigue haciendo con preguntas nuevas.
 - **Expresiones**: *"Which is the odd one?"* sale "¿Cuál es el extraño?" en lugar de "¿Cuál no corresponde?".
 - **Nombres históricos**: *Bleeding Kansas* sale "Sangrando Kansas".
 - **Preguntas que dependen del inglés** (rimas, letras, juegos de palabras): solo se detectan las que terminan con opciones repetidas.
+- **Apóstrofos faltantes en el dataset**: *Allies parents* (de *Allie's*) sale "los padres de los Aliados", y *Which countrys diamonds*, "¿Qué países diamantes".
+- **Símbolos que el modelo no conoce**: la **π** desaparece de la traducción.
+- **Títulos que son preguntas**: en *"Could It Be Magic fue un éxito..."* el modelo pone `¿` al principio, como si toda la frase fuera una pregunta.
 
 Es un modelo chico, pensado para traducir oraciones y no para entender trivia. Ver [Limitaciones](#limitaciones-conocidas-y-posibles-mejoras).
 
@@ -637,6 +678,7 @@ Todos se ejecutan desde la raíz con `poetry run python -m app.<script>`. Los qu
 | `translate_questions` | Traduce al español las preguntas que todavía no están traducidas |
 | `verify_lang` | Muestra algunas preguntas en inglés y en español, y cuántas están traducidas |
 | `review_translations` | Mide la calidad real de la traducción revisando traducciones al azar |
+| `apply_glossary` | Aplica el glosario de correcciones (puntuación y correcciones manuales) a las traducciones |
 
 ### `categorize`
 
@@ -694,6 +736,15 @@ poetry run python -m app.translate_questions --batch-size 64   # todas las que f
 | `--batch-size N` | Textos que el modelo traduce a la vez (por defecto 32). Más es más rápido, pero usa más memoria de la GPU. Si un lote no entra, se divide solo |
 
 Cada tanda de 256 preguntas se guarda al terminarla. Si hubo que dividir lotes por falta de memoria, el resumen final lo informa; si son muchos, conviene bajar el `--batch-size`. Las preguntas que quedan en inglés por opciones repetidas se vuelven a intentar si se corre de nuevo (y dan el mismo resultado).
+
+### `apply_glossary`
+
+```powershell
+poetry run python -m app.apply_glossary            # solo muestra los cambios
+poetry run python -m app.apply_glossary --apply    # los guarda
+```
+
+Aplica la regla de puntuación a todas las preguntas traducidas y después las correcciones de `data/translation_corrections.csv` (si las dos tocan lo mismo, gana la corrección manual). Muestra cada cambio con el texto de antes y el de después. Si una corrección apunta a una pregunta u opción que no existe, o deja opciones repetidas, avisa y no guarda nada. Se puede correr las veces que haga falta: lo ya corregido no cambia. Hay que correrlo después de `translate_questions` y cada vez que se agrega una corrección al CSV.
 
 ### `review_translations`
 
@@ -814,11 +865,11 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-211 tests organizados en cuatro tipos:
+247 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
-| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento de la traducción, revisión humana, estadística | Ninguno |
+| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento y glosario de la traducción, revisión humana, estadística | Ninguno |
 | Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, restauración de decisiones, columnas de traducción en una base vieja | Ninguno (usa SQLite en memoria) |
 | Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes, traducciones completas y sin opciones repetidas | PostgreSQL con datos (si no está, esos tests se saltean) |
 | Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
@@ -895,6 +946,8 @@ Remove-Item audit_torch.txt
 | `KeyError: 'The task translation has been removed from transformers'` | Código escrito para `transformers` 4 (como el de la consigna). En la versión 5 hay que usar el modelo directamente, como `app/translator.py` |
 | `memory allocation failed with OOM` durante `translate_questions` | La memoria de la GPU se llenó en un lote. El script lo divide en dos y reintenta solo, y al final informa cuántas veces lo hizo. Si son muchas, o se vuelve muy lento, cortarlo con `Ctrl+C` y relanzarlo con un `--batch-size` menor (por ejemplo 64): sigue desde donde quedó |
 | El juego muestra preguntas en inglés aunque se pida `lang=es` | Esas preguntas no están traducidas: correr `translate_questions` (por ejemplo, después de `load_data` o de crear preguntas con `POST /questions`) |
+| Fallan `test_punctuation_rule_is_applied` o `test_glossary_corrections_are_applied` | La base no tiene el glosario aplicado (por ejemplo, después de traducir de nuevo o de agregar una corrección al CSV). Correr `apply_glossary`, revisar los cambios y guardarlos con `--apply` |
+| `apply_glossary` dice `ninguna opción es '...'` | En el CSV, `target` tiene que ser el texto en inglés de la opción, igual que en la base (sin importar mayúsculas), o `question` para corregir la pregunta |
 | `column questions.question_es does not exist` | Base creada antes de la traducción. Levantar la API una vez (agrega las columnas sola) o correr `translate_questions` |
 | Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
 
@@ -915,7 +968,8 @@ Remove-Item audit_torch.txt
 **Traducción**
 
 - Ampliar la revisión humana de la traducción (hoy son 15) para achicar el intervalo de confianza.
-- Corregir los errores sistemáticos (como *Sloth* → "Pereza") con un glosario de correcciones en el post-procesamiento, como sugiere el paso 9 de la consigna.
+- Seguir ampliando el glosario a medida que aparezcan errores: por ejemplo, *Bleeding Kansas* → "Sangrando Kansas".
+- Medir la calidad con el glosario aplicado, revisando preguntas que no estaban en la primera muestra.
 - Probar un modelo más grande, que siga instrucciones ("traducí, pero dejá los títulos en inglés"), para las opciones que dependen del contexto.
 
 **Evaluación**

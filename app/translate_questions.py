@@ -13,6 +13,9 @@ con opciones repetidas no se puede jugar, así que queda en inglés.
 
 Se puede cortar con Ctrl+C y retomar: cada tanda se guarda al terminarla.
 
+Después de traducir, correr app.apply_glossary --apply para aplicar las
+correcciones manuales de data/translation_corrections.csv.
+
 Uso:
     poetry run python -m app.translate_questions --limit 200
     poetry run python -m app.translate_questions
@@ -24,17 +27,12 @@ from typing import Any
 from tqdm import tqdm
 
 from app.database import SessionLocal, engine
+from app.glossary import options_are_distinct
 from app.models import Base, Question, ensure_translation_columns
 from app.translator import Translator
 
 # Cantidad de preguntas que se traducen juntas antes de guardarlas
 CHUNK_SIZE = 256
-
-
-def options_are_distinct(options: list[str]) -> bool:
-    """True si las opciones no están vacías y son todas distintas (sin mayúsculas)."""
-    normalized = [o.strip().casefold() for o in options]
-    return all(normalized) and len(set(normalized)) == len(normalized)
 
 
 def translate_questions(limit: int | None, batch_size: int) -> None:

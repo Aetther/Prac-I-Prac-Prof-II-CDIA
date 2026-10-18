@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from sqlalchemy import func
 
+from app.glossary import fix_punctuation, load_corrections, target_field
 from app.model_versions import MODEL_REVISIONS
 from app.models import Question
 
@@ -71,3 +72,26 @@ def test_untranslated_questions_have_no_partial_translation(real_db):
         .scalar()
     )
     assert partial == 0
+
+
+def test_punctuation_rule_is_applied(real_db):
+    bad = [
+        row.id
+        for row in translated_rows(real_db)
+        if fix_punctuation(row.question_es) != row.question_es
+    ]
+    assert bad == [], (
+        f"Preguntas sin la regla de puntuación: {bad[:10]} (correr app.apply_glossary --apply)"
+    )
+
+
+def test_glossary_corrections_are_applied(real_db):
+    pending = []
+    for c in load_corrections():
+        q: Any = real_db.get(Question, c.question_id)
+        field = target_field(q, c.target) if q is not None else None
+        if field is None or getattr(q, field) != c.es:
+            pending.append(f"#{c.question_id} ({c.target})")
+    assert pending == [], (
+        f"Correcciones sin aplicar: {pending[:10]} (correr app.apply_glossary --apply)"
+    )

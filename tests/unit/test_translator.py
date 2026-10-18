@@ -10,7 +10,7 @@ pytest.importorskip("transformers")
 
 import torch  # noqa: E402
 
-from app.translate_questions import options_are_distinct  # noqa: E402
+from app.glossary import options_are_distinct  # noqa: E402
 from app.translator import Translator, extract_option, post_process  # noqa: E402
 
 
@@ -42,6 +42,8 @@ class FakeTranslator(Translator):
     ("Qué gran jugada!", "¡Qué gran jugada!"),
     ("  Una afirmación.  ", "Una afirmación."),  # recorta espacios
     ("Una afirmación.", "Una afirmación."),  # sin signos: no cambia
+    # Regla de puntuación del glosario: abre con ¿ y cierra con punto
+    ("¿Qué puerto es la capital de Guinea.", "¿Qué puerto es la capital de Guinea?"),
 ])
 def test_post_process(text, expected):
     assert post_process(text) == expected
