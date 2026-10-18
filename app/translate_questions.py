@@ -45,6 +45,7 @@ def translate_questions(limit: int | None, batch_size: int) -> None:
 
     db = SessionLocal()
     translated = skipped = 0
+    translator: Translator | None = None
     start_time = time.perf_counter()
     try:
         query = (
@@ -102,6 +103,11 @@ def translate_questions(limit: int | None, batch_size: int) -> None:
     print(f"Traducidas:                       {translated}")
     print(f"Sin traducir (opciones repetidas): {skipped}")
     print(f"Tiempo:                           {elapsed:.0f} s")
+    if translator is not None and translator.memory_splits:
+        print(
+            f"Lotes divididos por falta de memoria en la GPU: {translator.memory_splits}"
+            " (si son muchos, probar con un --batch-size menor)"
+        )
     print("=" * 50)
 
 

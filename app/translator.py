@@ -12,6 +12,10 @@ Las opciones de respuesta se traducen junto con su pregunta, como
 "Respuesta:". Con el contexto de la pregunta, el modelo distingue mejor qué
 traducir ("Mouse" -> "Ratón") y qué no (el título de un álbum). Ver la
 comparación de alternativas en el README.
+
+Memoria de la GPU: los textos se traducen ordenados por largo (así cada lote
+tiene textos parecidos y casi no hay relleno), y si un lote no entra en la
+memoria, se divide en dos y se reintenta, en lugar de cortar todo el proceso.
 """
 import re
 from typing import Any
@@ -73,22 +77,52 @@ class Translator:
             model_name, revision=revision
         ).to(self.device)
         self.model.eval()  # modo evaluación: no se entrena, solo se usa
+        # Cuántas veces hubo que dividir un lote por falta de memoria en la GPU
+        self.memory_splits = 0
         print("Modelo cargado.")
 
     @torch.inference_mode()  # no guarda datos para entrenar: más rápido y menos memoria
+    def _run_model(self, chunk: list[str]) -> list[str]:
+        """Traduce un lote de textos con el modelo."""
+        inputs = self.tokenizer(
+            chunk, return_tensors="pt", padding=True, truncation=True
+        ).to(self.device)
+        # generate usa la configuración del modelo (beam search con 4 caminos)
+        outputs = self.model.generate(**inputs)
+        return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+    def _translate_chunk(self, chunk: list[str]) -> list[str]:
+        """
+        Traduce un lote. Si no entra en la memoria de la GPU, lo divide en dos
+        mitades y traduce cada una por separado (y así sucesivamente).
+        """
+        try:
+            return self._run_model(chunk)
+        except torch.OutOfMemoryError:
+            if len(chunk) == 1:
+                raise  # ni un solo texto entra: no hay nada más que dividir
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()  # libera la memoria que quedó reservada
+            self.memory_splits += 1
+            half = len(chunk) // 2
+            return self._translate_chunk(chunk[:half]) + self._translate_chunk(chunk[half:])
+
     def _generate(self, texts: list[str], batch_size: int) -> list[str]:
-        """Traducción "en bruto", sin post-procesamiento, en lotes."""
-        results: list[str] = []
-        for start in range(0, len(texts), batch_size):
-            chunk = texts[start:start + batch_size]
-            inputs = self.tokenizer(
-                chunk, return_tensors="pt", padding=True, truncation=True
-            ).to(self.device)
-            # generate usa la configuración del modelo (beam search con 4 caminos)
-            outputs = self.model.generate(**inputs)
-            results.extend(
-                self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            )
+        """
+        Traducción "en bruto", sin post-procesamiento, en lotes.
+
+        Los textos se procesan ordenados por largo: el modelo rellena todos los
+        textos de un lote hasta el largo del más largo, así que mezclar textos
+        cortos con largos desperdicia memoria y tiempo. Al final se devuelven
+        en el orden original.
+        """
+        order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+        results = [""] * len(texts)
+        for start in range(0, len(order), batch_size):
+            indexes = order[start:start + batch_size]
+            translated = self._translate_chunk([texts[i] for i in indexes])
+            for i, text in zip(indexes, translated):
+                results[i] = text
         return results
 
     def translate_batch(self, texts: list[str], batch_size: int = 32) -> list[str]:

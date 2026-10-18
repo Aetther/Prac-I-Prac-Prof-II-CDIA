@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-196-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-200-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
@@ -539,7 +539,7 @@ flowchart LR
 ```
 
 1. **Modelo**: [`Helsinki-NLP/opus-mt-en-es`](https://huggingface.co/Helsinki-NLP/opus-mt-en-es), de la familia MarianMT (*Encoder-Decoder*, ~77 millones de parámetros), con su versión fija en `app/model_versions.py`. Genera la traducción con *beam search*.
-2. **La pregunta se traduce sola**, en lotes (*batching*) para aprovechar la GPU.
+2. **La pregunta se traduce sola**, en lotes (*batching*) para aprovechar la GPU. Los textos se ordenan por largo antes de armar los lotes: el modelo rellena todos los textos de un lote hasta el largo del más largo, así que con textos parecidos casi no hay relleno y se usa menos memoria. Si aun así un lote no entra en la memoria de la GPU, se divide en dos y se reintenta, en lugar de cortar el proceso.
 3. **Cada opción se traduce junto con su pregunta**, como *"pregunta Answer: opción"*, y después se extrae lo que quedó después de *"Respuesta:"*. Así el modelo sabe de qué trata la pregunta (ver la comparación más abajo).
 4. **Post-procesamiento**: agrega el `¿` o `¡` de apertura **solo si el modelo no puso ninguno**. La regla de la consigna ("si termina en `?`, agregar `¿` al principio") rompía las preguntas de varias oraciones: *"¿En el Japón antiguo... ¿Cómo?"*.
 5. **Si dos opciones quedan iguales** al traducirlas, la pregunta queda en inglés: con opciones repetidas no se puede jugar. Pasa en preguntas que dependen del idioma, como *"¿Cómo se llaman las crías de tiburón?"*, donde *pups* y *cubs* se traducen las dos como "cachorros".
@@ -659,9 +659,9 @@ poetry run python -m app.translate_questions --batch-size 64   # todas las que f
 | Opción | Descripción |
 |---|---|
 | `--limit N` | Traducir como máximo N preguntas |
-| `--batch-size N` | Textos que el modelo traduce a la vez (por defecto 32). Más es más rápido, pero usa más memoria de la GPU (ver [Problemas frecuentes](#problemas-frecuentes)) |
+| `--batch-size N` | Textos que el modelo traduce a la vez (por defecto 32). Más es más rápido, pero usa más memoria de la GPU. Si un lote no entra, se divide solo |
 
-Cada tanda de 256 preguntas se guarda al terminarla. Las preguntas que quedan en inglés por opciones repetidas se vuelven a intentar si se corre de nuevo (y dan el mismo resultado).
+Cada tanda de 256 preguntas se guarda al terminarla. Si hubo que dividir lotes por falta de memoria, el resumen final lo informa; si son muchos, conviene bajar el `--batch-size`. Las preguntas que quedan en inglés por opciones repetidas se vuelven a intentar si se corre de nuevo (y dan el mismo resultado).
 
 ### `verify_lang`
 
@@ -768,7 +768,7 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-196 tests organizados en cuatro tipos:
+200 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
@@ -847,7 +847,7 @@ Remove-Item audit_torch.txt
 | `load_data` dice `El archivo descargado no coincide con la versión esperada` | El archivo del dataset cambió en Hugging Face o se corrompió en la descarga. Volver a intentar; si sigue igual, revisar si el dataset se actualizó (ver [Origen](#origen)) |
 | `Aviso: ... no tiene versión fija` al cargar un modelo | El modelo no está en `app/model_versions.py`: se usa la versión más reciente. Si es un modelo que se va a usar de forma permanente, agregar su commit a esa lista |
 | `KeyError: 'The task translation has been removed from transformers'` | Código escrito para `transformers` 4 (como el de la consigna). En la versión 5 hay que usar el modelo directamente, como `app/translator.py` |
-| `memory allocation failed with OOM` durante `translate_questions` | La memoria de la GPU se llenó en una tanda con preguntas largas. Si el script sigue, es solo un aviso. Si se corta o se vuelve muy lento, cortarlo con `Ctrl+C` y relanzarlo con un `--batch-size` menor (por ejemplo 64): sigue desde donde quedó |
+| `memory allocation failed with OOM` durante `translate_questions` | La memoria de la GPU se llenó en un lote. El script lo divide en dos y reintenta solo, y al final informa cuántas veces lo hizo. Si son muchas, o se vuelve muy lento, cortarlo con `Ctrl+C` y relanzarlo con un `--batch-size` menor (por ejemplo 64): sigue desde donde quedó |
 | El juego muestra preguntas en inglés aunque se pida `lang=es` | Esas preguntas no están traducidas: correr `translate_questions` (por ejemplo, después de `load_data` o de crear preguntas con `POST /questions`) |
 | `column questions.question_es does not exist` | Base creada antes de la traducción. Levantar la API una vez (agrega las columnas sola) o correr `translate_questions` |
 | Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
@@ -871,7 +871,6 @@ Remove-Item audit_torch.txt
 - Medir la calidad de la traducción con una revisión humana de una muestra, igual que la precisión de la categorización.
 - Corregir los errores sistemáticos (como *Sloth* → "Pereza") con un glosario de correcciones en el post-procesamiento, como sugiere el paso 9 de la consigna.
 - Probar un modelo más grande, que siga instrucciones ("traducí, pero dejá los títulos en inglés"), para las opciones que dependen del contexto.
-- Si la GPU se queda sin memoria, reintentar la tanda automáticamente con un lote más chico, u ordenar las preguntas por largo para que cada lote tenga textos parecidos.
 
 **Evaluación**
 
