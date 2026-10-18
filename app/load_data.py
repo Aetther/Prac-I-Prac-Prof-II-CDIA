@@ -7,9 +7,11 @@ Descarga el dataset de trivia desde Hugging Face y lo carga en la base.
 3. Se queda con las preguntas de 4 opciones (correcta + 3 incorrectas)
 4. Agrupa las categorías originales en las 6 de Preguntados
 
-ATENCIÓN: reemplaza las preguntas existentes y borra sus categorizaciones.
-Las decisiones humanas se pueden restaurar después con:
-    poetry run python -m app.restore_decisions
+ATENCIÓN: reemplaza las preguntas existentes y borra sus categorizaciones
+y traducciones. Después hay que:
+    poetry run python -m app.restore_decisions        (decisiones humanas)
+    poetry run python -m app.categorize --auto-only   (categorización con IA)
+    poetry run python -m app.translate_questions      (traducción al español)
 
 Uso:
     poetry run python -m app.load_data
@@ -23,7 +25,7 @@ import requests
 from ftfy import fix_text
 
 from app.database import SessionLocal, engine
-from app.models import Base, Categorization, Question
+from app.models import Base, Categorization, Question, ensure_translation_columns
 
 # Versión fija del dataset: un commit no cambia nunca, a diferencia de la rama
 # refs/convert/parquet, que Hugging Face regenera sola. Así todos obtienen
@@ -130,6 +132,8 @@ def build_rows(df: pd.DataFrame) -> list[dict]:
 
 def load_questions():
     Base.metadata.create_all(bind=engine)
+    # Una base creada antes de la traducción no tiene esas columnas
+    ensure_translation_columns(engine)
 
     parquet_path = download_parquet(DATASET_URL, DATASET_SHA256)
     try:
@@ -155,6 +159,10 @@ def load_questions():
                 f"Se borraron {deleted} categorizaciones anteriores. Para recuperar "
                 "las decisiones humanas: poetry run python -m app.restore_decisions"
             )
+        print(
+            "Las preguntas quedaron sin traducir. Para traducirlas: "
+            "poetry run python -m app.translate_questions --batch-size 64"
+        )
     except Exception as e:
         session.rollback()
         print(f"Error: {e}")

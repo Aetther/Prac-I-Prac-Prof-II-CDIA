@@ -56,6 +56,7 @@ def test_put_without_key_does_not_change_anything(anon_client):
     "/stats",
     "/categories",
     "/categories/stats",
+    "/translation/stats",
 ])
 def test_public_endpoints_do_not_need_key(anon_client, path):
     assert anon_client.get(path).status_code == 200

@@ -5,7 +5,7 @@ FastAPI los usa para validar el cuerpo de cada pedido antes de llegar al
 endpoint. Si algo no cumple (falta un campo, es muy largo, no es texto, etc.),
 responde 422 automáticamente indicando qué campo falló y por qué.
 """
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -122,6 +122,9 @@ class CategorizationUpdate(BaseModel):
 # Los endpoints del juego nunca revelan la respuesta correcta antes de que
 # el jugador elija: las 4 opciones van mezcladas en una sola lista.
 
+# Idiomas disponibles para jugar
+Lang = Literal["es", "en"]
+
 
 class GameQuestion(BaseModel):
     """Pregunta para jugar (GET /game/question). No indica cuál es la correcta."""
@@ -130,6 +133,10 @@ class GameQuestion(BaseModel):
     question: str
     category: str = Field(description="Categoría asignada (por la IA o una persona)")
     options: list[str] = Field(description="Las 4 opciones, mezcladas al azar")
+    lang: Lang = Field(
+        description="Idioma en que viene la pregunta. Puede ser 'en' aunque se "
+        "haya pedido 'es', si esa pregunta no tiene traducción."
+    )
 
 
 class GameAnswer(BaseModel):

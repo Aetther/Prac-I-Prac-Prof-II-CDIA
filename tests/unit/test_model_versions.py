@@ -28,6 +28,7 @@ def test_unknown_model_warns_and_uses_latest(capsys):
     ("app.cosine_classifier", "EMBEDDING_MODEL"),
     ("app.train_classifier", "EMBEDDING_MODEL"),
     ("app.train_setfit", "BASE_MODEL"),
+    ("app.translator", "TRANSLATION_MODEL"),
 ])
 def test_project_models_have_fixed_revision(module, constant):
     # Si alguien cambia un modelo del proyecto, este test le recuerda

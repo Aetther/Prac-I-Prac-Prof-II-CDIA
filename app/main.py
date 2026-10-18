@@ -11,20 +11,23 @@ from sqlalchemy.orm import Session
 
 from app.categories import CATEGORIES, find_category_by_name
 from app.database import engine, get_db
-from app.models import Base, Categorization, Question
+from app.models import Base, Categorization, Question, ensure_translation_columns
 from app.schemas import (
     CategorizationUpdate,
     GameAnswer,
     GameQuestion,
     GameResult,
+    Lang,
     QuestionCreate,
 )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Al arrancar: crear las tablas si no existen
+    # Al arrancar: crear las tablas si no existen y agregar las columnas de
+    # traducción a una base creada antes de la traducción
     Base.metadata.create_all(bind=engine)
+    ensure_translation_columns(engine)
     yield
     # Al cerrar: no hace falta liberar nada
 
@@ -98,10 +101,15 @@ def root():
         "message": "Questions API funcionando",
         "endpoints": {
             "juego": [
-                "/game/question?category={category_name}",
-                "POST /game/answer",
+                "/game/question?category={category_name}&lang=es",
+                "POST /game/answer?lang=es",
             ],
-            "publicos": ["/stats", "/categories", "/categories/stats"],
+            "publicos": [
+                "/stats",
+                "/categories",
+                "/categories/stats",
+                "/translation/stats",
+            ],
             "administracion (requieren X-API-Key)": [
                 "/questions",
                 "/questions/{id}",
@@ -125,11 +133,14 @@ def game_question(
     category: str | None = Query(
         None, max_length=100, description="Opcional: geografia, historia, ciencia, ..."
     ),
+    lang: Lang = Query("es", description="Idioma: 'es' (español) o 'en' (inglés)"),
     db: Session = Depends(get_db),
 ):
     """
     Una pregunta al azar, con las 4 opciones mezcladas y sin indicar la correcta.
     Solo usa preguntas categorizadas (la categoría es la asignada).
+    Si se pide español y la pregunta no tiene traducción, viene en inglés
+    (el campo lang de la respuesta lo indica).
     """
     query = db.query(Question, Categorization).join(
         Categorization, Categorization.question_id == Question.id
@@ -149,13 +160,29 @@ def game_question(
     # Any: con los modelos estilo Column, Pylance no sabe que son valores comunes
     question: Any = row[0]
     categorization: Any = row[1]
-    options = [question.answer, question.wrong_1, question.wrong_2, question.wrong_3]
+
+    served_lang: Lang  # Lang y no str: así Pylance acepta pasarlo a GameQuestion
+    if lang == "es" and question.is_translated:
+        text = question.question_es
+        options = [
+            question.answer_es,
+            question.wrong_1_es,
+            question.wrong_2_es,
+            question.wrong_3_es,
+        ]
+        served_lang = "es"
+    else:
+        text = question.question
+        options = [question.answer, question.wrong_1, question.wrong_2, question.wrong_3]
+        served_lang = "en"
+
     random.shuffle(options)
     return GameQuestion(
         id=question.id,
-        question=question.question,
+        question=text,
         category=categorization.category_name,
         options=options,
+        lang=served_lang,
     )
 
 
@@ -164,15 +191,29 @@ def game_question(
     response_model=GameResult,
     responses=not_found("La pregunta no existe"),
 )
-def game_answer(data: GameAnswer, db: Session = Depends(get_db)):
-    """Comprueba la opción elegida y recién ahí revela la respuesta correcta."""
+def game_answer(
+    data: GameAnswer,
+    lang: Lang = Query(
+        "es", description="Idioma en que se devuelve la respuesta correcta"
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Comprueba la opción elegida y recién ahí revela la respuesta correcta.
+    Acepta la respuesta en cualquiera de los dos idiomas.
+    """
     question: Any = db.get(Question, data.question_id)
     if question is None:
         raise HTTPException(status_code=404, detail="Pregunta no encontrada")
 
+    correct_answers = {question.answer.lower()}
+    if question.is_translated:
+        correct_answers.add(question.answer_es.lower())
+
+    use_es = lang == "es" and question.is_translated
     return GameResult(
-        correct=data.answer.lower() == question.answer.lower(),
-        correct_answer=question.answer,
+        correct=data.answer.lower() in correct_answers,
+        correct_answer=question.answer_es if use_es else question.answer,
     )
 
 
@@ -231,6 +272,12 @@ def list_by_category(
             "wrong_1": question.wrong_1,
             "wrong_2": question.wrong_2,
             "wrong_3": question.wrong_3,
+            "question_es": question.question_es,
+            "answer_es": question.answer_es,
+            "wrong_1_es": question.wrong_1_es,
+            "wrong_2_es": question.wrong_2_es,
+            "wrong_3_es": question.wrong_3_es,
+            "is_translated": question.is_translated,
             "original_category": question.category,
             "category_name": categorization.category_name,
             "confidence_score": categorization.confidence_score,
@@ -303,6 +350,32 @@ def category_stats(db: Session = Depends(get_db)):
         "automatic": automatic,
         "manual": manual,
         "by_category": {name: count for name, count in rows},
+    }
+
+
+@app.get("/translation/stats")
+def translation_stats(db: Session = Depends(get_db)):
+    """Cuántas preguntas están traducidas al español y con qué modelo."""
+    total = db.query(func.count(Question.id)).scalar() or 0
+    translated = (
+        db.query(func.count(Question.id))
+        .filter(Question.is_translated.is_(True))
+        .scalar()
+        or 0
+    )
+    models = [
+        name
+        for (name,) in db.query(Question.translation_model)
+        .filter(Question.translation_model.is_not(None))
+        .distinct()
+        .all()
+    ]
+    return {
+        "total_questions": total,
+        "translated": translated,
+        "untranslated": total - translated,
+        "percentage_translated": round(translated / total * 100, 2) if total else 0.0,
+        "models_used": models,
     }
 
 
