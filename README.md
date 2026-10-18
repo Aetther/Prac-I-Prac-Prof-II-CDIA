@@ -12,25 +12,95 @@ Proyecto de Práctica Profesional II — CDIA.
 
 ## Índice
 
-1. [Tecnologías](#tecnologías)
-2. [Estructura del proyecto](#estructura-del-proyecto)
-3. [Base de datos](#base-de-datos)
-4. [Requisitos](#requisitos)
-5. [Instalación y puesta en marcha](#instalación-y-puesta-en-marcha)
-6. [Uso de GPU (opcional)](#uso-de-gpu-opcional)
-7. [API](#api)
-8. [Dataset](#dataset)
-9. [Categorización con IA](#categorización-con-ia)
-10. [Traducción con IA](#traducción-con-ia)
-11. [Scripts](#scripts)
-12. [Resultados](#resultados)
-13. [Tests](#tests)
-14. [Seguridad](#seguridad)
-15. [Problemas frecuentes](#problemas-frecuentes)
-16. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
-17. [Créditos y licencias](#créditos-y-licencias)
+1. [Visión general](#visión-general)
+2. [Tecnologías](#tecnologías)
+3. [Estructura del proyecto](#estructura-del-proyecto)
+4. [Base de datos](#base-de-datos)
+5. [Requisitos](#requisitos)
+6. [Instalación y puesta en marcha](#instalación-y-puesta-en-marcha)
+7. [Uso de GPU (opcional)](#uso-de-gpu-opcional)
+8. [API](#api)
+9. [Dataset](#dataset)
+10. [Categorización con IA](#categorización-con-ia)
+11. [Traducción con IA](#traducción-con-ia)
+12. [Scripts](#scripts)
+13. [Resultados](#resultados)
+14. [Tests](#tests)
+15. [Seguridad](#seguridad)
+16. [Problemas frecuentes](#problemas-frecuentes)
+17. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
+18. [Créditos y licencias](#créditos-y-licencias)
 
 ---
+
+## Visión general
+
+El proyecto tiene dos partes: un **proceso de preparación de los datos**, que se corre una vez con scripts, y una **API** que sirve las preguntas ya preparadas.
+
+```mermaid
+flowchart TB
+    subgraph SRC["Fuentes"]
+        HF["Hugging Face<br/>dataset OpenTriviaQA"]
+        CSV["data/training_data.csv<br/>decisiones humanas"]
+        MOD["Modelos de IA<br/>(versiones fijas)"]
+    end
+
+    subgraph PREP["Preparación de los datos (scripts)"]
+        LD["1. load_data<br/>verifica el hash, limpia,<br/>filtra y deduplica"]
+        RD["2. restore_decisions"]
+        ZS{"3. categorize<br/>IA zero-shot (DeBERTa)<br/>¿confianza ≥ 70%?"}
+        HR["Revisión humana"]
+        PEN["Queda pendiente"]
+        TR["4. translate_questions<br/>IA de traducción (MarianMT)"]
+        DIS{"¿Las 4 opciones<br/>siguen distintas?"}
+        EN["Queda en inglés"]
+    end
+
+    subgraph DB["PostgreSQL (Docker, solo 127.0.0.1)"]
+        Q[("questions<br/>inglés + español")]
+        C[("categorizations")]
+    end
+
+    subgraph API["API FastAPI"]
+        GAME["Juego (público)<br/>/game/question y /game/answer<br/>?lang=es o en"]
+        PUB["Estadísticas (públicas)<br/>/stats, /categories/stats,<br/>/translation/stats"]
+        ADM["Administración 🔒 X-API-Key<br/>/questions, POST /questions,<br/>PUT /categorizations"]
+    end
+
+    PLAYER(["Jugador<br/>(interfaz web)"])
+    ADMIN(["Administrador<br/>(/docs)"])
+
+    HF -->|descarga| LD --> Q
+    CSV --> RD --> C
+    Q --> ZS
+    ZS -->|"Sí: automática"| C
+    ZS -->|No| HR
+    HR -->|"acepta o corrige: manual"| C
+    HR -->|saltea| PEN
+    C -.->|export_training| CSV
+    Q --> TR --> DIS
+    DIS -->|"Sí: columnas _es"| Q
+    DIS -->|No| EN
+    MOD -.-> ZS
+    MOD -.-> TR
+
+    Q --> GAME
+    C --> GAME
+    Q --> PUB
+    C --> PUB
+    Q --> ADM
+    C --> ADM
+
+    PLAYER --> GAME
+    PLAYER --> PUB
+    ADMIN --> ADM
+```
+
+1. **Carga** (`load_data`): descarga el dataset en una versión fija, verifica que el archivo sea el esperado, repara la codificación, se queda con las preguntas de 4 opciones y elimina duplicados. Ver [Dataset](#dataset).
+2. **Decisiones humanas** (`restore_decisions`): recupera las categorizaciones que revisó una persona, guardadas en el repositorio. Las nuevas se exportan con `export_training`.
+3. **Categorización** (`categorize`): la IA asigna una de las 6 categorías. Si está segura (≥ 70%), se guarda sola; si no, decide una persona o la pregunta queda pendiente. Ver [Categorización con IA](#categorización-con-ia).
+4. **Traducción** (`translate_questions`): la IA traduce cada pregunta y sus opciones al español, sin tocar el inglés. Ver [Traducción con IA](#traducción-con-ia).
+5. **API**: el juego entrega preguntas categorizadas, en el idioma pedido y sin revelar la respuesta hasta que el jugador elige. Ver [API](#api).
 
 ## Tecnologías
 
