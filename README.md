@@ -1,12 +1,12 @@
-# Questions API — Trivia estilo Preguntados con categorización por IA
+# Questions API — Trivia estilo Preguntados con categorización y traducción por IA
 
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-157-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-196-brightgreen?logo=pytest&logoColor=white)
 
-API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face y se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura.
+API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
 Proyecto de Práctica Profesional II — CDIA.
 
@@ -21,13 +21,14 @@ Proyecto de Práctica Profesional II — CDIA.
 7. [API](#api)
 8. [Dataset](#dataset)
 9. [Categorización con IA](#categorización-con-ia)
-10. [Scripts](#scripts)
-11. [Resultados](#resultados)
-12. [Tests](#tests)
-13. [Seguridad](#seguridad)
-14. [Problemas frecuentes](#problemas-frecuentes)
-15. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
-16. [Créditos y licencias](#créditos-y-licencias)
+10. [Traducción con IA](#traducción-con-ia)
+11. [Scripts](#scripts)
+12. [Resultados](#resultados)
+13. [Tests](#tests)
+14. [Seguridad](#seguridad)
+15. [Problemas frecuentes](#problemas-frecuentes)
+16. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
+17. [Créditos y licencias](#créditos-y-licencias)
 
 ---
 
@@ -40,6 +41,7 @@ Proyecto de Práctica Profesional II — CDIA.
 | Base de datos | PostgreSQL (en Docker), SQLAlchemy |
 | Datos | pandas, pyarrow, requests, ftfy |
 | IA | transformers, PyTorch, sentence-transformers, scikit-learn, SetFit |
+| Traducción | transformers (MarianMT), sentencepiece, sacremoses |
 | Tests | pytest, httpx |
 
 ## Estructura del proyecto
@@ -50,7 +52,7 @@ Proyecto de Práctica Profesional II — CDIA.
 │   ├── main.py                     # Endpoints de la API
 │   ├── schemas.py                  # Validación de los datos que recibe la API (Pydantic)
 │   ├── database.py                 # Conexión a PostgreSQL y sesión
-│   ├── models.py                   # Tablas: questions y categorizations
+│   ├── models.py                   # Tablas: questions (con traducción) y categorizations
 │   ├── load_data.py                # Descarga, limpia y carga el dataset
 │   ├── categories.py               # Las 6 categorías y sus descripciones
 │   ├── classifier.py               # Clasificador zero-shot (IA)
@@ -64,6 +66,9 @@ Proyecto de Práctica Profesional II — CDIA.
 │   ├── evaluate.py                 # Banco de pruebas para comparar configuraciones
 │   ├── train_classifier.py         # Experimento: clasificador entrenado (pseudo-etiquetado)
 │   ├── train_setfit.py             # Fine-tuning con SetFit
+│   ├── translator.py               # Traductor inglés -> español (IA)
+│   ├── translate_questions.py      # Traducción masiva de las preguntas
+│   ├── verify_lang.py              # Muestra preguntas en inglés y español
 │   └── fix_encoding.py             # Reparación de codificación (ya integrada en load_data)
 ├── data/
 │   ├── training_data.csv           # Decisiones humanas (ejemplos verificados)
@@ -76,16 +81,19 @@ Proyecto de Práctica Profesional II — CDIA.
 │   │   ├── test_human_review.py
 │   │   ├── test_load_data.py
 │   │   ├── test_model_versions.py
-│   │   └── test_statistics.py
+│   │   ├── test_statistics.py
+│   │   └── test_translator.py
 │   ├── integration/
 │   │   ├── test_api.py
 │   │   ├── test_game.py
-│   │   └── test_restore_decisions.py
+│   │   ├── test_restore_decisions.py
+│   │   └── test_translation_columns.py
 │   ├── data_quality/
 │   │   ├── conftest.py             # Conexión a la base real (saltea si no está disponible)
 │   │   ├── test_categorizations.py
 │   │   ├── test_csv_files.py
-│   │   └── test_questions.py
+│   │   ├── test_questions.py
+│   │   └── test_translations.py
 │   └── validation/
 │       ├── test_api_auth.py
 │       ├── test_api_inputs.py
@@ -93,6 +101,7 @@ Proyecto de Práctica Profesional II — CDIA.
 │       └── test_model_quality.py
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
 ├── prueba_clasificador.py          # Prueba rápida del clasificador
+├── prueba_traduccion.py            # Prueba rápida de la API en español e inglés
 ├── docker-compose.yml              # Servicio de PostgreSQL
 ├── .env.example                    # Plantilla de credenciales (copiar como .env)
 ├── pyproject.toml                  # Dependencias y configuración de pytest
@@ -101,6 +110,10 @@ Proyecto de Práctica Profesional II — CDIA.
 ├── CONCEPTS.md                     # Conceptos del ejercicio base
 ├── EXERCISE_AI_CATEGORIZATION.md   # Consigna de la categorización con IA
 ├── CONCEPTS_AI_CATEGORIZATION.md   # Conceptos de la categorización con IA
+├── EXERCISE_AI_TRANSLATION.md      # Consigna de la traducción con IA
+├── CONCEPTS_AI_TRANSLATION.md      # Conceptos de la traducción con IA
+├── EXERCISE_AI_UIUX.md             # Consigna de la interfaz (próxima etapa)
+├── CONCEPTS_AI_UIUX.md             # Conceptos de la interfaz (próxima etapa)
 └── FIRST_STEPS.md                  # Instrucciones de la cátedra para traer cada consigna
 ```
 
@@ -108,7 +121,7 @@ Cada carpeta de `tests/` tiene además un `__init__.py` vacío. Las carpetas `mo
 
 ## Base de datos
 
-Dos tablas: las preguntas del dataset y la categoría asignada a cada una. Cada pregunta tiene como máximo una categorización.
+Dos tablas: las preguntas del dataset (en inglés y su traducción al español) y la categoría asignada a cada una. Cada pregunta tiene como máximo una categorización.
 
 ```mermaid
 erDiagram
@@ -122,6 +135,13 @@ erDiagram
         text wrong_3
         string category "categoría original del dataset"
         string source
+        text question_es "traducción (vacía si no está traducida)"
+        text answer_es
+        text wrong_1_es
+        text wrong_2_es
+        text wrong_3_es
+        bool is_translated
+        string translation_model "modelo que tradujo"
     }
     CATEGORIZATIONS {
         int id PK
@@ -133,14 +153,14 @@ erDiagram
     }
 ```
 
-La categoría original del dataset (`questions.category`) se conserva aparte de la asignada (`categorizations.category_name`), para poder compararlas.
+La categoría original del dataset (`questions.category`) se conserva aparte de la asignada (`categorizations.category_name`), para poder compararlas. Del mismo modo, la traducción se guarda en columnas aparte (`_es`) y el inglés original nunca se modifica.
 
 ## Requisitos
 
 - **Python 3.11 a 3.13**
 - **[Poetry](https://python-poetry.org/)** para el manejo de dependencias
 - **[Docker](https://www.docker.com/)** para la base de datos
-- **Opcional:** GPU NVIDIA para acelerar la IA. Sin GPU todo funciona igual, pero la categorización completa pasa de ~35 minutos a varias horas.
+- **Opcional:** GPU NVIDIA para acelerar la IA. Sin GPU todo funciona igual, pero la categorización completa pasa de ~35 minutos a varias horas, y la traducción, de ~45 minutos a muchas horas.
 - Unos **5 GB libres** en disco para las dependencias de IA y los modelos.
 
 ## Instalación y puesta en marcha
@@ -193,7 +213,7 @@ poetry run python -m app.load_data
 Descarga el dataset de Hugging Face, repara los errores de codificación, filtra las preguntas válidas y las carga en la base. Ver [Dataset](#dataset).
 
 > [!WARNING]
-> Este script reemplaza todas las preguntas y borra sus categorizaciones. Las decisiones humanas se recuperan con el paso siguiente.
+> Este script reemplaza todas las preguntas y borra sus categorizaciones y traducciones. Las decisiones humanas se recuperan con el paso siguiente; la categorización y la traducción se rehacen con los pasos 5 y 6.
 
 ### 4. Restaurar las decisiones humanas
 
@@ -211,7 +231,17 @@ poetry run python -m app.categorize --auto-only
 
 Clasifica las preguntas restantes y guarda automáticamente las que superan el 70% de confianza. La primera vez descarga el modelo (~1,7 GB). Tarda ~35 minutos con GPU. Se puede cortar con `Ctrl+C` y retomar: solo procesa lo que falta.
 
-### 6. Levantar la API
+### 6. Traducir al español
+
+```powershell
+poetry run python -m app.translate_questions --batch-size 64
+```
+
+Traduce cada pregunta y sus 4 opciones con IA y guarda la traducción junto al inglés original. La primera vez descarga el modelo (~300 MB). Tarda ~45 minutos con GPU. Igual que la categorización, se puede cortar con `Ctrl+C` y retomar. Ver [Traducción con IA](#traducción-con-ia).
+
+Para ver el resultado: `poetry run python -m app.verify_lang` muestra algunas preguntas en inglés y en español, y cuántas están traducidas.
+
+### 7. Levantar la API
 
 ```powershell
 poetry run uvicorn app.main:app --reload
@@ -255,14 +285,15 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 | Método | Ruta | Clave | Descripción |
 |---|---|:---:|---|
 | GET | `/` | | Estado de la API y lista de endpoints |
-| GET | `/game/question` | | Una pregunta al azar para jugar, con las opciones mezcladas y **sin revelar la correcta**. Filtro opcional `?category=` |
-| POST | `/game/answer` | | Comprueba la opción elegida y recién ahí revela la correcta |
+| GET | `/game/question` | | Una pregunta al azar para jugar, con las opciones mezcladas y **sin revelar la correcta**. Filtros opcionales `?category=` y `?lang=es` o `en` |
+| POST | `/game/answer` | | Comprueba la opción elegida y recién ahí revela la correcta (`?lang=` para el idioma de la respuesta) |
 | GET | `/stats` | | Total de preguntas y cantidad por categoría original del dataset |
 | GET | `/categories` | | Las 6 categorías disponibles |
 | GET | `/categories/stats` | | Total, categorizadas, pendientes, automáticas, manuales y cantidad por categoría |
-| GET | `/questions` | 🔒 | Lista de preguntas con sus respuestas, paginada |
+| GET | `/translation/stats` | | Total, traducidas, sin traducir, porcentaje y modelo de traducción usado |
+| GET | `/questions` | 🔒 | Lista de preguntas con sus respuestas, en inglés y español, paginada |
 | GET | `/questions/{id}` | 🔒 | Una pregunta por su id |
-| GET | `/questions/category/{category_name}` | 🔒 | Preguntas categorizadas (por IA o por una persona) en esa categoría, paginadas. Incluye la categoría original del dataset y la asignada |
+| GET | `/questions/category/{category_name}` | 🔒 | Preguntas categorizadas (por IA o por una persona) en esa categoría, paginadas. Incluye la categoría original del dataset, la asignada y la traducción |
 | POST | `/questions` | 🔒 | Crea una pregunta nueva |
 | PUT | `/categorizations/{id}` | 🔒 | Corrige la categoría de una pregunta (queda registrada como decisión humana) |
 
@@ -272,30 +303,35 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 
 Los endpoints del juego nunca muestran la respuesta correcta antes de que el jugador elija, así que no se puede hacer trampa mirando lo que devuelve la API (por ejemplo, con las herramientas de desarrollador del navegador). Solo usan preguntas categorizadas, y la categoría que muestran es la asignada.
 
-**Pedir una pregunta** (`GET /game/question?category=ciencia`; sin `category`, sale de cualquiera):
+**Pedir una pregunta** (`GET /game/question?category=ciencia&lang=es`; sin `category`, sale de cualquiera):
 
 ```json
 {
   "id": 1,
-  "question": "Three of these animals hibernate. Which one does not?",
+  "question": "Tres de estos animales hibernan. ¿Cuál no?",
   "category": "ciencia",
-  "options": ["Frog", "Sloth", "Snake", "Mouse"]
+  "options": ["Rana", "Pereza", "Serpiente", "Ratón"],
+  "lang": "es"
 }
 ```
 
 Las opciones se mezclan en cada pedido.
 
-**Responder** (`POST /game/answer`), con el texto de la opción elegida:
+**Idioma** (`?lang=`): `es` (por defecto) o `en`. Cualquier otro valor responde **422**. La misma pregunta (mismo `id`) se puede pedir en los dos idiomas. Si se pide español y la pregunta no tiene traducción (ver [Traducción con IA](#traducción-con-ia)), viene en inglés, y el campo `lang` de la respuesta lo indica.
+
+**Responder** (`POST /game/answer?lang=es`), con el texto de la opción elegida:
 
 ```json
-{ "question_id": 1, "answer": "Frog" }
+{ "question_id": 1, "answer": "Rana" }
 ```
 
 ```json
-{ "correct": false, "correct_answer": "Sloth" }
+{ "correct": false, "correct_answer": "Pereza" }
 ```
 
-No distingue mayúsculas ni espacios al principio o al final. Responde **404** si la pregunta (o la categoría pedida) no existe.
+(La respuesta correcta es *Sloth*, el perezoso: "Pereza" es uno de los [errores conocidos](#errores-conocidos) de la traducción).
+
+Acepta la respuesta en **cualquiera de los dos idiomas** ("Pereza" o "Sloth"); `?lang=` solo define en qué idioma vuelve `correct_answer`. No distingue mayúsculas ni espacios al principio o al final. Responde **404** si la pregunta (o la categoría pedida) no existe.
 
 ### Autenticación
 
@@ -450,6 +486,74 @@ Criterios que se aplicaron en la revisión humana. La regla general es **clasifi
 | Ajedrez, lucha libre profesional | Deportes |
 | Gastronomía, negocios no relacionados con los medios, preguntas sin contexto | Saltear |
 
+## Traducción con IA
+
+Sigue la consigna `EXERCISE_AI_TRANSLATION.md`, con algunas adaptaciones (detalladas abajo).
+
+### Cómo funciona
+
+```mermaid
+flowchart LR
+    A[(Preguntas<br/>en inglés)] --> B[Pregunta sola]
+    A --> C["Cada opción con su pregunta<br/>(pregunta + Answer: opción)"]
+    B --> D[Modelo MarianMT<br/>opus-mt-en-es]
+    C --> D
+    D --> E[Post-procesamiento<br/>¿ ¡ y extracción de la opción]
+    E --> F{¿Las 4 opciones<br/>siguen distintas?}
+    F -->|Sí| G[(Se guarda en las<br/>columnas _es)]
+    F -->|No| H[Queda en inglés]
+```
+
+1. **Modelo**: [`Helsinki-NLP/opus-mt-en-es`](https://huggingface.co/Helsinki-NLP/opus-mt-en-es), de la familia MarianMT (*Encoder-Decoder*, ~77 millones de parámetros), con su versión fija en `app/model_versions.py`. Genera la traducción con *beam search*.
+2. **La pregunta se traduce sola**, en lotes (*batching*) para aprovechar la GPU.
+3. **Cada opción se traduce junto con su pregunta**, como *"pregunta Answer: opción"*, y después se extrae lo que quedó después de *"Respuesta:"*. Así el modelo sabe de qué trata la pregunta (ver la comparación más abajo).
+4. **Post-procesamiento**: agrega el `¿` o `¡` de apertura **solo si el modelo no puso ninguno**. La regla de la consigna ("si termina en `?`, agregar `¿` al principio") rompía las preguntas de varias oraciones: *"¿En el Japón antiguo... ¿Cómo?"*.
+5. **Si dos opciones quedan iguales** al traducirlas, la pregunta queda en inglés: con opciones repetidas no se puede jugar. Pasa en preguntas que dependen del idioma, como *"¿Cómo se llaman las crías de tiburón?"*, donde *pups* y *cubs* se traducen las dos como "cachorros".
+
+El inglés original nunca se modifica, así que el juego se puede ofrecer en los dos idiomas.
+
+### Adaptaciones a la consigna
+
+| Consigna | En este proyecto | Por qué |
+|---|---|---|
+| `pipeline("translation")` | `AutoTokenizer` + `AutoModelForSeq2SeqLM` + `generate()` | `transformers` 5 eliminó el pipeline de traducción. Se usa el modelo directamente, que es lo que el pipeline hacía por dentro |
+| Traduce pregunta y respuesta | Pregunta y las **4 opciones**, con la pregunta como contexto | El juego muestra 4 opciones: si solo se traduce la correcta, se delata sola |
+| Columnas `question_es`, `answer_es`, `is_translated`, `translation_model` | Las mismas, más `wrong_1_es`, `wrong_2_es` y `wrong_3_es` | Mismo motivo |
+| `create_all()` para agregar las columnas | `ensure_translation_columns()` (en `app/models.py`) | `create_all()` solo crea tablas nuevas: **no agrega columnas** a una tabla que ya existe. La función las agrega con `ALTER TABLE` si faltan, y se llama al arrancar la API, en `load_data` y en `translate_questions` |
+| `?lang` en `/questions` | `?lang` en los endpoints del juego; la administración muestra los dos idiomas | `/questions` es de administración y muestra las respuestas (ver [Autenticación](#autenticación)) |
+| `"model_used"` escrito en el código | `"models_used"` leído de la base | Refleja el modelo que realmente tradujo cada pregunta |
+| `test_api.py` | `prueba_traduccion.py` | pytest toma como test cualquier archivo `test_*.py`, y este necesita la API levantada |
+
+### Cómo traducir las opciones: comparación
+
+Las opciones son casi siempre palabras o títulos sueltos, y sin contexto el modelo se equivoca en dos sentidos opuestos: traduce nombres propios que no debería (la banda *Queen* → "Reina") y deja en inglés palabras comunes (*Sloth*). Se compararon cuatro formas de traducirlas sobre preguntas reales, incluidos los casos difíciles:
+
+| Forma | Qué recibe el modelo | Resultado |
+|---|---|---|
+| A) Directa (la de la consigna) | `Sloth` | Traduce títulos y nombres: *Blondie* → "Rubia", *Batman Forever* → "Batman para siempre", *Harpers Ferry* → "Ferry Harpers" |
+| B) Entre comillas | `The answer is "Sloth".` | Las comillas le indican "literal": respeta los nombres, pero deja en inglés palabras comunes (*Mouse*) |
+| C) Con dos puntos | `The answer is: Sloth.` | Traduce bien las palabras comunes, pero también los títulos de discos y películas |
+| **D) Con la pregunta (elegida)** | `<pregunta> Answer: Sloth` | **La mejor**: con el contexto deja sin traducir los títulos del álbum de Massive Attack (*Blue Lines*, *100th Window*) y usa los títulos oficiales en español cuando existen (*Jaws* → "Tiburón", *Star Wars: Episode IV - A New Hope* → "Star Wars: Episodio IV - Una nueva esperanza") |
+
+Ninguna es perfecta: en la muestra, A tuvo 7 errores, B 6, C unos 4 y D 3.
+
+### Resultado
+
+| | |
+|---|---|
+| Preguntas traducidas | **26.790 de 26.836 (99,8%)** |
+| Quedaron en inglés (opciones repetidas al traducir) | 46 |
+| Tiempo | ~45 minutos con una RTX 5070 Ti, con lotes de 64 |
+
+### Errores conocidos
+
+- **Palabras ambiguas sin suficiente contexto**: *Sloth* (el animal) sale "Pereza" en lugar de "Perezoso", incluso con la pregunta como contexto.
+- **Expresiones**: *"Which is the odd one?"* sale "¿Cuál es el extraño?" en lugar de "¿Cuál no corresponde?".
+- **Nombres históricos**: *Bleeding Kansas* sale "Sangrando Kansas".
+- **Preguntas que dependen del inglés** (rimas, letras, juegos de palabras): solo se detectan las que terminan con opciones repetidas.
+
+Es un modelo chico, pensado para traducir oraciones y no para entender trivia. Ver [Limitaciones](#limitaciones-conocidas-y-posibles-mejoras).
+
 ## Scripts
 
 Todos se ejecutan desde la raíz con `poetry run python -m app.<script>`. Los que usan IA descargan el modelo la primera vez.
@@ -465,6 +569,8 @@ Todos se ejecutan desde la raíz con `poetry run python -m app.<script>`. Los qu
 | `train_classifier` | Experimento de pseudo-etiquetado (ver resultados) |
 | `train_setfit` | Fine-tuning con SetFit y comparación con el zero-shot |
 | `fix_encoding` | Repara la codificación en una base ya cargada (ya no hace falta: `load_data` lo hace al cargar) |
+| `translate_questions` | Traduce al español las preguntas que todavía no están traducidas |
+| `verify_lang` | Muestra algunas preguntas en inglés y en español, y cuántas están traducidas |
 
 ### `categorize`
 
@@ -509,6 +615,35 @@ poetry run python -m app.evaluate --method cosine --with-answer --short-labels
 
 Usa siempre la misma muestra para una semilla dada, así las comparaciones son reproducibles. Muestra el acierto top-1, la cobertura y la coincidencia para varios umbrales, el detalle por categoría y la velocidad.
 
+### `translate_questions`
+
+```powershell
+poetry run python -m app.translate_questions --limit 200       # prueba chica
+poetry run python -m app.translate_questions --batch-size 64   # todas las que falten
+```
+
+| Opción | Descripción |
+|---|---|
+| `--limit N` | Traducir como máximo N preguntas |
+| `--batch-size N` | Textos que el modelo traduce a la vez (por defecto 32). Más es más rápido, pero usa más memoria de la GPU (ver [Problemas frecuentes](#problemas-frecuentes)) |
+
+Cada tanda de 256 preguntas se guarda al terminarla. Las preguntas que quedan en inglés por opciones repetidas se vuelven a intentar si se corre de nuevo (y dan el mismo resultado).
+
+### `verify_lang`
+
+```powershell
+poetry run python -m app.verify_lang              # las primeras 5
+poetry run python -m app.verify_lang --limit 10
+```
+
+### `prueba_traduccion.py`
+
+```powershell
+poetry run python prueba_traduccion.py
+```
+
+Con la API levantada, pide una pregunta del juego en español, muestra su respuesta correcta en español y en inglés, pide otra en inglés y muestra las estadísticas de traducción.
+
 ### `prueba_clasificador.py`
 
 ```powershell
@@ -528,6 +663,7 @@ Clasifica 6 preguntas de ejemplo. Sirve para comprobar rápido que el modelo se 
 | Decisiones humanas | 135 (60 casos difíciles + 75 automáticas verificadas) |
 | Pendientes de revisión humana | ~6.000 (~22%) |
 | **Precisión de las automáticas (revisión humana)** | **100% en 60 al azar; entre 94% y 100% con 95% de confianza** |
+| Traducidas al español | 26.790 (99,8%; ver [Traducción con IA](#traducción-con-ia)) |
 
 ### Evolución del sistema
 
@@ -598,13 +734,13 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-157 tests organizados en cuatro tipos:
+196 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
-| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, revisión humana, estadística | Ninguno |
-| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego, restauración de decisiones | Ninguno (usa SQLite en memoria) |
-| Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes | PostgreSQL con datos (si no está, esos tests se saltean) |
+| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento de la traducción, revisión humana, estadística | Ninguno |
+| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, restauración de decisiones, columnas de traducción en una base vieja | Ninguno (usa SQLite en memoria) |
+| Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes, traducciones completas y sin opciones repetidas | PostgreSQL con datos (si no está, esos tests se saltean) |
 | Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
 
 ```powershell
@@ -627,6 +763,7 @@ Medidas aplicadas tras una revisión de seguridad del proyecto:
 | Datos de entrada sin control | Validación con Pydantic: tipos, largos máximos, categorías válidas y campos permitidos (`app/schemas.py`) |
 | Trampa en el juego mirando la respuesta | Endpoints de juego que revelan la correcta recién después de responder (ver [Juego](#juego)) |
 | Dataset o modelos cambiados sin aviso | Versiones fijas (commits) y verificación del hash del dataset (ver [Origen](#origen)) |
+| Modelo de traducción en formato antiguo (`pytorch_model.bin`, que en teoría puede ejecutar código al cargarse) | Versión fija, y PyTorch 2.6 o superior lo carga en modo restringido (`weights_only`), que solo lee los pesos |
 | Librerías con vulnerabilidades conocidas | Auditoría de dependencias con `pip-audit` (abajo) y alertas automáticas de Dependabot en GitHub |
 | Email personal visible en el repositorio | Commits y `pyproject.toml` con la dirección *noreply* de GitHub |
 | Respuestas incorrectas o sin documentar | `404` cuando una pregunta no existe (antes respondía `200` con un error) y respuestas `401`, `404` y `503` documentadas en `/docs` |
@@ -675,6 +812,10 @@ Remove-Item audit_torch.txt
 | La API devuelve 404 en `/questions/category/xxx` | La categoría no existe: usar `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` o `deportes` |
 | `load_data` dice `El archivo descargado no coincide con la versión esperada` | El archivo del dataset cambió en Hugging Face o se corrompió en la descarga. Volver a intentar; si sigue igual, revisar si el dataset se actualizó (ver [Origen](#origen)) |
 | `Aviso: ... no tiene versión fija` al cargar un modelo | El modelo no está en `app/model_versions.py`: se usa la versión más reciente. Si es un modelo que se va a usar de forma permanente, agregar su commit a esa lista |
+| `KeyError: 'The task translation has been removed from transformers'` | Código escrito para `transformers` 4 (como el de la consigna). En la versión 5 hay que usar el modelo directamente, como `app/translator.py` |
+| `memory allocation failed with OOM` durante `translate_questions` | La memoria de la GPU se llenó en una tanda con preguntas largas. Si el script sigue, es solo un aviso. Si se corta o se vuelve muy lento, cortarlo con `Ctrl+C` y relanzarlo con un `--batch-size` menor (por ejemplo 64): sigue desde donde quedó |
+| El juego muestra preguntas en inglés aunque se pida `lang=es` | Esas preguntas no están traducidas: correr `translate_questions` (por ejemplo, después de `load_data` o de crear preguntas con `POST /questions`) |
+| `column questions.question_es does not exist` | Base creada antes de la traducción. Levantar la API una vez (agrega las columnas sola) o correr `translate_questions` |
 | Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
 
 ## Limitaciones conocidas y posibles mejoras
@@ -682,7 +823,6 @@ Remove-Item audit_torch.txt
 **Datos**
 
 - Unas **84 preguntas dependen de contenido que se perdió** del dataset original, como un audio o una imagen ("¿en qué película escuchamos esto?"). No se descartan automáticamente porque algunas incluyen ese contenido en el texto; habría que revisarlas una por una.
-- **Las preguntas están en inglés.** Para mostrarlas en español, la propuesta es traducirlas una sola vez con un modelo de traducción, guardarlas en una tabla aparte (`question_translations`) y elegir el idioma con un parámetro de la API (`?lang=es`), revisando una muestra de la calidad igual que con la categorización.
 - **Temas sin categoría**: gastronomía, negocios y economía no encajan en ninguna de las 6 categorías.
 
 **Categorización**
@@ -691,6 +831,13 @@ Remove-Item audit_torch.txt
 - El sistema no recuerda las preguntas salteadas en la revisión humana, que pueden volver a aparecer.
 - Usar SetFit para mejorar la sugerencia de la revisión humana en los casos difíciles, confirmándolo antes con más ejemplos manuales.
 - Acelerar la clasificación con media precisión (`float16`) o pasando los textos al pipeline como un `Dataset`.
+
+**Traducción**
+
+- Medir la calidad de la traducción con una revisión humana de una muestra, igual que la precisión de la categorización.
+- Corregir los errores sistemáticos (como *Sloth* → "Pereza") con un glosario de correcciones en el post-procesamiento, como sugiere el paso 9 de la consigna.
+- Probar un modelo más grande, que siga instrucciones ("traducí, pero dejá los títulos en inglés"), para las opciones que dependen del contexto.
+- Si la GPU se queda sin memoria, reintentar la tanda automáticamente con un lote más chico, u ordenar las preguntas por largo para que cada lote tenga textos parecidos.
 
 **Evaluación**
 
@@ -715,4 +862,5 @@ Remove-Item audit_torch.txt
   - [facebook/bart-large-mnli](https://huggingface.co/facebook/bart-large-mnli)
   - [MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli](https://huggingface.co/MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli) (licencia MIT)
   - [sentence-transformers/all-mpnet-base-v2](https://huggingface.co/sentence-transformers/all-mpnet-base-v2)
-- **Consignas:** `EXERCISE.md`, `CONCEPTS.md`, `EXERCISE_AI_CATEGORIZATION.md` y `CONCEPTS_AI_CATEGORIZATION.md`, provistas por la cátedra.
+  - [Helsinki-NLP/opus-mt-en-es](https://huggingface.co/Helsinki-NLP/opus-mt-en-es) (licencia Apache 2.0)
+- **Consignas:** `EXERCISE.md`, `CONCEPTS.md`, `EXERCISE_AI_CATEGORIZATION.md`, `CONCEPTS_AI_CATEGORIZATION.md`, `EXERCISE_AI_TRANSLATION.md`, `CONCEPTS_AI_TRANSLATION.md`, `EXERCISE_AI_UIUX.md` y `CONCEPTS_AI_UIUX.md`, provistas por la cátedra.
