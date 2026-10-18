@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-200-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-211-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
@@ -103,10 +103,12 @@ flowchart LR
 │   ├── translator.py               # Traductor inglés -> español (IA)
 │   ├── translate_questions.py      # Traducción masiva de las preguntas
 │   ├── verify_lang.py              # Muestra preguntas en inglés y español
+│   ├── review_translations.py      # Medición de la calidad de la traducción con revisión humana
 │   └── fix_encoding.py             # Reparación de codificación (ya integrada en load_data)
 ├── data/
 │   ├── training_data.csv           # Decisiones humanas (ejemplos verificados)
-│   └── precision_review.csv        # Registro de la revisión de precisión
+│   ├── precision_review.csv        # Registro de la revisión de precisión
+│   └── translation_review.csv      # Registro de la revisión de las traducciones
 ├── tests/
 │   ├── conftest.py                 # Marcadores por carpeta, base de prueba y cliente de la API
 │   ├── unit/
@@ -114,6 +116,7 @@ flowchart LR
 │   │   ├── test_classifier.py
 │   │   ├── test_human_review.py
 │   │   ├── test_load_data.py
+│   │   ├── test_review_translations.py
 │   │   ├── test_model_versions.py
 │   │   ├── test_statistics.py
 │   │   └── test_translator.py
@@ -579,6 +582,34 @@ Ninguna es perfecta: en la muestra, A tuvo 7 errores, B 6, C unos 4 y D 3.
 | Quedaron en inglés (opciones repetidas al traducir) | 46 |
 | Tiempo | ~45 minutos con una RTX 5070 Ti, con lotes de 64 |
 
+### Calidad medida (revisión humana)
+
+Se revisaron a mano **15 traducciones al azar** con `review_translations` (pregunta y 4 opciones, comparadas con el inglés). Cada una se calificó como *bien* (correcta y natural), *menor* (se juega bien, pero tiene un detalle) o *error* (cambia el sentido o no se puede jugar):
+
+| Calificación | Cantidad | Porcentaje | Intervalo de confianza 95% |
+|---|---:|---:|---|
+| Bien | 6 | 40% | 19,8% a 64,3% |
+| Menor | 6 | 40% | |
+| Error | 3 | 20% | |
+| **Jugables** (bien + menor) | **12** | **80%** | **54,8% a 93,0%** |
+
+La muestra es chica y el intervalo es amplio: sirve como referencia, no como medición precisa. La revisión sigue donde quedó (misma semilla), así que se puede ampliar de a poco. La hizo **un solo revisor**, con un criterio exigente: cualquier detalle de estilo contó como *menor*.
+
+Tipos de problema encontrados:
+
+| Problema | Ejemplo | ¿Se puede corregir? |
+|---|---|---|
+| **Omite partes del texto** | *"Scrubs character nurse Roberts"* → "la enfermera Roberts" (sin la serie, la pregunta no tiene respuesta) | No con reglas: limitación del modelo |
+| **Traduce nombres que no debía** | La banda *Poison* → "Veneno" | Sí: glosario |
+| **Elige mal el sentido de una palabra** | *show* → "espectáculo" (era una serie); *loves* → "amantes" (eran novios); *What coach* → "Lo que" | En parte: glosario para los casos repetidos |
+| **Términos técnicos inconsistentes** | *rate* → "tarifa", "tasa" y "tipo de interés" en la misma pregunta | No con reglas |
+| **Concordancia de género** | "estas películas ... no fue lanzad**o**" | No con reglas |
+| **Puntuación** | El original termina en `.` siendo pregunta → "¿Qué puerto ... de Guinea." | Sí: post-procesamiento |
+
+Varios errores vienen del **texto original**: al dataset le faltan los apóstrofos (*Ill*, *bands*, *Gilmores*) y algunas preguntas terminan en `.` o `.?`. La calidad de la traducción depende de la calidad del texto de entrada.
+
+También hubo aciertos que muestran que la estrategia de traducir las opciones con su pregunta funciona: deja en inglés los nombres de supermercados y de bandas (*Big Star*, *Winn Dixie*), pero traduce los títulos de poemas que tienen nombre en español (*Ode To A Grecian Urn* → "Oda a una urna griega"); pasa los números al formato español (`300,000,000` → `300.000.000`) sin tocar los años; y corrige erratas del original (*"is is"*).
+
 ### Errores conocidos
 
 - **Palabras ambiguas sin suficiente contexto**: *Sloth* (el animal) sale "Pereza" en lugar de "Perezoso", incluso con la pregunta como contexto.
@@ -605,6 +636,7 @@ Todos se ejecutan desde la raíz con `poetry run python -m app.<script>`. Los qu
 | `fix_encoding` | Repara la codificación en una base ya cargada (ya no hace falta: `load_data` lo hace al cargar) |
 | `translate_questions` | Traduce al español las preguntas que todavía no están traducidas |
 | `verify_lang` | Muestra algunas preguntas en inglés y en español, y cuántas están traducidas |
+| `review_translations` | Mide la calidad real de la traducción revisando traducciones al azar |
 
 ### `categorize`
 
@@ -662,6 +694,20 @@ poetry run python -m app.translate_questions --batch-size 64   # todas las que f
 | `--batch-size N` | Textos que el modelo traduce a la vez (por defecto 32). Más es más rápido, pero usa más memoria de la GPU. Si un lote no entra, se divide solo |
 
 Cada tanda de 256 preguntas se guarda al terminarla. Si hubo que dividir lotes por falta de memoria, el resumen final lo informa; si son muchos, conviene bajar el `--batch-size`. Las preguntas que quedan en inglés por opciones repetidas se vuelven a intentar si se corre de nuevo (y dan el mismo resultado).
+
+### `review_translations`
+
+```powershell
+poetry run python -m app.review_translations --sample 15    # 15 al azar
+poetry run python -m app.review_translations --sample 0     # solo ver el reporte
+```
+
+| Opción | Descripción |
+|---|---|
+| `--sample N` | Cantidad de traducciones a revisar (por defecto 50; 0 = solo el reporte) |
+| `--seed N` | Semilla de la muestra (por defecto 42) |
+
+Muestra la pregunta y las 4 opciones en inglés y en español, y pide una calificación: `b` (bien), `m` (menor), `e` (error) o `s` (saltear). Para *menor* y *error* se puede anotar qué está mal: esas notas sirven para armar el glosario de correcciones. Cada revisión se registra en `data/translation_review.csv`. La muestra es reproducible: al volver a correrlo, sigue con las siguientes de la misma muestra. No modifica la base. El reporte calcula el porcentaje de traducciones perfectas y jugables con un intervalo de confianza del 95% (método de Wilson).
 
 ### `verify_lang`
 
@@ -768,7 +814,7 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-200 tests organizados en cuatro tipos:
+211 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
@@ -868,13 +914,13 @@ Remove-Item audit_torch.txt
 
 **Traducción**
 
-- Medir la calidad de la traducción con una revisión humana de una muestra, igual que la precisión de la categorización.
+- Ampliar la revisión humana de la traducción (hoy son 15) para achicar el intervalo de confianza.
 - Corregir los errores sistemáticos (como *Sloth* → "Pereza") con un glosario de correcciones en el post-procesamiento, como sugiere el paso 9 de la consigna.
 - Probar un modelo más grande, que siga instrucciones ("traducí, pero dejá los títulos en inglés"), para las opciones que dependen del contexto.
 
 **Evaluación**
 
-- La precisión la midió un solo revisor; lo ideal serían varios, midiendo cuánto coinciden entre sí.
+- La precisión y la calidad de la traducción las midió un solo revisor; lo ideal serían varios, midiendo cuánto coinciden entre sí.
 
 **Juego**
 
