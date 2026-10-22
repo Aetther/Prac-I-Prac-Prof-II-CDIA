@@ -1,6 +1,7 @@
 """
-Autenticación: el juego y las estadísticas son públicos; la administración
-(ver respuestas, crear, corregir, editar y ocultar) requiere la API key correcta.
+Autenticación: el juego, las estadísticas y mandar un reporte son públicos;
+la administración (ver respuestas, crear, corregir, editar, ocultar y revisar
+reportes) requiere la API key correcta.
 """
 import pytest
 
@@ -81,6 +82,8 @@ def test_public_endpoints_do_not_need_key(anon_client, path):
     "/questions/1",
     "/questions/1/edits",
     "/questions/category/arte",
+    "/reports",
+    "/reports/stats",
 ])
 def test_admin_endpoints_need_key(anon_client, path):
     # Muestran la respuesta correcta: sin clave, no

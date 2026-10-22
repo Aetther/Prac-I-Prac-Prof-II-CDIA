@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-282-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-326-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
@@ -107,6 +107,7 @@ flowchart LR
 │   ├── review_translations.py      # Medición de la calidad de la traducción con revisión humana
 │   ├── glossary.py                 # Glosario: regla de puntuación y correcciones manuales
 │   ├── apply_glossary.py           # Aplica el glosario a las traducciones de la base
+│   ├── rate_limit.py               # Límite de pedidos por IP (reportes)
 │   └── fix_encoding.py             # Reparación de codificación (ya integrada en load_data)
 ├── data/
 │   ├── training_data.csv           # Decisiones humanas (ejemplos verificados)
@@ -123,12 +124,14 @@ flowchart LR
 │   │   ├── test_load_data.py
 │   │   ├── test_review_translations.py
 │   │   ├── test_model_versions.py
+│   │   ├── test_rate_limit.py
 │   │   ├── test_statistics.py
 │   │   └── test_translator.py
 │   ├── integration/
 │   │   ├── test_api.py
 │   │   ├── test_game.py
 │   │   ├── test_question_admin.py
+│   │   ├── test_reports.py
 │   │   ├── test_restore_decisions.py
 │   │   └── test_translation_columns.py
 │   ├── data_quality/
@@ -164,12 +167,13 @@ Cada carpeta de `tests/` tiene además un `__init__.py` vacío. Las carpetas `mo
 
 ## Base de datos
 
-Tres tablas: las preguntas del dataset (en inglés y su traducción al español), la categoría asignada a cada una y el historial de cambios que hace un admin. Cada pregunta tiene como máximo una categorización.
+Cuatro tablas: las preguntas del dataset (en inglés y su traducción al español), la categoría asignada a cada una, el historial de cambios que hace un admin y los reportes de los jugadores. Cada pregunta tiene como máximo una categorización.
 
 ```mermaid
 erDiagram
     QUESTIONS ||--o| CATEGORIZATIONS : tiene
     QUESTIONS ||--o{ QUESTION_EDITS : "historial de cambios"
+    QUESTIONS ||--o{ REPORTS : "reportes de jugadores"
     QUESTIONS {
         int id PK
         text question
@@ -203,6 +207,16 @@ erDiagram
         text old_value
         text new_value
         datetime edited_at
+    }
+    REPORTS {
+        int id PK
+        int question_id FK
+        string reason "traduccion, respuesta_incorrecta, error_texto u otro"
+        text comment "opcional"
+        string lang "idioma en que se jugaba"
+        string status "pendiente, resuelto o descartado"
+        datetime created_at
+        datetime resolved_at
     }
 ```
 
@@ -268,7 +282,7 @@ poetry run python -m app.load_data
 Descarga el dataset de Hugging Face, repara los errores de codificación, filtra las preguntas válidas y las carga en la base. Ver [Dataset](#dataset).
 
 > [!WARNING]
-> Este script reemplaza todas las preguntas y borra sus categorizaciones y traducciones. Las decisiones humanas se recuperan con el paso siguiente; la categorización y la traducción se rehacen con los pasos 5 y 6.
+> Este script reemplaza todas las preguntas y borra sus categorizaciones, traducciones, ediciones del admin y reportes. Las decisiones humanas se recuperan con el paso siguiente; la categorización y la traducción se rehacen con los pasos 5 y 6.
 
 ### 4. Restaurar las decisiones humanas
 
@@ -353,6 +367,7 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 | GET | `/categories` | | Las 6 categorías disponibles |
 | GET | `/categories/stats` | | Total, categorizadas, pendientes, automáticas, manuales y cantidad por categoría |
 | GET | `/translation/stats` | | Total, traducidas, sin traducir, porcentaje y modelo de traducción usado |
+| POST | `/reports` | | Reportar una pregunta con un error. Máximo 10 por minuto por IP |
 | GET | `/questions` | 🔒 | Lista de preguntas con sus respuestas, en inglés y español, paginada. Filtro `?status=all`, `active` (visibles) o `hidden` (ocultas) |
 | GET | `/questions/{id}` | 🔒 | Una pregunta por su id |
 | GET | `/questions/{id}/edits` | 🔒 | Historial de cambios de una pregunta |
@@ -361,6 +376,9 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 | GET | `/questions/category/{category_name}` | 🔒 | Preguntas categorizadas (por IA o por una persona) en esa categoría, paginadas. Incluye la categoría original del dataset, la asignada y la traducción |
 | POST | `/questions` | 🔒 | Crea una pregunta nueva |
 | PUT | `/categorizations/{id}` | 🔒 | Corrige la categoría de una pregunta (queda registrada como decisión humana) |
+| GET | `/reports` | 🔒 | Reportes de los jugadores con los datos de su pregunta, del más nuevo al más viejo. Filtros `?status=pendiente` (por defecto), `resuelto`, `descartado` o `todos`, y `?question_id=` |
+| GET | `/reports/stats` | 🔒 | Cantidad de reportes por estado y, entre los pendientes, por motivo |
+| PATCH | `/reports/{id}` | 🔒 | Cambia el estado de un reporte: `resuelto`, `descartado` o `pendiente` |
 
 🔒 = requiere API key (ver [Autenticación](#autenticación)).
 
@@ -474,11 +492,37 @@ Reglas (definidas en `app/schemas.py`):
 
 **Ocultar una pregunta** (`DELETE /questions/{id}`): no la borra, solo deja de salir en el juego. Para volver a mostrarla: `PATCH /questions/{id}` con `{"is_active": true}`. Las dos acciones quedan en el historial.
 
+**Reportar una pregunta** (`POST /reports`, público). El jugador indica el motivo y, si quiere, un comentario:
+
+```json
+{
+  "question_id": 1,
+  "reason": "traduccion",
+  "comment": "Sloth es el animal: debería decir Perezoso",
+  "lang": "es"
+}
+```
+
+- `reason`: `traduccion`, `respuesta_incorrecta`, `error_texto` u `otro`. Con `otro`, el comentario es obligatorio.
+- `comment`: opcional, hasta **500** caracteres. Vacío equivale a no mandarlo.
+- `lang`: idioma en que se estaba jugando (`es` por defecto). Le dice al admin si el problema está en la traducción o en el original.
+- Una misma IP puede mandar como máximo **10 reportes por minuto**: después responde **429**, con el encabezado `Retry-After` (segundos que faltan). No se guarda nada que identifique a quien reporta: la IP solo se usa en memoria para contar.
+- No se pueden reportar preguntas inexistentes ni ocultas (**404**).
+
+**Revisar los reportes** (admin): `GET /reports` muestra los pendientes con el texto de su pregunta en los dos idiomas. El admin corrige la pregunta con `PATCH /questions/{id}` y marca el reporte con `PATCH /reports/{id}`:
+
+```json
+{ "status": "resuelto" }
+```
+
+`resuelto` (se corrigió), `descartado` (no había error) o `pendiente` (volver a revisarlo). Al dejar de estar pendiente se guarda la fecha en `resolved_at`.
+
 **Códigos de error:**
 
 - **401**: falta la API key o es incorrecta (solo en los endpoints de administración).
 - **503**: la administración está deshabilitada porque el `.env` no tiene `API_KEY`.
-- **404**: el recurso no existe, como una pregunta, una categoría o una categorización inexistente.
+- **404**: el recurso no existe, como una pregunta, una categoría, una categorización o un reporte inexistente.
+- **429**: demasiados reportes desde la misma IP (solo en `POST /reports`). El encabezado `Retry-After` dice cuántos segundos esperar.
 - **422**: los datos enviados no cumplen las reglas (en `PATCH /questions/{id}`, también si las opciones quedarían repetidas o si se traduce a mano sin los 5 campos; en esos dos casos `detail` es un texto, no una lista): falta un campo, está vacío, es demasiado largo, no es texto, las opciones se repiten, la categoría no existe, sobra un campo, `limit=1000` o un `id` que no es un número. Lo responde FastAPI automáticamente, e indica en `detail` qué campo falló y por qué:
 
 ```json
@@ -907,7 +951,7 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-282 tests organizados en cuatro tipos:
+326 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
@@ -941,6 +985,8 @@ Medidas aplicadas tras una revisión de seguridad del proyecto:
 | Email personal visible en el repositorio | Commits y `pyproject.toml` con la dirección *noreply* de GitHub |
 | Respuestas incorrectas o sin documentar | `404` cuando una pregunta no existe (antes respondía `200` con un error) y respuestas `401`, `404` y `503` documentadas en `/docs` |
 | Documentación de la API siempre visible | Se puede ocultar con `ENABLE_DOCS=false` en el `.env` |
+| Reportes falsos en masa (`POST /reports` es público) | Validación estricta (motivos fijos, comentario de hasta 500 caracteres, pregunta existente y visible) y límite de 10 reportes por minuto por IP (`app/rate_limit.py`) |
+| Datos personales de quien reporta | No se guarda la IP ni ningún dato que lo identifique |
 | SQL armado pegando texto (`text(f"ALTER TABLE ...")`), marcado por Semgrep como posible inyección SQL | No era explotable (los nombres venían de una lista fija del código), pero ahora SQLAlchemy genera la sentencia a partir del modelo `Question` (`CreateColumn` y `DDL`) y pone las comillas a los nombres: no se pega ningún texto en el SQL |
 | `certifi` 2026.7.22 incluía certificados raíz de emSign con claves intermedias comprometidas (GHSA-6q48-6c7w-9gw2, crítica) | Actualizada a 2026.10.19 con `poetry update certifi` |
 | `pillow` 12.3.0 con 24 vulnerabilidades conocidas (encontradas con `pip-audit`) | Actualizada a 13.0.0. El proyecto no la usa: la trae `torchvision`, que se instala con `pip` junto con PyTorch con CUDA, así que no está en el `poetry.lock` y hay que actualizarla a mano (ver [Uso de GPU](#uso-de-gpu-opcional)) |
@@ -1034,6 +1080,7 @@ Remove-Item audit_torch.txt
 **Administración**
 
 - Las ediciones del admin quedan solo en la base: `load_data` las borra junto con las preguntas. Falta exportarlas al repositorio, como las decisiones humanas de la categorización.
+- El límite de reportes vive en la memoria de la API: se reinicia al reiniciarla, y si se corren varios procesos, cada uno cuenta por su lado. Detrás de un proxy (por ejemplo, nginx), todos los pedidos llegan con la IP del proxy: habría que configurarlo para que pase la IP real.
 
 **Proyecto**
 

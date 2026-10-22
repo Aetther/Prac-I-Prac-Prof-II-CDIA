@@ -60,6 +60,9 @@ def test_env_flag_default_false(monkeypatch):
     ("/questions/{question_id}", "delete"),
     ("/questions/{question_id}/edits", "get"),
     ("/categorizations/{categorization_id}", "put"),
+    ("/reports", "get"),
+    ("/reports/stats", "get"),
+    ("/reports/{report_id}", "patch"),
 ])
 def test_admin_endpoints_document_401_and_503(path, method):
     responses = app.openapi()["paths"][path][method]["responses"]
@@ -71,4 +74,12 @@ def test_game_endpoints_do_not_document_401():
     # El juego es público: no pide clave, así que no puede responder 401
     responses = app.openapi()["paths"]["/game/question"]["get"]["responses"]
     assert "401" not in responses
+    assert "404" in responses
+
+
+def test_report_endpoint_documents_429():
+    # Mandar un reporte es público (sin 401), pero tiene límite por IP (429)
+    responses = app.openapi()["paths"]["/reports"]["post"]["responses"]
+    assert "401" not in responses
+    assert "429" in responses
     assert "404" in responses

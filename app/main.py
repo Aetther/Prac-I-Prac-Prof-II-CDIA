@@ -4,7 +4,7 @@ import secrets
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Security
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
 from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -17,8 +17,11 @@ from app.models import (
     Categorization,
     Question,
     QuestionEdit,
+    Report,
     ensure_question_columns,
+    utc_now,
 )
+from app.rate_limit import RateLimiter
 from app.schemas import (
     EN_FIELDS,
     ES_FIELDS,
@@ -29,10 +32,16 @@ from app.schemas import (
     Lang,
     QuestionCreate,
     QuestionUpdate,
+    ReportCreate,
+    ReportUpdate,
 )
 
 # Valor de translation_model para las preguntas que tradujo a mano un admin
 MANUAL_TRANSLATION = "manual"
+
+# Reportes: cuántos puede mandar una misma IP por minuto
+REPORTS_PER_MINUTE = 10
+report_limiter = RateLimiter(max_requests=REPORTS_PER_MINUTE, window_seconds=60)
 
 
 @asynccontextmanager
@@ -113,6 +122,33 @@ def question_to_dict(question: Any) -> dict[str, Any]:
     return {column.name: getattr(question, column.name) for column in Question.__table__.columns}
 
 
+def client_ip(request: Request) -> str:
+    """IP de quien hace el pedido (solo se usa para el límite de reportes)."""
+    return request.client.host if request.client else "desconocida"
+
+
+def report_to_dict(report: Any, question: Any) -> dict[str, Any]:
+    """Un reporte con los datos de su pregunta, para que el admin la vea sin otra consulta."""
+    return {
+        "id": report.id,
+        "question_id": report.question_id,
+        "reason": report.reason,
+        "comment": report.comment,
+        "lang": report.lang,
+        "status": report.status,
+        "created_at": report.created_at,
+        "resolved_at": report.resolved_at,
+        "question": {
+            "question": question.question,
+            "answer": question.answer,
+            "question_es": question.question_es,
+            "answer_es": question.answer_es,
+            "is_translated": question.is_translated,
+            "is_active": question.is_active,
+        },
+    }
+
+
 def edit_value(value: Any) -> str | None:
     """Valor como texto, para guardarlo en el historial de ediciones."""
     if value is None:
@@ -132,6 +168,7 @@ def root():
                 "POST /game/answer?lang=es",
             ],
             "publicos": [
+                "POST /reports",
                 "/stats",
                 "/categories",
                 "/categories/stats",
@@ -146,6 +183,9 @@ def root():
                 "PATCH /questions/{id}",
                 "DELETE /questions/{id}",
                 "PUT /categorizations/{id}",
+                "/reports?status=pendiente|resuelto|descartado|todos",
+                "/reports/stats",
+                "PATCH /reports/{id}",
             ],
         },
     }
@@ -469,6 +509,125 @@ def hide_question(question_id: int, db: Session = Depends(get_db)):
         question.is_active = False
         db.commit()
     return {"id": question_id, "is_active": False}
+
+
+# --- Reportes ---
+
+
+@app.post(
+    "/reports",
+    status_code=201,
+    responses={
+        **not_found("La pregunta no existe o está oculta"),
+        429: {"description": f"Demasiados reportes: máximo {REPORTS_PER_MINUTE} por minuto por IP"},
+    },
+)
+def create_report(data: ReportCreate, request: Request, db: Session = Depends(get_db)):
+    """
+    Un jugador reporta una pregunta con un error. Es público (no pide clave),
+    pero cada IP puede mandar como máximo REPORTS_PER_MINUTE por minuto.
+    No se guarda nada que identifique a quien reporta.
+    """
+    ip = client_ip(request)
+    if not report_limiter.allow(ip):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Demasiados reportes: máximo {REPORTS_PER_MINUTE} por minuto. "
+            "Probá de nuevo en unos segundos.",
+            headers={"Retry-After": str(report_limiter.retry_after(ip))},
+        )
+
+    question: Any = db.get(Question, data.question_id)
+    if question is None or not question.is_active:
+        raise HTTPException(status_code=404, detail="Pregunta no encontrada")
+
+    report: Any = Report(**data.model_dump(), status="pendiente")
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return {
+        "id": report.id,
+        "question_id": report.question_id,
+        "reason": report.reason,
+        "status": report.status,
+        "created_at": report.created_at,
+    }
+
+
+@app.get(
+    "/reports",
+    dependencies=[Depends(require_api_key)],
+    responses=ADMIN_RESPONSES,
+)
+def list_reports(
+    status: Literal["pendiente", "resuelto", "descartado", "todos"] = Query(
+        "pendiente", description="Estado de los reportes ('todos' para no filtrar)"
+    ),
+    question_id: int | None = Query(None, gt=0, description="Opcional: solo los de una pregunta"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """Reportes de los jugadores, del más nuevo al más viejo, con los datos de su pregunta."""
+    query = db.query(Report, Question).join(Question, Question.id == Report.question_id)
+    if status != "todos":
+        query = query.filter(Report.status == status)
+    if question_id is not None:
+        query = query.filter(Report.question_id == question_id)
+    rows = (
+        query.order_by(Report.created_at.desc(), Report.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return [report_to_dict(report, question) for report, question in rows]
+
+
+@app.get(
+    "/reports/stats",
+    dependencies=[Depends(require_api_key)],
+    responses=ADMIN_RESPONSES,
+)
+def report_stats(db: Session = Depends(get_db)):
+    """Cantidad de reportes por estado y, entre los pendientes, por motivo."""
+    by_status = dict(
+        db.query(Report.status, func.count(Report.id)).group_by(Report.status).all()
+    )
+    pending_by_reason = dict(
+        db.query(Report.reason, func.count(Report.id))
+        .filter(Report.status == "pendiente")
+        .group_by(Report.reason)
+        .all()
+    )
+    return {
+        "pendiente": by_status.get("pendiente", 0),
+        "resuelto": by_status.get("resuelto", 0),
+        "descartado": by_status.get("descartado", 0),
+        "pending_by_reason": pending_by_reason,
+    }
+
+
+@app.patch(
+    "/reports/{report_id}",
+    dependencies=[Depends(require_api_key)],
+    responses={**ADMIN_RESPONSES, **not_found("El reporte no existe")},
+)
+def update_report(report_id: int, data: ReportUpdate, db: Session = Depends(get_db)):
+    """
+    Cambia el estado de un reporte: resuelto (se corrigió la pregunta),
+    descartado (no había error) o de vuelta a pendiente.
+    """
+    report: Any = db.get(Report, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+
+    if report.status != data.status:
+        report.status = data.status
+        report.resolved_at = None if data.status == "pendiente" else utc_now()
+        db.commit()
+        db.refresh(report)
+    question = db.get(Question, report.question_id)
+    return report_to_dict(report, question)
 
 
 @app.get("/stats")

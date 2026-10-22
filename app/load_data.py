@@ -8,7 +8,7 @@ Descarga el dataset de trivia desde Hugging Face y lo carga en la base.
 4. Agrupa las categorías originales en las 6 de Preguntados
 
 ATENCIÓN: reemplaza las preguntas existentes y borra sus categorizaciones,
-traducciones e historial de ediciones. Después hay que:
+traducciones, historial de ediciones y reportes. Después hay que:
     poetry run python -m app.restore_decisions        (decisiones humanas)
     poetry run python -m app.categorize --auto-only   (categorización con IA)
     poetry run python -m app.translate_questions      (traducción al español)
@@ -30,6 +30,7 @@ from app.models import (
     Categorization,
     Question,
     QuestionEdit,
+    Report,
     ensure_question_columns,
 )
 
@@ -154,10 +155,12 @@ def load_questions():
 
     session = SessionLocal()
     try:
-        # Las categorizaciones y las ediciones apuntan a las preguntas (clave
-        # foránea), así que hay que borrarlas antes de reemplazar las preguntas.
+        # Las categorizaciones, las ediciones y los reportes apuntan a las
+        # preguntas (clave foránea), así que hay que borrarlos antes de
+        # reemplazar las preguntas.
         deleted = session.query(Categorization).delete()
         edits = session.query(QuestionEdit).delete()
+        reports = session.query(Report).delete()
         session.query(Question).delete()
         session.bulk_insert_mappings(Question, rows)
         session.commit()
@@ -169,6 +172,8 @@ def load_questions():
             )
         if edits:
             print(f"Se borró el historial de {edits} ediciones hechas por el admin.")
+        if reports:
+            print(f"Se borraron {reports} reportes de jugadores.")
         print(
             "Las preguntas quedaron sin traducir. Para traducirlas: "
             "poetry run python -m app.translate_questions --batch-size 64"

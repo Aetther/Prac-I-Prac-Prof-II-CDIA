@@ -215,3 +215,70 @@ class QuestionUpdate(BaseModel):
         if nulls:
             raise ValueError(f"Estos campos no pueden ser null: {', '.join(nulls)}")
         return self
+
+
+# --- Reportes ---
+# Un jugador reporta una pregunta con un error; un admin lo revisa.
+
+# Motivos posibles de un reporte
+ReportReason = Literal["traduccion", "respuesta_incorrecta", "error_texto", "otro"]
+# Estados de un reporte: empieza pendiente y el admin lo resuelve o lo descarta
+ReportStatus = Literal["pendiente", "resuelto", "descartado"]
+
+MAX_COMMENT_LENGTH = 500
+
+# Comentario opcional: se recortan los espacios; vacío equivale a no mandarlo
+CommentText = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=MAX_COMMENT_LENGTH)
+]
+
+
+class ReportCreate(BaseModel):
+    """Reporte de un jugador (POST /reports)."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "question_id": 1,
+                    "reason": "traduccion",
+                    "comment": "Sloth es el animal: debería decir Perezoso",
+                    "lang": "es",
+                }
+            ]
+        },
+    )
+
+    question_id: int = Field(gt=0)
+    reason: ReportReason = Field(
+        description="traduccion, respuesta_incorrecta, error_texto u otro"
+    )
+    comment: CommentText | None = Field(
+        default=None, description=f"Opcional, hasta {MAX_COMMENT_LENGTH} caracteres"
+    )
+    lang: Lang = Field(default="es", description="Idioma en que se estaba jugando")
+
+    @field_validator("comment")
+    @classmethod
+    def empty_comment_is_none(cls, value: str | None) -> str | None:
+        return value or None  # "" (o solo espacios) se guarda como "sin comentario"
+
+    @model_validator(mode="after")
+    def other_needs_comment(self) -> "ReportCreate":
+        if self.reason == "otro" and not self.comment:
+            raise ValueError("Con el motivo 'otro' hay que explicar el problema en el comentario")
+        return self
+
+
+class ReportUpdate(BaseModel):
+    """Cambio de estado de un reporte (PATCH /reports/{id})."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        json_schema_extra={"examples": [{"status": "resuelto"}]},
+    )
+
+    status: ReportStatus = Field(description="pendiente, resuelto o descartado")

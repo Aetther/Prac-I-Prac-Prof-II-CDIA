@@ -135,3 +135,27 @@ class QuestionEdit(Base):
     old_value = Column(Text, nullable=True)
     new_value = Column(Text, nullable=True)
     edited_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class Report(Base):
+    """
+    Reporte de un jugador sobre una pregunta con un error (mala traducción,
+    respuesta incorrecta, etc.). Un admin lo revisa, corrige la pregunta si
+    hace falta y lo marca como resuelto o descartado.
+
+    No se guarda nada que identifique a quien reporta (ni la IP).
+    """
+    __tablename__ = "reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False, index=True)
+    # traduccion, respuesta_incorrecta, error_texto u otro (ver app/schemas.py)
+    reason = Column(String(30), nullable=False)
+    comment = Column(Text, nullable=True)
+    # Idioma en que se estaba jugando la pregunta: "es" o "en"
+    lang = Column(String(2), nullable=False)
+    # pendiente, resuelto o descartado
+    status = Column(String(20), nullable=False, default="pendiente", index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    # Cuándo dejó de estar pendiente (vacío mientras está pendiente)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
