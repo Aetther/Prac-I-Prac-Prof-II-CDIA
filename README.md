@@ -318,6 +318,12 @@ En Windows, el PyTorch que instala Poetry es la versión **solo CPU**. Para usar
    ```
    Tiene que mostrar una versión terminada en `+cu...` y `True`.
 
+4. Si además se instala `torchvision` con CUDA, trae `pillow`, que tiene que estar en la versión 13.0.0 o superior (las anteriores tienen vulnerabilidades conocidas):
+   ```powershell
+   poetry run pip install --upgrade "pillow>=13.0.0"
+   ```
+   Las **comillas son necesarias**: sin ellas, PowerShell interpreta el `>` como una redirección: no aplica el límite de versión y crea un archivo con la salida (por ejemplo, `13.0.0`).
+
 > [!IMPORTANT]
 > Cada `poetry install` o `poetry add` vuelve a instalar la versión de CPU. Después de usarlos, verificar y repetir el paso 2 si hace falta.
 
@@ -564,7 +570,7 @@ El inglés original nunca se modifica, así que el juego se puede ofrecer en los
 | `pipeline("translation")` | `AutoTokenizer` + `AutoModelForSeq2SeqLM` + `generate()` | `transformers` 5 eliminó el pipeline de traducción. Se usa el modelo directamente, que es lo que el pipeline hacía por dentro |
 | Traduce pregunta y respuesta | Pregunta y las **4 opciones**, con la pregunta como contexto | El juego muestra 4 opciones: si solo se traduce la correcta, se delata sola |
 | Columnas `question_es`, `answer_es`, `is_translated`, `translation_model` | Las mismas, más `wrong_1_es`, `wrong_2_es` y `wrong_3_es` | Mismo motivo |
-| `create_all()` para agregar las columnas | `ensure_translation_columns()` (en `app/models.py`) | `create_all()` solo crea tablas nuevas: **no agrega columnas** a una tabla que ya existe. La función las agrega con `ALTER TABLE` si faltan, y se llama al arrancar la API, en `load_data` y en `translate_questions` |
+| `create_all()` para agregar las columnas | `ensure_translation_columns()` (en `app/models.py`) | `create_all()` solo crea tablas nuevas: **no agrega columnas** a una tabla que ya existe. La función las agrega con `ALTER TABLE` si faltan (la sentencia la genera SQLAlchemy a partir del modelo), y se llama al arrancar la API, en `load_data` y en `translate_questions` |
 | `?lang` en `/questions` | `?lang` en los endpoints del juego; la administración muestra los dos idiomas | `/questions` es de administración y muestra las respuestas (ver [Autenticación](#autenticación)) |
 | `"model_used"` escrito en el código | `"models_used"` leído de la base | Refleja el modelo que realmente tradujo cada pregunta |
 | `test_api.py` | `prueba_traduccion.py` | pytest toma como test cualquier archivo `test_*.py`, y este necesita la API levantada |
@@ -899,6 +905,9 @@ Medidas aplicadas tras una revisión de seguridad del proyecto:
 | Email personal visible en el repositorio | Commits y `pyproject.toml` con la dirección *noreply* de GitHub |
 | Respuestas incorrectas o sin documentar | `404` cuando una pregunta no existe (antes respondía `200` con un error) y respuestas `401`, `404` y `503` documentadas en `/docs` |
 | Documentación de la API siempre visible | Se puede ocultar con `ENABLE_DOCS=false` en el `.env` |
+| SQL armado pegando texto (`text(f"ALTER TABLE ...")`), marcado por Semgrep como posible inyección SQL | No era explotable (los nombres venían de una lista fija del código), pero ahora SQLAlchemy genera la sentencia a partir del modelo `Question` (`CreateColumn` y `DDL`) y pone las comillas a los nombres: no se pega ningún texto en el SQL |
+| `certifi` 2026.7.22 incluía certificados raíz de emSign con claves intermedias comprometidas (GHSA-6q48-6c7w-9gw2, crítica) | Actualizada a 2026.10.19 con `poetry update certifi` |
+| `pillow` 12.3.0 con 24 vulnerabilidades conocidas (encontradas con `pip-audit`) | Actualizada a 13.0.0. El proyecto no la usa: la trae `torchvision`, que se instala con `pip` junto con PyTorch con CUDA, así que no está en el `poetry.lock` y hay que actualizarla a mano (ver [Uso de GPU](#uso-de-gpu-opcional)) |
 
 ### Auditoría de dependencias
 
@@ -917,7 +926,12 @@ poetry run pip-audit -r audit_torch.txt --no-deps
 Remove-Item audit_torch.txt
 ```
 
-**Última auditoría (octubre de 2026):** sin vulnerabilidades conocidas, incluidas PyTorch y torchvision.
+**Última auditoría (octubre de 2026):** sin vulnerabilidades conocidas, incluidas PyTorch y torchvision. Después, la revisión del profesor (con Trivy) encontró la de `certifi`, que salió a la luz más tarde, y una nueva auditoría con `pip-audit` encontró 24 en `pillow`. Las dos se corrigieron (ver la tabla de arriba) y la auditoría volvió a dar **sin vulnerabilidades conocidas**.
+
+`pip-audit` revisa lo que está **instalado**; Trivy y Dependabot revisan el `poetry.lock`. Los paquetes instalados con `pip` fuera de Poetry (como `torchvision` y `pillow`) solo los detecta `pip-audit`, así que conviene usar los dos.
+
+> [!IMPORTANT]
+> Para actualizar una sola dependencia, usar `poetry update <paquete>` (cambia solo ese paquete en el `poetry.lock`). Igual que `poetry install`, **vuelve a instalar PyTorch de CPU**: después hay que verificar y reinstalar la versión con CUDA (ver [Uso de GPU](#uso-de-gpu-opcional)).
 
 > [!TIP]
 > La auditoría es una foto del momento: pueden descubrirse vulnerabilidades nuevas en cualquier momento. Conviene repetirla antes de cada entrega o publicación. Además, el repositorio tiene activadas las **alertas de Dependabot**: GitHub revisa el `poetry.lock` y avisa si alguna dependencia pasa a tener una vulnerabilidad conocida.
@@ -949,6 +963,7 @@ Remove-Item audit_torch.txt
 | Fallan `test_punctuation_rule_is_applied` o `test_glossary_corrections_are_applied` | La base no tiene el glosario aplicado (por ejemplo, después de traducir de nuevo o de agregar una corrección al CSV). Correr `apply_glossary`, revisar los cambios y guardarlos con `--apply` |
 | `apply_glossary` dice `ninguna opción es '...'` | En el CSV, `target` tiene que ser el texto en inglés de la opción, igual que en la base (sin importar mayúsculas), o `question` para corregir la pregunta |
 | `column questions.question_es does not exist` | Base creada antes de la traducción. Levantar la API una vez (agrega las columnas sola) o correr `translate_questions` |
+| Aparece un archivo llamado `13.0.0` o `=13.0.0` en la carpeta del proyecto | Se corrió `pip install pillow>=13.0.0` sin comillas y PowerShell tomó el `>` como redirección. Borrar el archivo y repetir el comando con comillas |
 | Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
 
 ## Limitaciones conocidas y posibles mejoras
