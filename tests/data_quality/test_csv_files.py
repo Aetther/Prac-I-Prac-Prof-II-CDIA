@@ -4,6 +4,9 @@ from collections import Counter
 
 import pytest
 
+from app.admin_edits import CSV_FIELDS as ADMIN_EDITS_FIELDS
+from app.admin_edits import EDITS_FILE as ADMIN_EDITS_FILE
+from app.admin_edits import load_admin_edits
 from app.categories import get_category_names
 from app.export_training import FIELDS as TRAINING_FIELDS
 from app.export_training import MIN_PER_CATEGORY, OUTPUT_FILE as TRAINING_FILE
@@ -64,3 +67,17 @@ def test_precision_review_is_consistent():
             assert row["human_category"] == row["ai_category"]
         if row["is_correct"] == "0":
             assert row["human_category"] != row["ai_category"]
+
+
+# --- admin_edits.csv ---
+
+def test_admin_edits_has_expected_columns():
+    columns, _ = read_csv(ADMIN_EDITS_FILE)
+    assert columns == ADMIN_EDITS_FIELDS
+
+
+def test_admin_edits_are_valid_and_not_repeated():
+    read_csv(ADMIN_EDITS_FILE)  # saltea si no existe
+    edits = load_admin_edits(ADMIN_EDITS_FILE)  # falla si una fila es inválida
+    keys = [edit.key for edit in edits]
+    assert len(keys) == len(set(keys)), "Hay un campo de una pregunta corregido dos veces"

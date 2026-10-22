@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from sqlalchemy import func
 
+from app.apply_glossary import admin_edited_fields, edited_by_admin
 from app.glossary import fix_punctuation, load_corrections, target_field
 from app.main import MANUAL_TRANSLATION
 from app.model_versions import MODEL_REVISIONS
@@ -77,10 +78,13 @@ def test_untranslated_questions_have_no_partial_translation(real_db):
 
 
 def test_punctuation_rule_is_applied(real_db):
+    # Lo que editó el admin se respeta tal cual (apply_glossary no lo toca)
+    edited = admin_edited_fields(real_db)
     bad = [
         row.id
         for row in translated_rows(real_db)
         if fix_punctuation(row.question_es) != row.question_es
+        and (row.id, "question_es") not in edited
     ]
     assert bad == [], (
         f"Preguntas sin la regla de puntuación: {bad[:10]} (correr app.apply_glossary --apply)"
@@ -88,8 +92,11 @@ def test_punctuation_rule_is_applied(real_db):
 
 
 def test_glossary_corrections_are_applied(real_db):
+    edited = admin_edited_fields(real_db)
     pending = []
     for c in load_corrections():
+        if edited_by_admin(c.question_id, c.target, edited):
+            continue  # el admin la editó después: gana su versión
         q: Any = real_db.get(Question, c.question_id)
         field = target_field(q, c.target) if q is not None else None
         if field is None or getattr(q, field) != c.es:

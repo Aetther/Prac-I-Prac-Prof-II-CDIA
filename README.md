@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-326-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-369-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
@@ -56,6 +56,7 @@ flowchart LR
     N --> O{¿Las 4 opciones<br/>siguen distintas?}
     O -->|Sí| S["Glosario: puntuación y<br/>correcciones manuales<br/>(apply_glossary)"]
     S --> P[(Preguntas en<br/>inglés y español)]
+    T[admin_edits.csv<br/>correcciones del admin] -->|restore_admin_edits| P
     O -->|No| Q[Queda en inglés]
     P --> R[API FastAPI]
     Q --> R
@@ -65,7 +66,8 @@ flowchart LR
 2. **Decisiones humanas** (`restore_decisions`): recupera las categorizaciones que revisó una persona, guardadas en el repositorio. Las nuevas se exportan con `export_training`.
 3. **Categorización** (`categorize`): la IA asigna una de las 6 categorías. Si está segura (≥ 70%), se guarda sola; si no, decide una persona o la pregunta queda pendiente. Ver [Categorización con IA](#categorización-con-ia).
 4. **Traducción** (`translate_questions` y `apply_glossary`): la IA traduce cada pregunta y sus opciones al español, sin tocar el inglés, y después se aplica un glosario de correcciones. Ver [Traducción con IA](#traducción-con-ia).
-5. **API**: el juego entrega preguntas categorizadas, en el idioma pedido y sin revelar la respuesta hasta que el jugador elige. Ver [API](#api).
+5. **Correcciones del admin** (`restore_admin_edits`): vuelve a aplicar lo que un admin corrigió desde la API, guardado en el repositorio. Va al final, así gana sobre lo automático. Las nuevas se exportan con `export_admin_edits`. Ver [Guardar las correcciones del admin](#guardar-las-correcciones-del-admin).
+6. **API**: el juego entrega preguntas categorizadas, en el idioma pedido y sin revelar la respuesta hasta que el jugador elige. Ver [API](#api).
 
 ## Tecnologías
 
@@ -87,7 +89,7 @@ flowchart LR
 │   ├── main.py                     # Endpoints de la API
 │   ├── schemas.py                  # Validación de los datos que recibe la API (Pydantic)
 │   ├── database.py                 # Conexión a PostgreSQL y sesión
-│   ├── models.py                   # Tablas: questions (con traducción) y categorizations
+│   ├── models.py                   # Tablas: questions (con traducción), categorizations, question_edits y reports
 │   ├── load_data.py                # Descarga, limpia y carga el dataset
 │   ├── categories.py               # Las 6 categorías y sus descripciones
 │   ├── classifier.py               # Clasificador zero-shot (IA)
@@ -107,16 +109,21 @@ flowchart LR
 │   ├── review_translations.py      # Medición de la calidad de la traducción con revisión humana
 │   ├── glossary.py                 # Glosario: regla de puntuación y correcciones manuales
 │   ├── apply_glossary.py           # Aplica el glosario a las traducciones de la base
+│   ├── admin_edits.py              # Correcciones del admin: resumir, validar y guardar en CSV
+│   ├── export_admin_edits.py       # Exporta las correcciones del admin a CSV
+│   ├── restore_admin_edits.py      # Vuelve a aplicar las correcciones del admin desde el CSV
 │   ├── rate_limit.py               # Límite de pedidos por IP (reportes)
 │   └── fix_encoding.py             # Reparación de codificación (ya integrada en load_data)
 ├── data/
 │   ├── training_data.csv           # Decisiones humanas (ejemplos verificados)
 │   ├── precision_review.csv        # Registro de la revisión de precisión
 │   ├── translation_review.csv      # Registro de la revisión de las traducciones
-│   └── translation_corrections.csv # Correcciones manuales de la traducción (glosario)
+│   ├── translation_corrections.csv # Correcciones manuales de la traducción (glosario)
+│   └── admin_edits.csv             # Correcciones hechas por un admin desde la API
 ├── tests/
 │   ├── conftest.py                 # Marcadores por carpeta, base de prueba y cliente de la API
 │   ├── unit/
+│   │   ├── test_admin_edits.py
 │   │   ├── test_categories.py
 │   │   ├── test_classifier.py
 │   │   ├── test_glossary.py
@@ -128,7 +135,9 @@ flowchart LR
 │   │   ├── test_statistics.py
 │   │   └── test_translator.py
 │   ├── integration/
+│   │   ├── test_admin_edits_scripts.py
 │   │   ├── test_api.py
+│   │   ├── test_apply_glossary.py
 │   │   ├── test_game.py
 │   │   ├── test_question_admin.py
 │   │   ├── test_reports.py
@@ -136,6 +145,7 @@ flowchart LR
 │   │   └── test_translation_columns.py
 │   ├── data_quality/
 │   │   ├── conftest.py             # Conexión a la base real (saltea si no está disponible)
+│   │   ├── test_admin_edits.py
 │   │   ├── test_categorizations.py
 │   │   ├── test_csv_files.py
 │   │   ├── test_questions.py
@@ -282,7 +292,7 @@ poetry run python -m app.load_data
 Descarga el dataset de Hugging Face, repara los errores de codificación, filtra las preguntas válidas y las carga en la base. Ver [Dataset](#dataset).
 
 > [!WARNING]
-> Este script reemplaza todas las preguntas y borra sus categorizaciones, traducciones, ediciones del admin y reportes. Las decisiones humanas se recuperan con el paso siguiente; la categorización y la traducción se rehacen con los pasos 5 y 6.
+> Este script reemplaza todas las preguntas y borra sus categorizaciones, traducciones, ediciones del admin y reportes. Las decisiones humanas se recuperan con el paso siguiente; la categorización y la traducción se rehacen con los pasos 5 y 6, y las correcciones del admin que se exportaron, con el paso 7.
 
 ### 4. Restaurar las decisiones humanas
 
@@ -311,7 +321,15 @@ Traduce cada pregunta y sus 4 opciones con IA y guarda la traducción junto al i
 
 Para ver el resultado: `poetry run python -m app.verify_lang` muestra algunas preguntas en inglés y en español, y cuántas están traducidas.
 
-### 7. Levantar la API
+### 7. Restaurar las correcciones del admin
+
+```powershell
+poetry run python -m app.restore_admin_edits --apply
+```
+
+Vuelve a aplicar las correcciones que hizo un admin desde la API, guardadas en `data/admin_edits.csv`. Va después del glosario, así lo que corrigió una persona gana sobre lo automático. Si el CSV está vacío, no cambia nada. Ver [Guardar las correcciones del admin](#guardar-las-correcciones-del-admin).
+
+### 8. Levantar la API
 
 ```powershell
 poetry run uvicorn app.main:app --reload
@@ -491,6 +509,22 @@ Reglas (definidas en `app/schemas.py`):
 - Cada campo que cambia queda en el historial (`GET /questions/{id}/edits`), con el valor anterior y el nuevo. Un valor igual al actual no se registra.
 
 **Ocultar una pregunta** (`DELETE /questions/{id}`): no la borra, solo deja de salir en el juego. Para volver a mostrarla: `PATCH /questions/{id}` con `{"is_active": true}`. Las dos acciones quedan en el historial.
+
+#### Guardar las correcciones del admin
+
+Lo que el admin cambia queda en la base, y `load_data` lo borra. Para no perderlo, se guarda en el repositorio, igual que las decisiones humanas de la categorización:
+
+```powershell
+poetry run python -m app.export_admin_edits             # base -> data/admin_edits.csv
+poetry run python -m app.restore_admin_edits --apply    # data/admin_edits.csv -> base
+```
+
+- El CSV guarda el **valor final** de cada campo editado (si se corrigió dos veces, la última). Si un cambio se deshizo (por ejemplo, se ocultó y se volvió a mostrar), se saca del CSV.
+- Cada pregunta se identifica por su **texto original en inglés y su respuesta original**, no por el id, igual que en `training_data.csv`. Si el admin cambió el inglés, el original sale del historial.
+- La exportación **junta** con lo que ya había en el CSV: lo que no se tocó en esta base (por ejemplo, correcciones hechas en otra computadora) se conserva.
+- La restauración controla las **mismas reglas que el `PATCH`**. Si una corrección dejaría opciones repetidas, o la pregunta no está en la base, la saltea, avisa con ⚠ y aplica las demás. Cada cambio queda en el historial.
+
+Después de exportar, hay que subir `data/admin_edits.csv` al repositorio.
 
 **Reportar una pregunta** (`POST /reports`, público). El jugador indica el motivo y, si quiere, un comentario:
 
@@ -729,7 +763,7 @@ Por eso el glosario tiene dos partes:
    20650,question,¿Qué médico fue jefe de cirugía en la serie St. Elsewhere?,el modelo cortó la pregunta en St.
    ```
 
-`app/apply_glossary.py` aplica las dos partes a la base. Por defecto **solo muestra los cambios**; con `--apply` los guarda. Si una corrección apunta a una opción que no existe o deja opciones repetidas, no guarda nada. Dos tests de calidad de datos verifican que la base tenga el glosario aplicado.
+`app/apply_glossary.py` aplica las dos partes a la base. Por defecto **solo muestra los cambios**; con `--apply` los guarda. Si una corrección apunta a una opción que no existe o deja opciones repetidas, no guarda nada. Lo que editó un admin desde la API no se toca (ver [`apply_glossary`](#apply_glossary)). Dos tests de calidad de datos verifican que la base tenga el glosario aplicado.
 
 > [!WARNING]
 > **Revisar siempre los cambios antes de guardarlos.** Una versión intermedia de la regla de puntuación también cambiaba `.?` por `?`, y se guardó sin revisar: rompió 185 abreviaturas (*EE.UU.?* → *EE.UU?*, *a.C.?* → *a.C?*). Se restauraron volviendo a traducir esas preguntas: el modelo, con su versión fija, da exactamente la misma traducción, así que se pudo comprobar que cada pregunta restaurada era la original. Esos casos quedaron como tests.
@@ -765,6 +799,8 @@ Todos se ejecutan desde la raíz con `poetry run python -m app.<script>`. Los qu
 | `verify_lang` | Muestra algunas preguntas en inglés y en español, y cuántas están traducidas |
 | `review_translations` | Mide la calidad real de la traducción revisando traducciones al azar |
 | `apply_glossary` | Aplica el glosario de correcciones (puntuación y correcciones manuales) a las traducciones |
+| `export_admin_edits` | Exporta las correcciones del admin a `data/admin_edits.csv` |
+| `restore_admin_edits` | Vuelve a aplicar las correcciones del admin desde `data/admin_edits.csv`. Es seguro correrlo varias veces |
 
 ### `categorize`
 
@@ -831,6 +867,25 @@ poetry run python -m app.apply_glossary --apply    # los guarda
 ```
 
 Aplica la regla de puntuación a todas las preguntas traducidas y después las correcciones de `data/translation_corrections.csv` (si las dos tocan lo mismo, gana la corrección manual). Muestra cada cambio con el texto de antes y el de después. Si una corrección apunta a una pregunta u opción que no existe, o deja opciones repetidas, avisa y no guarda nada. Se puede correr las veces que haga falta: lo ya corregido no cambia. Hay que correrlo después de `translate_questions` y cada vez que se agrega una corrección al CSV.
+
+**No pisa lo que editó un admin** desde la API (lo que está en el historial `question_edits`): la regla de puntuación no cambia una pregunta en español que editó el admin, y las correcciones de las opciones de una pregunta no se aplican si el admin editó alguna de sus opciones, en inglés o en español (si cambió el inglés, la corrección ya no sabe a qué opción apunta). Al final muestra cuántas dejó sin tocar por ese motivo.
+
+### `export_admin_edits`
+
+```powershell
+poetry run python -m app.export_admin_edits
+```
+
+Lee el historial de la base y actualiza `data/admin_edits.csv`: muestra cuántas correcciones son nuevas, cuántas cambiaron, cuántas se deshicieron y el total. No modifica la base. Ver [Guardar las correcciones del admin](#guardar-las-correcciones-del-admin).
+
+### `restore_admin_edits`
+
+```powershell
+poetry run python -m app.restore_admin_edits            # solo muestra los cambios
+poetry run python -m app.restore_admin_edits --apply    # los guarda
+```
+
+Aplica las correcciones de `data/admin_edits.csv` a la base. Muestra cada cambio con el valor de antes y el de después, y avisa con ⚠ las que no pudo aplicar (la pregunta no está o quedarían opciones repetidas), sin frenar las demás. Se puede correr las veces que haga falta: lo ya aplicado no cambia. Hay que correrlo al final de la reconstrucción, después de `apply_glossary`.
 
 ### `review_translations`
 
@@ -951,13 +1006,13 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-326 tests organizados en cuatro tipos:
+369 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
-| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento y glosario de la traducción, revisión humana, estadística | Ninguno |
-| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, administración de preguntas (editar, ocultar, historial), restauración de decisiones, columnas nuevas en una base vieja | Ninguno (usa SQLite en memoria) |
-| Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes, traducciones completas y sin opciones repetidas | PostgreSQL con datos (si no está, esos tests se saltean) |
+| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento y glosario de la traducción, revisión humana, estadística, límite de reportes, resumen de las correcciones del admin | Ninguno |
+| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, administración de preguntas (editar, ocultar, historial), reportes, exportar y restaurar las correcciones del admin, glosario sin pisar al admin, restauración de decisiones, columnas nuevas en una base vieja | Ninguno (usa SQLite en memoria) |
+| Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes, traducciones completas y sin opciones repetidas, glosario y correcciones del admin aplicados | PostgreSQL con datos (si no está, esos tests se saltean) |
 | Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
 
 ```powershell
@@ -1043,6 +1098,8 @@ Remove-Item audit_torch.txt
 | `memory allocation failed with OOM` durante `translate_questions` | La memoria de la GPU se llenó en un lote. El script lo divide en dos y reintenta solo, y al final informa cuántas veces lo hizo. Si son muchas, o se vuelve muy lento, cortarlo con `Ctrl+C` y relanzarlo con un `--batch-size` menor (por ejemplo 64): sigue desde donde quedó |
 | El juego muestra preguntas en inglés aunque se pida `lang=es` | Esas preguntas no están traducidas: correr `translate_questions` (por ejemplo, después de `load_data` o de crear preguntas con `POST /questions`) |
 | Fallan `test_punctuation_rule_is_applied` o `test_glossary_corrections_are_applied` | La base no tiene el glosario aplicado (por ejemplo, después de traducir de nuevo o de agregar una corrección al CSV). Correr `apply_glossary`, revisar los cambios y guardarlos con `--apply` |
+| Falla `test_admin_edits_are_applied` | La base no tiene aplicadas las correcciones de `data/admin_edits.csv` (por ejemplo, después de `load_data` o de bajar un CSV nuevo del repositorio). Correr `restore_admin_edits`, revisar los cambios y guardarlos con `--apply` |
+| `restore_admin_edits` avisa `No se encontró la pregunta` | La pregunta no está en esta base: por ejemplo, se creó con `POST /questions` en otra computadora. Si ya no hace falta, borrar sus filas del CSV |
 | `apply_glossary` dice `ninguna opción es '...'` | En el CSV, `target` tiene que ser el texto en inglés de la opción, igual que en la base (sin importar mayúsculas), o `question` para corregir la pregunta |
 | `column questions.question_es does not exist` o `column questions.is_active does not exist` | Base creada antes de esas columnas. Levantar la API una vez (las agrega sola) o correr `translate_questions` |
 | Aparece un archivo llamado `13.0.0` o `=13.0.0` en la carpeta del proyecto | Se corrió `pip install pillow>=13.0.0` sin comillas y PowerShell tomó el `>` como redirección. Borrar el archivo y repetir el comando con comillas |
@@ -1079,7 +1136,7 @@ Remove-Item audit_torch.txt
 
 **Administración**
 
-- Las ediciones del admin quedan solo en la base: `load_data` las borra junto con las preguntas. Falta exportarlas al repositorio, como las decisiones humanas de la categorización.
+- Las correcciones del admin se exportan a mano con `export_admin_edits`. Si dos computadoras corrigen el mismo campo de la misma pregunta, queda el CSV que se suba último (git avisa del conflicto si los dos lo cambiaron).
 - El límite de reportes vive en la memoria de la API: se reinicia al reiniciarla, y si se corren varios procesos, cada uno cuenta por su lado. Detrás de un proxy (por ejemplo, nginx), todos los pedidos llegan con la IP del proxy: habría que configurarlo para que pase la IP real.
 
 **Proyecto**
