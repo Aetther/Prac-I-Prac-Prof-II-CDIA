@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-369-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-383-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
@@ -154,6 +154,7 @@ flowchart LR
 │       ├── test_api_auth.py
 │       ├── test_api_inputs.py
 │       ├── test_api_robustness.py
+│       ├── test_cors.py
 │       └── test_model_quality.py
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
 ├── prueba_clasificador.py          # Prueba rápida del clasificador
@@ -269,6 +270,8 @@ python -c "import secrets; print(secrets.token_urlsafe(24))"
 Usar solo letras, números, `-` y `_` (otros caracteres como `$` o `#` pueden dar problemas en el `.env`).
 
 En el mismo `.env`, completar `API_KEY` con otra clave generada con el mismo comando (distinta de la contraseña). Es la que pide la API para los endpoints de administración (ver [Autenticación](#autenticación)). Si queda vacía, el juego y las estadísticas funcionan igual, pero la administración queda deshabilitada.
+
+`CORS_ORIGINS` se puede dejar vacía: permite el frontend de Vite en desarrollo (ver [CORS](#cors)).
 
 Después, levantar la base:
 
@@ -452,6 +455,25 @@ Invoke-RestMethod -Method Put -Uri http://localhost:8000/categorizations/1 -Head
 
 > [!NOTE]
 > Es una única clave compartida, pensada para que solo quien administra el proyecto pueda ver las respuestas y modificar datos. Si la API se publica en internet, tiene que ir detrás de HTTPS: sin cifrado, la clave viaja a la vista.
+
+### CORS
+
+El frontend corre en otra dirección que la API (con Vite, `http://localhost:5173`), así que el navegador solo le deja leer las respuestas si la API lo permite. Antes de un pedido con `X-API-Key` o con JSON, además, el navegador pregunta primero (`OPTIONS`, el *preflight*) si puede mandarlo.
+
+- Las direcciones permitidas se configuran en `CORS_ORIGINS` del `.env`, separadas por comas. Si queda vacía, se permiten `http://localhost:5173` y `http://127.0.0.1:5173`. Se ignoran los espacios y la `/` final.
+- `*` no se acepta: la API no arranca y avisa. Dejaría que cualquier página use la API desde el navegador de quien la visita.
+- Se permiten solo los métodos de la API (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) y los encabezados `Content-Type` y `X-API-Key`. No se usan cookies.
+- El frontend puede leer `Retry-After`, para saber cuánto esperar después de un `429` al reportar.
+
+CORS no reemplaza la API key: solo decide qué páginas pueden leer las respuestas en un navegador. Desde PowerShell o `curl` no aplica, y la administración sigue pidiendo la clave.
+
+Para comprobarlo con la API corriendo:
+
+```powershell
+curl.exe -i -H "Origin: http://localhost:5173" http://localhost:8000/categories
+```
+
+La respuesta tiene que incluir `access-control-allow-origin: http://localhost:5173`. Con otra dirección, ese encabezado no aparece.
 
 ### Uso
 
@@ -1006,14 +1028,14 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-369 tests organizados en cuatro tipos:
+383 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
 | Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento y glosario de la traducción, revisión humana, estadística, límite de reportes, resumen de las correcciones del admin | Ninguno |
 | Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, administración de preguntas (editar, ocultar, historial), reportes, exportar y restaurar las correcciones del admin, glosario sin pisar al admin, restauración de decisiones, columnas nuevas en una base vieja | Ninguno (usa SQLite en memoria) |
 | Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes, traducciones completas y sin opciones repetidas, glosario y correcciones del admin aplicados | PostgreSQL con datos (si no está, esos tests se saltean) |
-| Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
+| Validación | `tests/validation/` | Entradas inválidas, autenticación y CORS en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
 
 ```powershell
 poetry run pytest -v                  # todos, salvo los lentos
@@ -1040,6 +1062,7 @@ Medidas aplicadas tras una revisión de seguridad del proyecto:
 | Email personal visible en el repositorio | Commits y `pyproject.toml` con la dirección *noreply* de GitHub |
 | Respuestas incorrectas o sin documentar | `404` cuando una pregunta no existe (antes respondía `200` con un error) y respuestas `401`, `404` y `503` documentadas en `/docs` |
 | Documentación de la API siempre visible | Se puede ocultar con `ENABLE_DOCS=false` en el `.env` |
+| Otras páginas usando la API desde el navegador de quien las visita | CORS solo para las direcciones de `CORS_ORIGINS` (por defecto, el frontend en desarrollo), con los métodos y encabezados que usa la API, sin cookies y sin aceptar `*` (ver [CORS](#cors)) |
 | Reportes falsos en masa (`POST /reports` es público) | Validación estricta (motivos fijos, comentario de hasta 500 caracteres, pregunta existente y visible) y límite de 10 reportes por minuto por IP (`app/rate_limit.py`) |
 | Datos personales de quien reporta | No se guarda la IP ni ningún dato que lo identifique |
 | SQL armado pegando texto (`text(f"ALTER TABLE ...")`), marcado por Semgrep como posible inyección SQL | No era explotable (los nombres venían de una lista fija del código), pero ahora SQLAlchemy genera la sentencia a partir del modelo `Question` (`CreateColumn` y `DDL`) y pone las comillas a los nombres: no se pega ningún texto en el SQL |
@@ -1089,6 +1112,8 @@ Remove-Item audit_torch.txt
 | `/questions`, `POST` o `PUT` responden 401 | Falta el encabezado `X-API-Key` o la clave no coincide con `API_KEY` del `.env`. En `/docs`, usar el botón **Authorize** |
 | `POST` o `PUT` responden 422 | Los datos no cumplen las reglas. En la respuesta, `detail` indica el campo (`loc`) y el motivo (`msg`). Ver [Uso](#uso) |
 | `/questions`, `POST` o `PUT` responden 503 | Completar `API_KEY` en el `.env` y reiniciar la API |
+| El navegador dice `blocked by CORS policy` | La dirección del frontend no está en `CORS_ORIGINS`. Agregarla al `.env` (por ejemplo, si Vite usa otro puerto como `5174`) y reiniciar la API. Ver [CORS](#cors) |
+| La API no arranca: `CORS_ORIGINS no acepta *` | Reemplazar `*` en el `.env` por las direcciones del frontend |
 | `password authentication failed for user "admin"` | La contraseña del `.env` no coincide con la de la base. Cambiarla en la base con `\password admin` (ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos)) |
 | El contenedor nuevo no arranca porque el puerto 5432 está ocupado | Quedó un contenedor viejo corriendo: bajarlo con `docker compose down` desde la carpeta donde se creó |
 | La API devuelve 404 en `/questions/category/xxx` | La categoría no existe: usar `geografia`, `historia`, `ciencia`, `arte`, `entretenimiento` o `deportes` |

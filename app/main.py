@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -77,6 +78,37 @@ app = FastAPI(
     redoc_url="/redoc" if DOCS_ENABLED else None,
     openapi_url="/openapi.json" if DOCS_ENABLED else None,
 )
+
+
+def env_list(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """
+    Lee una variable de entorno con valores separados por comas, sin espacios
+    ni barra final ("http://a:5173/, http://b" -> ("http://a:5173", "http://b")).
+    Si no existe o está vacía, usa default.
+    """
+    value = os.getenv(name) or ""
+    items = tuple(item.strip().rstrip("/") for item in value.split(","))
+    return tuple(item for item in items if item) or default
+
+
+# CORS: desde qué páginas el navegador deja llamar a la API. Por defecto, el
+# frontend de Vite en desarrollo; para otro, CORS_ORIGINS en el .env.
+DEFAULT_CORS_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
+CORS_ORIGINS = env_list("CORS_ORIGINS", DEFAULT_CORS_ORIGINS)
+if "*" in CORS_ORIGINS:
+    # "*" dejaría que cualquier página use la API desde el navegador de quien la visita
+    raise ValueError("CORS_ORIGINS no acepta *: hay que poner las direcciones del frontend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(CORS_ORIGINS),
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "X-API-Key"],
+    expose_headers=["Retry-After"],  # para que el frontend sepa cuánto esperar tras un 429
+    allow_credentials=False,  # la API no usa cookies: la clave va en X-API-Key
+    max_age=600,  # el navegador recuerda el permiso 10 minutos
+)
+
 
 # --- Autenticación para los endpoints de administración ---
 # La clave se manda en el encabezado X-API-Key y se compara con API_KEY del .env
