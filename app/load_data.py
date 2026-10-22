@@ -7,8 +7,8 @@ Descarga el dataset de trivia desde Hugging Face y lo carga en la base.
 3. Se queda con las preguntas de 4 opciones (correcta + 3 incorrectas)
 4. Agrupa las categorías originales en las 6 de Preguntados
 
-ATENCIÓN: reemplaza las preguntas existentes y borra sus categorizaciones
-y traducciones. Después hay que:
+ATENCIÓN: reemplaza las preguntas existentes y borra sus categorizaciones,
+traducciones e historial de ediciones. Después hay que:
     poetry run python -m app.restore_decisions        (decisiones humanas)
     poetry run python -m app.categorize --auto-only   (categorización con IA)
     poetry run python -m app.translate_questions      (traducción al español)
@@ -25,7 +25,13 @@ import requests
 from ftfy import fix_text
 
 from app.database import SessionLocal, engine
-from app.models import Base, Categorization, Question, ensure_translation_columns
+from app.models import (
+    Base,
+    Categorization,
+    Question,
+    QuestionEdit,
+    ensure_question_columns,
+)
 
 # Versión fija del dataset: un commit no cambia nunca, a diferencia de la rama
 # refs/convert/parquet, que Hugging Face regenera sola. Así todos obtienen
@@ -132,8 +138,9 @@ def build_rows(df: pd.DataFrame) -> list[dict]:
 
 def load_questions():
     Base.metadata.create_all(bind=engine)
-    # Una base creada antes de la traducción no tiene esas columnas
-    ensure_translation_columns(engine)
+    # Una base creada antes de la traducción o de la administración
+    # no tiene esas columnas
+    ensure_question_columns(engine)
 
     parquet_path = download_parquet(DATASET_URL, DATASET_SHA256)
     try:
@@ -147,9 +154,10 @@ def load_questions():
 
     session = SessionLocal()
     try:
-        # Las categorizaciones apuntan a las preguntas (clave foránea),
-        # así que hay que borrarlas antes de reemplazar las preguntas.
+        # Las categorizaciones y las ediciones apuntan a las preguntas (clave
+        # foránea), así que hay que borrarlas antes de reemplazar las preguntas.
         deleted = session.query(Categorization).delete()
+        edits = session.query(QuestionEdit).delete()
         session.query(Question).delete()
         session.bulk_insert_mappings(Question, rows)
         session.commit()
@@ -159,6 +167,8 @@ def load_questions():
                 f"Se borraron {deleted} categorizaciones anteriores. Para recuperar "
                 "las decisiones humanas: poetry run python -m app.restore_decisions"
             )
+        if edits:
+            print(f"Se borró el historial de {edits} ediciones hechas por el admin.")
         print(
             "Las preguntas quedaron sin traducir. Para traducirlas: "
             "poetry run python -m app.translate_questions --batch-size 64"

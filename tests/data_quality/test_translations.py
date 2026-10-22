@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import func
 
 from app.glossary import fix_punctuation, load_corrections, target_field
+from app.main import MANUAL_TRANSLATION
 from app.model_versions import MODEL_REVISIONS
 from app.models import Question
 
@@ -60,9 +61,10 @@ def test_translations_record_a_pinned_model(real_db):
         .distinct()
     }
     # Cada traducción tiene que decir con qué modelo se hizo, y ese modelo
-    # tiene que tener una versión fija (app/model_versions.py)
+    # tiene que tener una versión fija (app/model_versions.py). Las que tradujo
+    # a mano un admin dicen "manual".
     assert None not in models
-    assert models <= set(MODEL_REVISIONS)
+    assert models <= set(MODEL_REVISIONS) | {MANUAL_TRANSLATION}
 
 
 def test_untranslated_questions_have_no_partial_translation(real_db):

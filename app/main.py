@@ -2,7 +2,7 @@ import os
 import random
 import secrets
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Security
 from fastapi.security import APIKeyHeader
@@ -11,23 +11,36 @@ from sqlalchemy.orm import Session
 
 from app.categories import CATEGORIES, find_category_by_name
 from app.database import engine, get_db
-from app.models import Base, Categorization, Question, ensure_translation_columns
+from app.glossary import options_are_distinct
+from app.models import (
+    Base,
+    Categorization,
+    Question,
+    QuestionEdit,
+    ensure_question_columns,
+)
 from app.schemas import (
+    EN_FIELDS,
+    ES_FIELDS,
     CategorizationUpdate,
     GameAnswer,
     GameQuestion,
     GameResult,
     Lang,
     QuestionCreate,
+    QuestionUpdate,
 )
+
+# Valor de translation_model para las preguntas que tradujo a mano un admin
+MANUAL_TRANSLATION = "manual"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Al arrancar: crear las tablas si no existen y agregar las columnas de
-    # traducción a una base creada antes de la traducción
+    # Al arrancar: crear las tablas que no existan y agregar las columnas
+    # nuevas a una base creada antes (traducción y administración)
     Base.metadata.create_all(bind=engine)
-    ensure_translation_columns(engine)
+    ensure_question_columns(engine)
     yield
     # Al cerrar: no hace falta liberar nada
 
@@ -95,6 +108,20 @@ def not_found(description: str) -> dict[int | str, dict[str, Any]]:
     return {404: {"description": description}}
 
 
+def question_to_dict(question: Any) -> dict[str, Any]:
+    """Todos los campos de una pregunta (para las respuestas de administración)."""
+    return {column.name: getattr(question, column.name) for column in Question.__table__.columns}
+
+
+def edit_value(value: Any) -> str | None:
+    """Valor como texto, para guardarlo en el historial de ediciones."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
 @app.get("/")
 def root():
     return {
@@ -111,10 +138,13 @@ def root():
                 "/translation/stats",
             ],
             "administracion (requieren X-API-Key)": [
-                "/questions",
+                "/questions?status=all|active|hidden",
                 "/questions/{id}",
+                "/questions/{id}/edits",
                 "/questions/category/{category_name}",
                 "POST /questions",
+                "PATCH /questions/{id}",
+                "DELETE /questions/{id}",
                 "PUT /categorizations/{id}",
             ],
         },
@@ -138,12 +168,15 @@ def game_question(
 ):
     """
     Una pregunta al azar, con las 4 opciones mezcladas y sin indicar la correcta.
-    Solo usa preguntas categorizadas (la categoría es la asignada).
+    Solo usa preguntas categorizadas (la categoría es la asignada) y visibles
+    (las que un admin ocultó no salen).
     Si se pide español y la pregunta no tiene traducción, viene en inglés
     (el campo lang de la respuesta lo indica).
     """
-    query = db.query(Question, Categorization).join(
-        Categorization, Categorization.question_id == Question.id
+    query = (
+        db.query(Question, Categorization)
+        .join(Categorization, Categorization.question_id == Question.id)
+        .filter(Question.is_active.is_(True))
     )
     if category is not None:
         category = category.lower()
@@ -226,10 +259,19 @@ def game_answer(
 def list_questions(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    status: Literal["all", "active", "hidden"] = Query(
+        "all", description="'active': visibles en el juego; 'hidden': ocultas; 'all': todas"
+    ),
     db: Session = Depends(get_db),
 ):
-    questions = db.query(Question).offset(skip).limit(limit).all()
-    return questions
+    """Preguntas ordenadas por id, con todos sus campos (incluida la respuesta)."""
+    query = db.query(Question)
+    if status == "active":
+        query = query.filter(Question.is_active.is_(True))
+    elif status == "hidden":
+        query = query.filter(Question.is_active.is_(False))
+    questions = query.order_by(Question.id).offset(skip).limit(limit).all()
+    return [question_to_dict(q) for q in questions]
 
 
 @app.get(
@@ -278,6 +320,7 @@ def list_by_category(
             "wrong_2_es": question.wrong_2_es,
             "wrong_3_es": question.wrong_3_es,
             "is_translated": question.is_translated,
+            "is_active": question.is_active,
             "original_category": question.category,
             "category_name": categorization.category_name,
             "confidence_score": categorization.confidence_score,
@@ -293,10 +336,139 @@ def list_by_category(
     responses={**ADMIN_RESPONSES, **not_found("La pregunta no existe")},
 )
 def get_question(question_id: int, db: Session = Depends(get_db)):
-    question = db.query(Question).filter(Question.id == question_id).first()
+    question = db.get(Question, question_id)
     if question is None:
         raise HTTPException(status_code=404, detail="Pregunta no encontrada")
-    return question
+    return question_to_dict(question)
+
+
+@app.get(
+    "/questions/{question_id}/edits",
+    dependencies=[Depends(require_api_key)],
+    responses={**ADMIN_RESPONSES, **not_found("La pregunta no existe")},
+)
+def list_question_edits(question_id: int, db: Session = Depends(get_db)):
+    """Historial de cambios de una pregunta, del más viejo al más nuevo."""
+    if db.get(Question, question_id) is None:
+        raise HTTPException(status_code=404, detail="Pregunta no encontrada")
+    edits: list[Any] = (
+        db.query(QuestionEdit)
+        .filter(QuestionEdit.question_id == question_id)
+        .order_by(QuestionEdit.edited_at, QuestionEdit.id)
+        .all()
+    )
+    return [
+        {
+            "id": edit.id,
+            "field": edit.field,
+            "old_value": edit.old_value,
+            "new_value": edit.new_value,
+            "edited_at": edit.edited_at,
+        }
+        for edit in edits
+    ]
+
+
+@app.patch(
+    "/questions/{question_id}",
+    dependencies=[Depends(require_api_key)],
+    responses={
+        **ADMIN_RESPONSES,
+        **not_found("La pregunta no existe"),
+        422: {"description": "Datos inválidos, o las 4 opciones quedarían repetidas"},
+    },
+)
+def update_question(
+    question_id: int, data: QuestionUpdate, db: Session = Depends(get_db)
+):
+    """
+    Edita una pregunta: se mandan solo los campos que cambian, en inglés o en
+    español. Cada cambio queda en el historial (GET /questions/{id}/edits).
+
+    - Las 4 opciones de cada idioma tienen que seguir siendo distintas.
+    - Una pregunta sin traducir se puede traducir a mano mandando los 5 campos
+      en español: queda como traducida, con translation_model "manual".
+    - {"is_active": true} vuelve a mostrar una pregunta oculta.
+    """
+    question: Any = db.get(Question, question_id)
+    if question is None:
+        raise HTTPException(status_code=404, detail="Pregunta no encontrada")
+
+    changes = data.model_dump(exclude_unset=True)
+
+    # Cómo quedarían los textos después del cambio
+    new = {f: changes.get(f, getattr(question, f)) for f in (*EN_FIELDS, *ES_FIELDS)}
+
+    es_sent = [f for f in ES_FIELDS if f in changes]
+    translating = bool(es_sent) and not question.is_translated
+    if translating and len(es_sent) != len(ES_FIELDS):
+        raise HTTPException(
+            status_code=422,
+            detail="La pregunta no está traducida: para traducirla a mano hay que "
+            f"mandar los 5 campos en español ({', '.join(ES_FIELDS)})",
+        )
+    if not options_are_distinct([new[f] for f in EN_FIELDS[1:]]):
+        raise HTTPException(
+            status_code=422, detail="Las 4 opciones en inglés deben ser distintas"
+        )
+    if (question.is_translated or translating) and not options_are_distinct(
+        [new[f] for f in ES_FIELDS[1:]]
+    ):
+        raise HTTPException(
+            status_code=422, detail="Las 4 opciones en español deben ser distintas"
+        )
+
+    changed: list[str] = []
+    for field, value in changes.items():
+        old = getattr(question, field)
+        if old == value:
+            continue  # sin cambios: no se registra
+        db.add(
+            QuestionEdit(
+                question_id=question.id,
+                field=field,
+                old_value=edit_value(old),
+                new_value=edit_value(value),
+            )
+        )
+        setattr(question, field, value)
+        changed.append(field)
+
+    if translating:
+        question.is_translated = True
+        question.translation_model = MANUAL_TRANSLATION
+
+    db.commit()
+    db.refresh(question)
+    return {"changed_fields": changed, "question": question_to_dict(question)}
+
+
+@app.delete(
+    "/questions/{question_id}",
+    dependencies=[Depends(require_api_key)],
+    responses={**ADMIN_RESPONSES, **not_found("La pregunta no existe")},
+)
+def hide_question(question_id: int, db: Session = Depends(get_db)):
+    """
+    Oculta una pregunta: no se borra (queda con su historial), pero el juego
+    ya no la muestra. Se vuelve a mostrar con PATCH {"is_active": true}.
+    """
+    question: Any = db.get(Question, question_id)
+    if question is None:
+        raise HTTPException(status_code=404, detail="Pregunta no encontrada")
+
+    if question.is_active:
+        db.add(
+            QuestionEdit(
+                question_id=question.id,
+                field="is_active",
+                old_value="true",
+                new_value="false",
+            )
+        )
+        question.is_active = False
+        db.commit()
+    return {"id": question_id, "is_active": False}
 
 
 @app.get("/stats")

@@ -13,11 +13,17 @@ from sqlalchemy import (
     Text,
     false,
     inspect,
+    true,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import CreateColumn
 
 from app.database import Base
+
+
+def utc_now() -> datetime:
+    """Fecha y hora actual en UTC."""
+    return datetime.now(timezone.utc)
 
 
 class Question(Base):
@@ -42,9 +48,13 @@ class Question(Base):
     is_translated = Column(Boolean, nullable=False, default=False, server_default=false())
     translation_model = Column(String(255), nullable=True)
 
+    # --- Administración ---
+    # Una pregunta oculta no se borra: queda en la base (con su historial),
+    # pero el juego ya no la muestra. Se puede volver a activar.
+    is_active = Column(Boolean, nullable=False, default=True, server_default=true())
 
-# Columnas de traducción, para agregarlas a una tabla que ya existía antes de
-# este cambio (ver ensure_translation_columns). Su tipo sale del modelo Question.
+
+# Columnas de traducción
 TRANSLATION_COLUMNS: tuple[str, ...] = (
     "question_es",
     "answer_es",
@@ -55,14 +65,19 @@ TRANSLATION_COLUMNS: tuple[str, ...] = (
     "translation_model",
 )
 
+# Columnas que se agregaron a questions después de crear la tabla. Una base
+# creada antes no las tiene: ensure_question_columns las agrega.
+# Su tipo sale del modelo Question.
+ADDED_COLUMNS: tuple[str, ...] = TRANSLATION_COLUMNS + ("is_active",)
 
-def ensure_translation_columns(engine: Engine) -> list[str]:
+
+def ensure_question_columns(engine: Engine) -> list[str]:
     """
-    Agrega a la tabla questions las columnas de traducción que falten.
+    Agrega a la tabla questions las columnas nuevas que falten (ADDED_COLUMNS).
 
     create_all() solo crea tablas nuevas: no modifica una tabla que ya existe.
-    Una base creada antes de agregar la traducción no tendría estas columnas,
-    y cualquier consulta a Question fallaría. Si ya existen, no hace nada.
+    Una base creada antes de agregar estas columnas no las tendría, y cualquier
+    consulta a Question fallaría. Si ya existen, no hace nada.
     Devuelve los nombres de las columnas que agregó.
 
     El SQL no se escribe a mano: SQLAlchemy genera la definición de cada
@@ -74,12 +89,12 @@ def ensure_translation_columns(engine: Engine) -> list[str]:
         return []  # la tabla todavía no existe: create_all la crea completa
 
     table = Question.__table__
-    unknown = [name for name in TRANSLATION_COLUMNS if name not in table.c]
+    unknown = [name for name in ADDED_COLUMNS if name not in table.c]
     if unknown:
         raise ValueError(f"No son columnas del modelo Question: {unknown}")
 
     existing = {column["name"] for column in inspector.get_columns("questions")}
-    missing = [name for name in TRANSLATION_COLUMNS if name not in existing]
+    missing = [name for name in ADDED_COLUMNS if name not in existing]
     if missing:
         table_name = engine.dialect.identifier_preparer.format_table(table)
         with engine.begin() as connection:  # begin: confirma al terminar
@@ -87,11 +102,6 @@ def ensure_translation_columns(engine: Engine) -> list[str]:
                 column = CreateColumn(table.c[name]).compile(dialect=engine.dialect)
                 connection.execute(DDL(f"ALTER TABLE {table_name} ADD COLUMN {column}"))
     return missing
-
-
-def utc_now() -> datetime:
-    """Fecha y hora actual en UTC."""
-    return datetime.now(timezone.utc)
 
 
 class Categorization(Base):
@@ -109,3 +119,19 @@ class Categorization(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     question = relationship("Question", backref="categorizations")
+
+
+class QuestionEdit(Base):
+    """
+    Historial de cambios hechos por un admin a una pregunta: una fila por
+    campo cambiado, con el valor anterior y el nuevo. Ocultar o volver a
+    activar una pregunta también queda registrado (campo "is_active").
+    """
+    __tablename__ = "question_edits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False, index=True)
+    field = Column(String(50), nullable=False)
+    old_value = Column(Text, nullable=True)
+    new_value = Column(Text, nullable=True)
+    edited_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)

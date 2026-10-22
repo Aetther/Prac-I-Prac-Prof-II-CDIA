@@ -1,12 +1,13 @@
 """
-ensure_translation_columns: agrega las columnas de traducción a una tabla
-creada antes de la traducción (create_all no modifica tablas existentes).
+ensure_question_columns: agrega las columnas nuevas (traducción y
+administración) a una tabla creada antes de ellas (create_all no modifica
+tablas existentes).
 """
 import pytest
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.pool import StaticPool
 
-from app.models import TRANSLATION_COLUMNS, ensure_translation_columns
+from app.models import ADDED_COLUMNS, Question, ensure_question_columns
 
 # La tabla questions como era antes de agregar la traducción
 OLD_QUESTIONS_TABLE = """
@@ -47,30 +48,36 @@ def column_names(engine) -> set[str]:
     return {column["name"] for column in inspect(engine).get_columns("questions")}
 
 
+def test_added_columns_are_model_columns():
+    # Los tipos salen del modelo: cada nombre tiene que ser una columna de Question
+    assert set(ADDED_COLUMNS) <= set(Question.__table__.c.keys())
+
+
 def test_adds_missing_columns(old_database):
-    added = ensure_translation_columns(old_database)
-    assert added == list(TRANSLATION_COLUMNS)
-    assert set(TRANSLATION_COLUMNS) <= column_names(old_database)
+    added = ensure_question_columns(old_database)
+    assert added == list(ADDED_COLUMNS)
+    assert set(ADDED_COLUMNS) <= column_names(old_database)
 
 
-def test_existing_questions_are_marked_as_not_translated(old_database):
-    ensure_translation_columns(old_database)
+def test_existing_questions_get_the_defaults(old_database):
+    ensure_question_columns(old_database)
     with old_database.connect() as connection:
         row = connection.execute(
-            text("SELECT question, is_translated, question_es FROM questions")
+            text("SELECT question, is_translated, question_es, is_active FROM questions")
         ).one()
     assert row.question == "Capital of France?"  # los datos no se tocan
-    assert not row.is_translated
+    assert not row.is_translated  # sin traducir
     assert row.question_es is None
+    assert row.is_active  # visible en el juego
 
 
 def test_running_twice_does_nothing(old_database):
-    ensure_translation_columns(old_database)
-    assert ensure_translation_columns(old_database) == []
+    ensure_question_columns(old_database)
+    assert ensure_question_columns(old_database) == []
 
 
 def test_without_table_does_nothing():
     # Si la tabla no existe todavía, create_all la crea completa
     engine = new_engine()
-    assert ensure_translation_columns(engine) == []
+    assert ensure_question_columns(engine) == []
     engine.dispose()

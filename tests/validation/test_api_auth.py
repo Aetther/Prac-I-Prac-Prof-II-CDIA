@@ -1,6 +1,6 @@
 """
 Autenticación: el juego y las estadísticas son públicos; la administración
-(ver respuestas, crear y corregir) requiere la API key correcta.
+(ver respuestas, crear, corregir, editar y ocultar) requiere la API key correcta.
 """
 import pytest
 
@@ -49,6 +49,20 @@ def test_put_without_key_does_not_change_anything(anon_client):
     assert rows[0]["is_automatic"] is True
 
 
+def test_patch_without_key_does_not_change_anything(anon_client):
+    r = anon_client.patch("/questions/1", json={"answer": "Paris"})
+    assert r.status_code == 401
+    question = anon_client.get("/questions/1", headers={"X-API-Key": TEST_API_KEY}).json()
+    assert question["answer"] == "París"
+
+
+def test_delete_without_key_does_not_hide(anon_client):
+    r = anon_client.delete("/questions/1")
+    assert r.status_code == 401
+    question = anon_client.get("/questions/1", headers={"X-API-Key": TEST_API_KEY}).json()
+    assert question["is_active"] is True
+
+
 # --- Lectura ---
 
 @pytest.mark.parametrize("path", [
@@ -65,6 +79,7 @@ def test_public_endpoints_do_not_need_key(anon_client, path):
 @pytest.mark.parametrize("path", [
     "/questions",
     "/questions/1",
+    "/questions/1/edits",
     "/questions/category/arte",
 ])
 def test_admin_endpoints_need_key(anon_client, path):

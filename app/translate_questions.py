@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from app.database import SessionLocal, engine
 from app.glossary import options_are_distinct
-from app.models import Base, Question, ensure_translation_columns
+from app.models import Base, Question, ensure_question_columns
 from app.translator import Translator
 
 # Cantidad de preguntas que se traducen juntas antes de guardarlas
@@ -37,7 +37,7 @@ CHUNK_SIZE = 256
 
 def translate_questions(limit: int | None, batch_size: int) -> None:
     Base.metadata.create_all(bind=engine)
-    added = ensure_translation_columns(engine)
+    added = ensure_question_columns(engine)
     if added:
         print(f"Columnas agregadas a la tabla questions: {', '.join(added)}")
 

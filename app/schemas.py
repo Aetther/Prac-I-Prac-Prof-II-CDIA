@@ -159,3 +159,59 @@ class GameResult(BaseModel):
 
     correct: bool
     correct_answer: str
+
+
+# --- Administración ---
+
+# Campos de texto de una pregunta, en cada idioma (la correcta va primero)
+EN_FIELDS = ("question", "answer", "wrong_1", "wrong_2", "wrong_3")
+ES_FIELDS = ("question_es", "answer_es", "wrong_1_es", "wrong_2_es", "wrong_3_es")
+
+
+class QuestionUpdate(BaseModel):
+    """
+    Datos para editar una pregunta (PATCH /questions/{id}).
+
+    Todos los campos son opcionales: se mandan solo los que cambian. Que las
+    4 opciones sigan siendo distintas lo controla el endpoint, porque hay que
+    compararlas con las que ya están en la base.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        json_schema_extra={
+            "examples": [
+                {"answer_es": "Perezoso"},
+                {"question_es": "¿Cuál es la capital de Francia?", "answer_es": "París"},
+                {"is_active": True},
+            ]
+        },
+    )
+
+    # Inglés (el original del dataset)
+    question: QuestionText | None = None
+    answer: OptionText | None = None
+    wrong_1: OptionText | None = None
+    wrong_2: OptionText | None = None
+    wrong_3: OptionText | None = None
+    # Español (la traducción)
+    question_es: QuestionText | None = None
+    answer_es: OptionText | None = None
+    wrong_1_es: OptionText | None = None
+    wrong_2_es: OptionText | None = None
+    wrong_3_es: OptionText | None = None
+    # Visible en el juego (para volver a activar una pregunta oculta)
+    is_active: bool | None = Field(
+        default=None, description="true para volver a mostrar una pregunta oculta"
+    )
+
+    @model_validator(mode="after")
+    def at_least_one_field_and_no_nulls(self) -> "QuestionUpdate":
+        # model_fields_set: los campos que vinieron en el pedido (aunque sea con null)
+        if not self.model_fields_set:
+            raise ValueError("Hay que mandar al menos un campo para cambiar")
+        nulls = sorted(f for f in self.model_fields_set if getattr(self, f) is None)
+        if nulls:
+            raise ValueError(f"Estos campos no pueden ser null: {', '.join(nulls)}")
+        return self

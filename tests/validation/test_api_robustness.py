@@ -56,6 +56,9 @@ def test_env_flag_default_false(monkeypatch):
     ("/questions/{question_id}", "get"),
     ("/questions/category/{category_name}", "get"),
     ("/questions", "post"),
+    ("/questions/{question_id}", "patch"),
+    ("/questions/{question_id}", "delete"),
+    ("/questions/{question_id}/edits", "get"),
     ("/categorizations/{categorization_id}", "put"),
 ])
 def test_admin_endpoints_document_401_and_503(path, method):

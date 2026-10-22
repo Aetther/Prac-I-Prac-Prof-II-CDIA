@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-247-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-282-brightgreen?logo=pytest&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
 
@@ -128,6 +128,7 @@ flowchart LR
 │   ├── integration/
 │   │   ├── test_api.py
 │   │   ├── test_game.py
+│   │   ├── test_question_admin.py
 │   │   ├── test_restore_decisions.py
 │   │   └── test_translation_columns.py
 │   ├── data_quality/
@@ -163,11 +164,12 @@ Cada carpeta de `tests/` tiene además un `__init__.py` vacío. Las carpetas `mo
 
 ## Base de datos
 
-Dos tablas: las preguntas del dataset (en inglés y su traducción al español) y la categoría asignada a cada una. Cada pregunta tiene como máximo una categorización.
+Tres tablas: las preguntas del dataset (en inglés y su traducción al español), la categoría asignada a cada una y el historial de cambios que hace un admin. Cada pregunta tiene como máximo una categorización.
 
 ```mermaid
 erDiagram
     QUESTIONS ||--o| CATEGORIZATIONS : tiene
+    QUESTIONS ||--o{ QUESTION_EDITS : "historial de cambios"
     QUESTIONS {
         int id PK
         text question
@@ -183,7 +185,8 @@ erDiagram
         text wrong_2_es
         text wrong_3_es
         bool is_translated
-        string translation_model "modelo que tradujo"
+        string translation_model "modelo que tradujo (o manual)"
+        bool is_active "false si un admin la ocultó"
     }
     CATEGORIZATIONS {
         int id PK
@@ -193,9 +196,19 @@ erDiagram
         bool is_automatic "true si decidió la IA"
         datetime created_at
     }
+    QUESTION_EDITS {
+        int id PK
+        int question_id FK
+        string field "campo que cambió"
+        text old_value
+        text new_value
+        datetime edited_at
+    }
 ```
 
-La categoría original del dataset (`questions.category`) se conserva aparte de la asignada (`categorizations.category_name`), para poder compararlas. Del mismo modo, la traducción se guarda en columnas aparte (`_es`) y el inglés original nunca se modifica.
+La categoría original del dataset (`questions.category`) se conserva aparte de la asignada (`categorizations.category_name`), para poder compararlas. Del mismo modo, la traducción se guarda en columnas aparte (`_es`) y el inglés original nunca se modifica automáticamente: solo lo puede cambiar un admin, y cada cambio queda en `question_edits` con el valor anterior. Las preguntas no se borran: un admin puede ocultarlas (`is_active = false`) y volver a mostrarlas.
+
+Las columnas y tablas nuevas se agregan solas a una base creada antes: `create_all()` crea las tablas que faltan y `ensure_question_columns()` (en `app/models.py`) agrega las columnas. Las dos se ejecutan al arrancar la API, en `load_data` y en `translate_questions`.
 
 ## Requisitos
 
@@ -340,8 +353,11 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 | GET | `/categories` | | Las 6 categorías disponibles |
 | GET | `/categories/stats` | | Total, categorizadas, pendientes, automáticas, manuales y cantidad por categoría |
 | GET | `/translation/stats` | | Total, traducidas, sin traducir, porcentaje y modelo de traducción usado |
-| GET | `/questions` | 🔒 | Lista de preguntas con sus respuestas, en inglés y español, paginada |
+| GET | `/questions` | 🔒 | Lista de preguntas con sus respuestas, en inglés y español, paginada. Filtro `?status=all`, `active` (visibles) o `hidden` (ocultas) |
 | GET | `/questions/{id}` | 🔒 | Una pregunta por su id |
+| GET | `/questions/{id}/edits` | 🔒 | Historial de cambios de una pregunta |
+| PATCH | `/questions/{id}` | 🔒 | Edita una pregunta: solo los campos que cambian, en inglés o español. También vuelve a mostrar una oculta |
+| DELETE | `/questions/{id}` | 🔒 | Oculta una pregunta (no la borra): el juego deja de mostrarla |
 | GET | `/questions/category/{category_name}` | 🔒 | Preguntas categorizadas (por IA o por una persona) en esa categoría, paginadas. Incluye la categoría original del dataset, la asignada y la traducción |
 | POST | `/questions` | 🔒 | Crea una pregunta nueva |
 | PUT | `/categorizations/{id}` | 🔒 | Corrige la categoría de una pregunta (queda registrada como decisión humana) |
@@ -350,7 +366,7 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 
 ### Juego
 
-Los endpoints del juego nunca muestran la respuesta correcta antes de que el jugador elija, así que no se puede hacer trampa mirando lo que devuelve la API (por ejemplo, con las herramientas de desarrollador del navegador). Solo usan preguntas categorizadas, y la categoría que muestran es la asignada.
+Los endpoints del juego nunca muestran la respuesta correcta antes de que el jugador elija, así que no se puede hacer trampa mirando lo que devuelve la API (por ejemplo, con las herramientas de desarrollador del navegador). Solo usan preguntas categorizadas y visibles (no las que ocultó un admin), y la categoría que muestran es la asignada.
 
 **Pedir una pregunta** (`GET /game/question?category=ciencia&lang=es`; sin `category`, sale de cualquiera):
 
@@ -359,7 +375,7 @@ Los endpoints del juego nunca muestran la respuesta correcta antes de que el jug
   "id": 1,
   "question": "Tres de estos animales hibernan. ¿Cuál no?",
   "category": "ciencia",
-  "options": ["Rana", "Pereza", "Serpiente", "Ratón"],
+  "options": ["Rana", "Perezoso", "Serpiente", "Ratón"],
   "lang": "es"
 }
 ```
@@ -375,12 +391,12 @@ Las opciones se mezclan en cada pedido.
 ```
 
 ```json
-{ "correct": false, "correct_answer": "Pereza" }
+{ "correct": false, "correct_answer": "Perezoso" }
 ```
 
-(La respuesta correcta es *Sloth*, el perezoso: "Pereza" es uno de los [errores conocidos](#errores-conocidos) de la traducción).
+(La traducción automática había dado "Pereza", uno de los [errores conocidos](#errores-conocidos); se corrigió con el [glosario](#glosario-de-correcciones)).
 
-Acepta la respuesta en **cualquiera de los dos idiomas** ("Pereza" o "Sloth"); `?lang=` solo define en qué idioma vuelve `correct_answer`. No distingue mayúsculas ni espacios al principio o al final. Responde **404** si la pregunta (o la categoría pedida) no existe.
+Acepta la respuesta en **cualquiera de los dos idiomas** ("Perezoso" o "Sloth"); `?lang=` solo define en qué idioma vuelve `correct_answer`. No distingue mayúsculas ni espacios al principio o al final. Responde **404** si la pregunta (o la categoría pedida) no existe.
 
 ### Autenticación
 
@@ -438,12 +454,32 @@ Reglas (definidas en `app/schemas.py`):
 
 `category_name` acepta el nombre (`arte`) o la etiqueta (`Arte`), sin distinguir mayúsculas.
 
+**Editar una pregunta** (`PATCH /questions/{id}`). Se mandan **solo los campos que cambian**, en inglés (`question`, `answer`, `wrong_1`, `wrong_2`, `wrong_3`) o en español (los mismos con `_es`):
+
+```json
+{ "answer_es": "Perezoso" }
+```
+
+```json
+{
+  "changed_fields": ["answer_es"],
+  "question": { "id": 1, "answer_es": "Perezoso", "...": "..." }
+}
+```
+
+- Mismas reglas de texto que al crear: se recortan los espacios, no pueden quedar vacíos ni pasar los límites, y no se acepta `null` ni campos de más.
+- Las 4 opciones de **cada idioma** tienen que seguir siendo distintas. Si no, responde **422** y no cambia nada.
+- Una pregunta **sin traducir** se puede traducir a mano mandando los 5 campos en español: queda traducida, con `translation_model: "manual"`.
+- Cada campo que cambia queda en el historial (`GET /questions/{id}/edits`), con el valor anterior y el nuevo. Un valor igual al actual no se registra.
+
+**Ocultar una pregunta** (`DELETE /questions/{id}`): no la borra, solo deja de salir en el juego. Para volver a mostrarla: `PATCH /questions/{id}` con `{"is_active": true}`. Las dos acciones quedan en el historial.
+
 **Códigos de error:**
 
 - **401**: falta la API key o es incorrecta (solo en los endpoints de administración).
 - **503**: la administración está deshabilitada porque el `.env` no tiene `API_KEY`.
 - **404**: el recurso no existe, como una pregunta, una categoría o una categorización inexistente.
-- **422**: los datos enviados no cumplen las reglas: falta un campo, está vacío, es demasiado largo, no es texto, las opciones se repiten, la categoría no existe, sobra un campo, `limit=1000` o un `id` que no es un número. Lo responde FastAPI automáticamente, e indica en `detail` qué campo falló y por qué:
+- **422**: los datos enviados no cumplen las reglas (en `PATCH /questions/{id}`, también si las opciones quedarían repetidas o si se traduce a mano sin los 5 campos; en esos dos casos `detail` es un texto, no una lista): falta un campo, está vacío, es demasiado largo, no es texto, las opciones se repiten, la categoría no existe, sobra un campo, `limit=1000` o un `id` que no es un número. Lo responde FastAPI automáticamente, e indica en `detail` qué campo falló y por qué:
 
 ```json
 {
@@ -871,12 +907,12 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-247 tests organizados en cuatro tipos:
+282 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
 | Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento y glosario de la traducción, revisión humana, estadística | Ninguno |
-| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, restauración de decisiones, columnas de traducción en una base vieja | Ninguno (usa SQLite en memoria) |
+| Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, administración de preguntas (editar, ocultar, historial), restauración de decisiones, columnas nuevas en una base vieja | Ninguno (usa SQLite en memoria) |
 | Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes, traducciones completas y sin opciones repetidas | PostgreSQL con datos (si no está, esos tests se saltean) |
 | Validación | `tests/validation/` | Entradas inválidas y autenticación en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
 
@@ -962,7 +998,7 @@ Remove-Item audit_torch.txt
 | El juego muestra preguntas en inglés aunque se pida `lang=es` | Esas preguntas no están traducidas: correr `translate_questions` (por ejemplo, después de `load_data` o de crear preguntas con `POST /questions`) |
 | Fallan `test_punctuation_rule_is_applied` o `test_glossary_corrections_are_applied` | La base no tiene el glosario aplicado (por ejemplo, después de traducir de nuevo o de agregar una corrección al CSV). Correr `apply_glossary`, revisar los cambios y guardarlos con `--apply` |
 | `apply_glossary` dice `ninguna opción es '...'` | En el CSV, `target` tiene que ser el texto en inglés de la opción, igual que en la base (sin importar mayúsculas), o `question` para corregir la pregunta |
-| `column questions.question_es does not exist` | Base creada antes de la traducción. Levantar la API una vez (agrega las columnas sola) o correr `translate_questions` |
+| `column questions.question_es does not exist` o `column questions.is_active does not exist` | Base creada antes de esas columnas. Levantar la API una vez (las agrega sola) o correr `translate_questions` |
 | Aparece un archivo llamado `13.0.0` o `=13.0.0` en la carpeta del proyecto | Se corrió `pip install pillow>=13.0.0` sin comillas y PowerShell tomó el `>` como redirección. Borrar el archivo y repetir el comando con comillas |
 | Advertencias de *symlinks* o de `HF_TOKEN` al descargar modelos | No afectan el funcionamiento |
 
@@ -994,6 +1030,10 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API del juego entrega preguntas sueltas al azar: todavía no evita repetir preguntas dentro de una partida ni lleva puntaje, vidas o tiempo. Esa lógica se va a definir junto con la interfaz.
+
+**Administración**
+
+- Las ediciones del admin quedan solo en la base: `load_data` las borra junto con las preguntas. Falta exportarlas al repositorio, como las decisiones humanas de la categorización.
 
 **Proyecto**
 
