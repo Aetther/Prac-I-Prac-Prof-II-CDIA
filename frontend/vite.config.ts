@@ -12,7 +12,17 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "html"],
       include: ["src/game/**/*", "src/api/**/*"],
-      exclude: ["**/*.test.ts", "**/*.test.tsx"],
+      exclude: [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "src/game/types.ts",
+        "src/api/types.ts",
+        "src/api/index.ts",
+      ],
+      thresholds: {
+        lines: 100,
+        branches: 100,
+      },
     },
   },
 });

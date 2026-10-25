@@ -5,8 +5,12 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
 ![Tests](https://img.shields.io/badge/tests-383-brightgreen?logo=pytest&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
+
+El juego se juega desde un **frontend web** hecho con **React, Vite y TypeScript** (`frontend/`): dos personas en el mismo dispositivo, por turnos. Ver [Frontend (juego web)](#frontend-juego-web).
 
 Proyecto de Práctica Profesional II — CDIA.
 
@@ -20,16 +24,17 @@ Proyecto de Práctica Profesional II — CDIA.
 6. [Instalación y puesta en marcha](#instalación-y-puesta-en-marcha)
 7. [Uso de GPU (opcional)](#uso-de-gpu-opcional)
 8. [API](#api)
-9. [Dataset](#dataset)
-10. [Categorización con IA](#categorización-con-ia)
-11. [Traducción con IA](#traducción-con-ia)
-12. [Scripts](#scripts)
-13. [Resultados](#resultados)
-14. [Tests](#tests)
-15. [Seguridad](#seguridad)
-16. [Problemas frecuentes](#problemas-frecuentes)
-17. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
-18. [Créditos y licencias](#créditos-y-licencias)
+9. [Frontend (juego web)](#frontend-juego-web)
+10. [Dataset](#dataset)
+11. [Categorización con IA](#categorización-con-ia)
+12. [Traducción con IA](#traducción-con-ia)
+13. [Scripts](#scripts)
+14. [Resultados](#resultados)
+15. [Tests](#tests)
+16. [Seguridad](#seguridad)
+17. [Problemas frecuentes](#problemas-frecuentes)
+18. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
+19. [Créditos y licencias](#créditos-y-licencias)
 
 ---
 
@@ -68,6 +73,7 @@ flowchart LR
 4. **Traducción** (`translate_questions` y `apply_glossary`): la IA traduce cada pregunta y sus opciones al español, sin tocar el inglés, y después se aplica un glosario de correcciones. Ver [Traducción con IA](#traducción-con-ia).
 5. **Correcciones del admin** (`restore_admin_edits`): vuelve a aplicar lo que un admin corrigió desde la API, guardado en el repositorio. Va al final, así gana sobre lo automático. Las nuevas se exportan con `export_admin_edits`. Ver [Guardar las correcciones del admin](#guardar-las-correcciones-del-admin).
 6. **API**: el juego entrega preguntas categorizadas, en el idioma pedido y sin revelar la respuesta hasta que el jugador elige. Ver [API](#api).
+7. **Frontend**: el juego web pide las preguntas a la API, muestra las 4 opciones y deja que la API decida si la respuesta es correcta. Ver [Frontend (juego web)](#frontend-juego-web).
 
 ## Tecnologías
 
@@ -80,6 +86,8 @@ flowchart LR
 | IA | transformers, PyTorch, sentence-transformers, scikit-learn, SetFit |
 | Traducción | transformers (MarianMT), sentencepiece, sacremoses |
 | Tests | pytest, httpx |
+| Frontend | React 19, Vite 8, TypeScript 6 (modo estricto), React Router 7, CSS con variables |
+| Tests del frontend | Vitest, React Testing Library, jsdom, cobertura con v8 |
 
 ## Estructura del proyecto
 
@@ -156,6 +164,13 @@ flowchart LR
 │       ├── test_api_robustness.py
 │       ├── test_cors.py
 │       └── test_model_quality.py
+├── frontend/                       # Juego web (React + Vite + TypeScript), ver Frontend (juego web)
+│   ├── src/api/                    # Único lugar que llama a la API: valida cada respuesta
+│   ├── src/game/                   # Reglas del juego en TypeScript puro (sin interfaz)
+│   ├── src/components/             # Pantallas: lobby, pregunta, cambio de turno, fin de partida
+│   ├── src/styles/                 # Estilos y variables de diseño (tokens.css)
+│   ├── package.json                # Dependencias y comandos (npm)
+│   └── .env.example                # Dirección de la API (VITE_API_URL)
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
 ├── prueba_clasificador.py          # Prueba rápida del clasificador
 ├── prueba_traduccion.py            # Prueba rápida de la API en español e inglés
@@ -169,12 +184,12 @@ flowchart LR
 ├── CONCEPTS_AI_CATEGORIZATION.md   # Conceptos de la categorización con IA
 ├── EXERCISE_AI_TRANSLATION.md      # Consigna de la traducción con IA
 ├── CONCEPTS_AI_TRANSLATION.md      # Conceptos de la traducción con IA
-├── EXERCISE_AI_UIUX.md             # Consigna de la interfaz (próxima etapa)
-├── CONCEPTS_AI_UIUX.md             # Conceptos de la interfaz (próxima etapa)
+├── EXERCISE_AI_UIUX.md             # Consigna de la interfaz
+├── CONCEPTS_AI_UIUX.md             # Conceptos de la interfaz
 └── FIRST_STEPS.md                  # Instrucciones de la cátedra para traer cada consigna
 ```
 
-Cada carpeta de `tests/` tiene además un `__init__.py` vacío. Las carpetas `models/` (modelos entrenados) y `checkpoints/` se generan al entrenar y no se suben al repositorio, igual que el archivo `.env` (credenciales), los entornos virtuales y la caché de Python (ver `.gitignore`).
+Cada carpeta de `tests/` tiene además un `__init__.py` vacío. En `frontend/`, las carpetas `node_modules/`, `dist/` y `coverage/` se generan al instalar, compilar y medir la cobertura, y tampoco se suben. Las carpetas `models/` (modelos entrenados) y `checkpoints/` se generan al entrenar y no se suben al repositorio, igual que el archivo `.env` (credenciales), los entornos virtuales y la caché de Python (ver `.gitignore`).
 
 ## Base de datos
 
@@ -240,6 +255,7 @@ Las columnas y tablas nuevas se agregan solas a una base creada antes: `create_a
 - **Python 3.11 a 3.13**
 - **[Poetry](https://python-poetry.org/)** para el manejo de dependencias
 - **[Docker](https://www.docker.com/)** para la base de datos
+- **[Node.js](https://nodejs.org/) 22 LTS o más nuevo** para el frontend (por ejemplo, 24 LTS)
 - **Opcional:** GPU NVIDIA para acelerar la IA. Sin GPU todo funciona igual, pero la categorización completa pasa de ~35 minutos a varias horas, y la traducción, de ~45 minutos a muchas horas.
 - Unos **5 GB libres** en disco para las dependencias de IA y los modelos.
 
@@ -342,6 +358,18 @@ poetry run uvicorn app.main:app --reload
 - Documentación interactiva: `http://localhost:8000/docs` (se puede ocultar con `ENABLE_DOCS=false` en el `.env`, por ejemplo si la API se publica en internet)
 
 Para acceder desde otro dispositivo de la misma red (por ejemplo, una notebook o un celular), agregar `--host 0.0.0.0` y usar la IP local de la computadora, que se obtiene con `ipconfig`. La primera vez, el Firewall de Windows pide permiso para redes privadas.
+
+### 9. Levantar el juego (frontend)
+
+Con la API corriendo (paso 8), en **otra terminal**:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+`npm install` hace falta solo la primera vez (y cada vez que cambien las dependencias). Después, abrir `http://localhost:5173` en el navegador. Ver [Frontend (juego web)](#frontend-juego-web).
 
 ## Uso de GPU (opcional)
 
@@ -591,6 +619,67 @@ Después de exportar, hay que subir `data/admin_edits.csv` al repositorio.
   ]
 }
 ```
+
+## Frontend (juego web)
+
+Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celular o la computadora entre turnos. La interfaz está en español rioplatense; las preguntas, en el idioma que se elige al empezar.
+
+### Cómo se juega
+
+1. **Lobby**: los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y la cantidad de rondas (3, 5 o 10; 5 por defecto).
+2. **Pregunta**: aparece la pregunta con sus 4 opciones. Al elegir una, se marca si fue correcta o no y se muestra la respuesta correcta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
+3. **Cambio de turno**: una pantalla intermedia ("Pasale el dispositivo a ...") para que el otro jugador no vea la respuesta anterior.
+4. **Fin de la partida**: después de que cada jugador respondió una pregunta por ronda, se muestra el ganador o el empate, con los puntajes. Cada acierto suma 10 puntos.
+
+En una partida no se repiten preguntas. Si la API no responde, aparece "¿Está corriendo la API?" con los botones **Reintentar** y **Volver al lobby**.
+
+### Estado actual
+
+El frontend se construye en 10 etapas. Están terminadas las dos primeras:
+
+| Etapa | Estado |
+|---|---|
+| Base del proyecto y cliente de la API | ✅ |
+| Lobby, pantalla de pregunta y modo por rondas | ✅ |
+| Ruleta de categorías (Canvas) | Pendiente (por ahora, la categoría sale al azar) |
+| Temporizador y pantalla de resultado | Pendiente (el tiempo se elige, pero todavía no corre) |
+| Modo "juntar las 6 categorías" | Pendiente |
+| Reportar una pregunta | Pendiente |
+| Vista de administración (`/admin`): reportes y edición de preguntas | Pendiente (dos etapas) |
+| Estilos finales y prueba en celular | Pendiente |
+| Sonido y música | Pendiente |
+
+### Cómo está armado
+
+- **`src/api/`**: el **único** lugar que llama a la API. Valida a mano cada respuesta (que la pregunta tenga 4 opciones, que el idioma sea `es` o `en`, etc.) y convierte cualquier falla en un error con un tipo fijo: red, tiempo agotado (10 segundos), HTTP o validación. Una regla de ESLint impide usar `fetch` fuera de esta carpeta.
+- **`src/game/`**: las reglas del juego en TypeScript puro, sin interfaz: turnos, puntos, rondas, fin de partida y la elección de la categoría. Así se prueban sin navegador.
+- **`src/components/`**: las pantallas. Muestran el estado y avisan qué hizo el jugador; nunca llaman a la API directamente.
+- **La respuesta correcta la decide siempre la API** (`POST /game/answer`): el frontend nunca la conoce antes de que el jugador elija.
+- **Solo usa los endpoints públicos del juego** (`/game/question` y `/game/answer`). Nunca los de administración, que muestran las respuestas.
+
+La dirección de la API sale de `VITE_API_URL` (por defecto `http://localhost:8000`; ver `frontend/.env.example`). La API ya tiene CORS habilitado para `http://localhost:5173` (ver [CORS](#cors)).
+
+### Comandos
+
+Desde `frontend/`:
+
+| Comando | Para qué |
+|---|---|
+| `npm run dev` | Levanta el juego en `http://localhost:5173` |
+| `npm test` | Corre los tests con cobertura |
+| `npm run lint` | ESLint y verificación de formato con Prettier |
+| `npm run typecheck` | Verifica los tipos de TypeScript |
+| `npm run build` | Compila la versión de producción en `dist/` |
+
+### Cómo se desarrolla
+
+El frontend se construye con **desarrollo guiado por especificaciones** (*spec-driven development*), usando [OpenSpec](https://openspec.dev) y agentes de IA (opencode), en el entorno de trabajo que propone la cátedra. Cada etapa pasa por puntos de control con aprobación humana:
+
+1. **Propuesta y especificación**: qué se va a hacer, criterios de aceptación verificables, diseño y plan de pruebas. Se revisa y se aprueba antes de escribir código.
+2. **Implementación y revisión**: el código se revisa contra la especificación, con la salida real de los tests, el lint, la verificación de tipos y la compilación.
+3. **QA**: se verifica cada criterio, incluida una partida real contra la API.
+
+Las especificaciones y el entorno de trabajo viven en una carpeta aparte; en este repositorio se versiona el código del frontend ya revisado.
 
 ## Dataset
 
@@ -1045,6 +1134,13 @@ poetry run pytest -m slow -v          # validación del modelo de IA (~1 minuto)
 
 Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tests/conftest.py`). Los tests de la API y de restauración usan una base SQLite en memoria y un CSV temporal, así que nunca modifican los datos reales.
 
+### Tests del frontend
+
+El frontend tiene sus propios **212 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas del juego, el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+
+- **Cobertura exigida: 100% de líneas y de ramas** en `src/game` y `src/api`.
+- Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
+
 ## Seguridad
 
 Medidas aplicadas tras una revisión de seguridad del proyecto:
@@ -1108,6 +1204,10 @@ Remove-Item audit_torch.txt
 | VS Code marca los imports como no resueltos | Elegir el intérprete del entorno de Poetry: `Ctrl+Shift+P` → *Python: Select Interpreter* (la ruta se obtiene con `poetry env info --path`) |
 | `psql` muestra la salida en un visor y no vuelve | Salir con `q`, o agregar `-P pager=off` al comando |
 | `docker compose up` dice `Falta POSTGRES_PASSWORD en el archivo .env` | Falta crear el `.env`: ver el [paso 2](#2-configurar-y-levantar-la-base-de-datos) de la instalación |
+| La API no arranca: `connection to server at "127.0.0.1", port 5432 failed: Connection refused` | La base no está corriendo: abrir Docker Desktop, correr `docker compose up -d` y volver a levantar la API |
+| El juego muestra "¿Está corriendo la API?" | La API no responde: levantarla (paso 8) y apretar **Reintentar** |
+| `npm run dev` usa otro puerto (por ejemplo, `5174`) y el navegador dice `blocked by CORS policy` | El puerto 5173 está ocupado: cerrar el otro proceso o agregar la nueva dirección a `CORS_ORIGINS` del `.env` (ver [CORS](#cors)) |
+| `npm run lint` falla por formato en archivos que no se tocaron | Finales de línea de Windows (CRLF). `frontend/.gitattributes` lo evita en clones nuevos; en uno existente, correr `npm run format` |
 | `/docs` responde 404 | `ENABLE_DOCS` está en `false` en el `.env`: cambiarlo a `true` (o borrar la línea) y reiniciar la API |
 | `/questions`, `POST` o `PUT` responden 401 | Falta el encabezado `X-API-Key` o la clave no coincide con `API_KEY` del `.env`. En `/docs`, usar el botón **Authorize** |
 | `POST` o `PUT` responden 422 | Los datos no cumplen las reglas. En la respuesta, `detail` indica el campo (`loc`) y el motivo (`msg`). Ver [Uso](#uso) |
@@ -1157,7 +1257,8 @@ Remove-Item audit_torch.txt
 
 **Juego**
 
-- La API del juego entrega preguntas sueltas al azar: todavía no evita repetir preguntas dentro de una partida ni lleva puntaje, vidas o tiempo. Esa lógica se va a definir junto con la interfaz.
+- La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
+- El frontend todavía no tiene la ruleta, el temporizador, el modo "juntar las 6 categorías", los reportes, la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 

@@ -1,2 +1,8 @@
-export { Home } from "./Home";
+export { Lobby } from "./Lobby";
+export { Scoreboard } from "./Scoreboard";
+export { QuestionCard } from "./QuestionCard";
+export { SwitchTurn } from "./SwitchTurn";
+export { GameOver } from "./GameOver";
+export { ErrorScreen } from "./ErrorScreen";
+export { GameScreen } from "./GameScreen";
 export { Admin } from "./Admin";

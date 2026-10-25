@@ -1,17 +1,258 @@
-import { useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Home } from "./components/Home";
+import { useReducer, useRef, useState } from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { ApiError } from "./api/errors";
+import { getGameQuestion, submitAnswer } from "./api/game";
 import { Admin } from "./components/Admin";
-import type { GamePhase } from "./game/types";
-import { INITIAL_PHASE } from "./game";
+import { GameScreen } from "./components/GameScreen";
+import {
+  ALL_CATEGORIES_404_MESSAGE,
+  DuplicateQuestionExhaustedError,
+  INITIAL_GAME_STATE,
+  createLobbyConfig,
+  fetchUnusedQuestion,
+  gameReducer,
+  getApiErrorMessage,
+  loadQuestionWithFallback,
+  pickCategoryExcluding,
+  pickRandomCategory,
+} from "./game";
+import type { CategoryName, Lang, LobbyInput } from "./game";
+
+interface LoadRetryTarget {
+  readonly type: "loadQuestion";
+  readonly category: CategoryName;
+  readonly attempted404: readonly CategoryName[];
+}
+
+interface RestartLoadTarget {
+  readonly type: "restartQuestionLoad";
+}
+
+interface SubmitRetryTarget {
+  readonly type: "submitAnswer";
+  readonly questionId: number;
+  readonly answer: string;
+}
+
+type RetryTarget = LoadRetryTarget | RestartLoadTarget | SubmitRetryTarget;
+
+type RequestState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | {
+      readonly status: "error";
+      readonly message: string;
+      readonly retry: RetryTarget;
+    };
+
+interface BeginQuestionContext {
+  readonly category: CategoryName;
+  readonly attempted404: readonly CategoryName[];
+  readonly usedQuestionIds: readonly number[];
+  readonly lang: Lang;
+}
+
+function isQuestion404(error: unknown): boolean {
+  return (
+    error instanceof ApiError && error.kind === "http" && error.status === 404
+  );
+}
 
 function App() {
-  useState<GamePhase>(INITIAL_PHASE);
+  const [game, dispatch] = useReducer(gameReducer, INITIAL_GAME_STATE);
+  const [request, setRequest] = useState<RequestState>({ status: "idle" });
+  const inFlightRef = useRef(false);
+
+  async function runExclusive(task: () => Promise<void>): Promise<void> {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      await task();
+    } finally {
+      inFlightRef.current = false;
+    }
+  }
+
+  async function beginQuestion(context: BeginQuestionContext): Promise<void> {
+    setRequest({ status: "loading" });
+    const outcome = await loadQuestionWithFallback(
+      (category) =>
+        fetchUnusedQuestion(
+          getGameQuestion,
+          category,
+          context.lang,
+          context.usedQuestionIds,
+        ),
+      pickCategoryExcluding,
+      isQuestion404,
+      { category: context.category, attempted404: context.attempted404 },
+    );
+
+    if (outcome.kind === "loaded") {
+      dispatch({ type: "QUESTION_LOADED", question: outcome.question });
+      setRequest({ status: "idle" });
+      return;
+    }
+
+    if (outcome.kind === "all-categories-404") {
+      setRequest({
+        status: "error",
+        message: ALL_CATEGORIES_404_MESSAGE,
+        retry: { type: "restartQuestionLoad" },
+      });
+      return;
+    }
+
+    let message: string;
+    if (outcome.error instanceof DuplicateQuestionExhaustedError) {
+      message = outcome.error.message;
+    } else if (outcome.error instanceof ApiError) {
+      message = getApiErrorMessage(outcome.error);
+      console.error("No se pudo cargar la pregunta", {
+        kind: outcome.error.kind,
+        status: outcome.error.status,
+      });
+    } else {
+      message = "Ocurrió un error inesperado.";
+    }
+    setRequest({
+      status: "error",
+      message,
+      retry: {
+        type: "loadQuestion",
+        category: outcome.category,
+        attempted404: outcome.attempted404,
+      },
+    });
+  }
+
+  async function beginTurn(
+    usedQuestionIds: readonly number[],
+    lang: Lang,
+    category: CategoryName = pickRandomCategory(),
+  ): Promise<void> {
+    await beginQuestion({
+      category,
+      attempted404: [],
+      usedQuestionIds,
+      lang,
+    });
+  }
+
+  async function submitAnswerWithRetry(
+    questionId: number,
+    answer: string,
+    lang: Lang,
+  ): Promise<void> {
+    setRequest({ status: "loading" });
+    try {
+      const result = await submitAnswer(questionId, answer, lang);
+      dispatch({
+        type: "ANSWER_RECEIVED",
+        chosenAnswer: answer,
+        correct: result.correct,
+        correctAnswer: result.correct_answer,
+      });
+      setRequest({ status: "idle" });
+    } catch (error) {
+      let message: string;
+      if (error instanceof ApiError) {
+        message = getApiErrorMessage(error);
+        console.error("No se pudo enviar la respuesta", {
+          questionId,
+          kind: error.kind,
+          status: error.status,
+        });
+      } else {
+        message = "Ocurrió un error inesperado.";
+      }
+      setRequest({
+        status: "error",
+        message,
+        retry: { type: "submitAnswer", questionId, answer },
+      });
+    }
+  }
+
+  const handleStart = (input: LobbyInput) => {
+    const config = createLobbyConfig(input);
+    if (config === null) return;
+    void runExclusive(async () => {
+      dispatch({ type: "START_GAME", config });
+      await beginTurn([], config.lang);
+    });
+  };
+
+  const handleAnswer = (answer: string) => {
+    const question = game.currentQuestion;
+    const config = game.config;
+    if (question === null || config === null) return;
+    if (game.lastAnswer !== null || request.status === "loading") return;
+    void runExclusive(async () => {
+      await submitAnswerWithRetry(question.id, answer, config.lang);
+    });
+  };
+
+  const handleAnswerContinue = () => {
+    if (game.phase !== "QuestionCard" || game.lastAnswer === null) return;
+    dispatch({ type: "CONTINUE_AFTER_ANSWER" });
+  };
+
+  const handleTurnContinue = () => {
+    if (game.phase !== "SwitchTurn" || game.config === null) return;
+    const usedQuestionIds = game.usedQuestionIds;
+    const lang = game.config.lang;
+    void runExclusive(async () => {
+      dispatch({ type: "ADVANCE_TURN" });
+      await beginTurn(usedQuestionIds, lang);
+    });
+  };
+
+  const handleRetry = () => {
+    if (request.status !== "error" || game.config === null) return;
+    const target = request.retry;
+    const usedQuestionIds = game.usedQuestionIds;
+    const lang = game.config.lang;
+    void runExclusive(async () => {
+      if (target.type === "loadQuestion") {
+        await beginQuestion({
+          category: target.category,
+          attempted404: target.attempted404,
+          usedQuestionIds,
+          lang,
+        });
+      } else if (target.type === "restartQuestionLoad") {
+        await beginTurn(usedQuestionIds, lang);
+      } else {
+        await submitAnswerWithRetry(target.questionId, target.answer, lang);
+      }
+    });
+  };
+
+  const handleBackToLobby = () => {
+    dispatch({ type: "RESET_GAME" });
+    setRequest({ status: "idle" });
+  };
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route
+          path="/"
+          element={
+            <GameScreen
+              game={game}
+              loading={request.status === "loading"}
+              errorMessage={request.status === "error" ? request.message : null}
+              onStart={handleStart}
+              onAnswer={handleAnswer}
+              onAnswerContinue={handleAnswerContinue}
+              onTurnContinue={handleTurnContinue}
+              onRetry={handleRetry}
+              onBackToLobby={handleBackToLobby}
+            />
+          }
+        />
         <Route path="/admin" element={<Admin />} />
       </Routes>
     </BrowserRouter>
