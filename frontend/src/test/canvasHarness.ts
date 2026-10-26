@@ -14,12 +14,19 @@ export interface RecordedText {
   readonly font: string;
 }
 
+export interface RecordedPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface CanvasHarness {
   readonly ctx: CanvasRenderingContext2D;
   readonly fillsAtFill: string[];
   readonly strokesAtStroke: string[];
   readonly texts: RecordedText[];
   readonly arcs: RecordedArc[];
+  readonly moves: RecordedPoint[];
+  readonly lines: RecordedPoint[];
   readonly transforms: number[][];
   readonly setTransform: ReturnType<typeof vi.fn>;
   readonly scale: ReturnType<typeof vi.fn>;
@@ -32,6 +39,8 @@ export function installCanvasHarness(): CanvasHarness {
   const strokesAtStroke: string[] = [];
   const texts: RecordedText[] = [];
   const arcs: RecordedArc[] = [];
+  const moves: RecordedPoint[] = [];
+  const lines: RecordedPoint[] = [];
   const transforms: number[][] = [];
   let fillStyle = "";
   let strokeStyle = "";
@@ -49,8 +58,12 @@ export function installCanvasHarness(): CanvasHarness {
   const ctx = {
     beginPath: vi.fn(),
     closePath: vi.fn(),
-    moveTo: vi.fn(),
-    lineTo: vi.fn(),
+    moveTo: vi.fn((x: number, y: number) => {
+      moves.push({ x, y });
+    }),
+    lineTo: vi.fn((x: number, y: number) => {
+      lines.push({ x, y });
+    }),
     arc: vi.fn(
       (x: number, y: number, r: number, start: number, end: number) => {
         arcs.push({ x, y, r, start, end });
@@ -105,6 +118,8 @@ export function installCanvasHarness(): CanvasHarness {
     strokesAtStroke,
     texts,
     arcs,
+    moves,
+    lines,
     transforms,
     setTransform,
     scale,

@@ -18,6 +18,16 @@ const MAX_DEVICE_PIXEL_RATIO = 3;
 const LABEL_FONT_SIZE = 12;
 const HUB_RADIUS = 24;
 const LABEL_INSET = 12;
+const RIM_THICKNESS = 6;
+const POINTER_HEIGHT = 26;
+const POINTER_BASE_MARGIN = 2;
+const POINTER_TIP_INSET = 10;
+const POINTER_HALF_WIDTH = 16;
+const POINTER_BASE_Y = -(CANVAS_SIZE / 2 - POINTER_BASE_MARGIN);
+const POINTER_TIP_Y = POINTER_BASE_Y + POINTER_HEIGHT;
+const SECTOR_RADIUS =
+  CANVAS_SIZE / 2 - POINTER_BASE_MARGIN - POINTER_HEIGHT + POINTER_TIP_INSET;
+const RIM_RADIUS = SECTOR_RADIUS + RIM_THICKNESS;
 
 type WheelStatus = "idle" | "spinning" | "result";
 
@@ -47,6 +57,7 @@ export function Wheel({
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const devicePixelRatioRef = useRef(1);
   const fontFamilyRef = useRef("");
+  const rimColorRef = useRef("");
   const categoriesRef = useRef(categories);
   const paletteRef = useRef<ReturnType<typeof readWheelPalette> | null>(null);
   const rotationRef = useRef(INITIAL_WHEEL_ROTATION);
@@ -64,9 +75,13 @@ export function Wheel({
     context.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
     const centre = CANVAS_SIZE / 2;
-    const radius = CANVAS_SIZE / 2;
     context.save();
     context.translate(centre, centre);
+
+    context.beginPath();
+    context.arc(0, 0, RIM_RADIUS, 0, Math.PI * 2);
+    context.fillStyle = rimColorRef.current;
+    context.fill();
 
     categoriesRef.current.forEach((category, index) => {
       const start = rotation + index * WHEEL_SLICE_ANGLE - Math.PI / 2;
@@ -74,7 +89,7 @@ export function Wheel({
 
       context.beginPath();
       context.moveTo(0, 0);
-      context.arc(0, 0, radius, start, end);
+      context.arc(0, 0, SECTOR_RADIUS, start, end);
       context.closePath();
       context.fillStyle = palette.sector[category.name];
       context.fill();
@@ -89,7 +104,7 @@ export function Wheel({
       context.font = `${LABEL_FONT_SIZE}px ${fontFamilyRef.current}`;
       context.textAlign = "right";
       context.textBaseline = "middle";
-      context.fillText(category.label, radius - LABEL_INSET, 0);
+      context.fillText(category.label, SECTOR_RADIUS - LABEL_INSET, 0);
       context.restore();
     });
 
@@ -101,9 +116,9 @@ export function Wheel({
     context.stroke();
 
     context.beginPath();
-    context.moveTo(0, -radius);
-    context.lineTo(-10, -radius + 18);
-    context.lineTo(10, -radius + 18);
+    context.moveTo(0, POINTER_TIP_Y);
+    context.lineTo(-POINTER_HALF_WIDTH, POINTER_BASE_Y);
+    context.lineTo(POINTER_HALF_WIDTH, POINTER_BASE_Y);
     context.closePath();
     context.fillStyle = palette.pointer;
     context.fill();
@@ -126,6 +141,7 @@ export function Wheel({
 
     const style = getComputedStyle(document.documentElement);
     paletteRef.current = readWheelPalette(style);
+    rimColorRef.current = style.getPropertyValue("--color-wheel-rim").trim();
     fontFamilyRef.current = style.getPropertyValue("--font-family-sans").trim();
   }, []);
 
@@ -205,7 +221,9 @@ export function Wheel({
       <p id="wheel-category-list" className="visually-hidden">
         {`${categoryList}.`}
       </p>
-      {status === "spinning" ? <p>Girando...</p> : null}
+      {status === "spinning" ? (
+        <p className="wheel-status">Girando...</p>
+      ) : null}
       {status !== "result" ? (
         <button
           type="button"
@@ -218,7 +236,9 @@ export function Wheel({
       ) : null}
       {status === "result" && result !== null ? (
         <>
-          <p role="status">{`Salió: ${result.label}`}</p>
+          <p className="wheel-status wheel-status-result" role="status">
+            {`Salió: ${result.label}`}
+          </p>
           <button
             type="button"
             className="touch-target"

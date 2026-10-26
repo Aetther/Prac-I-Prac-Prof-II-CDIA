@@ -78,8 +78,10 @@ async function spin(
 }
 
 function sectorArcs() {
-  const maxRadius = Math.max(...canvas.arcs.map((arc) => arc.r));
-  return canvas.arcs.filter((arc) => arc.r === maxRadius).slice(-6);
+  const radii = canvas.arcs.map((arc) => arc.r);
+  const outerRadius = Math.max(...radii);
+  const sectorRadius = Math.max(...radii.filter((r) => r !== outerRadius));
+  return canvas.arcs.filter((arc) => arc.r === sectorRadius).slice(-6);
 }
 
 function drawnRotation(): number {
@@ -171,6 +173,7 @@ describe("Wheel", () => {
 
     expect(canvas.fillsAtFill).toContain("sentinel-hub");
     expect(canvas.fillsAtFill).toContain("sentinel-pointer");
+    expect(canvas.fillsAtFill).toContain("sentinel-rim");
     expect(canvas.strokesAtStroke).toContain("sentinel-stroke");
     expect(canvas.texts.length).toBeGreaterThanOrEqual(6);
     for (const text of canvas.texts) {
@@ -178,12 +181,76 @@ describe("Wheel", () => {
     }
     for (const role of [
       "sentinel-pointer",
+      "sentinel-rim",
       "sentinel-label",
       "sentinel-hub",
       "sentinel-stroke",
     ]) {
       expect(SECTOR_SENTINELS).not.toContain(role);
     }
+  });
+
+  it("draws a 6 px rim in the rim token and keeps it inside the canvas", () => {
+    renderWheel();
+
+    const radii = [...new Set(canvas.arcs.map((arc) => arc.r))];
+    const outerRadius = Math.max(...radii);
+    const sectorRadius = Math.max(...radii.filter((r) => r !== outerRadius));
+
+    expect(outerRadius).toBe(148);
+    expect(sectorRadius).toBe(142);
+    expect(outerRadius - sectorRadius).toBe(6);
+    expect(160 - outerRadius).toBe(12);
+    expect(canvas.fillsAtFill).toContain("sentinel-rim");
+    expect(canvas.fillsAtFill.indexOf("sentinel-rim")).toBeLessThan(
+      canvas.fillsAtFill.indexOf("sentinel-geografia"),
+    );
+    expect(canvas.arcs.filter((arc) => arc.r === sectorRadius)).toHaveLength(6);
+  });
+
+  it("draws a 32 × 26 pointer whose tip enters 10 px into the sectors", () => {
+    renderWheel();
+
+    const tip = canvas.moves.find((point) => point.x === 0 && point.y !== 0);
+    const base = canvas.lines.filter((point) => Math.abs(point.x) === 16);
+
+    expect(tip).toBeDefined();
+    expect(base).toHaveLength(2);
+    expect(base[0].y).toBe(base[1].y);
+
+    const baseY = base[0].y;
+    const tipY = tip!.y;
+    expect(base[0].x).toBe(-16);
+    expect(base[1].x).toBe(16);
+    expect(baseY).toBe(-158);
+    expect(160 + baseY).toBe(2);
+    expect(tipY - baseY).toBe(26);
+    expect(baseY).toBeLessThan(-148);
+    expect(tipY).toBeGreaterThan(-148);
+    expect(tipY).toBeGreaterThan(-142);
+    expect(tipY + 142).toBe(10);
+    expect(
+      canvas.fillsAtFill.filter((fill) => fill === "sentinel-pointer"),
+    ).not.toHaveLength(0);
+  });
+
+  it("keeps the sector under the pointer unchanged", () => {
+    renderWheel();
+
+    const pointer = -Math.PI / 2;
+    const containing = sectorArcs()
+      .map((arc, index) => ({
+        index,
+        offset: normalizeAngle(pointer - arc.start),
+        width: arc.end - arc.start,
+      }))
+      .filter((arc) => arc.offset < arc.width);
+
+    expect(containing).toHaveLength(1);
+    expect(containing[0].index).toBe(
+      sectorIndexAtRotation(INITIAL_WHEEL_ROTATION),
+    );
+    expect(containing[0].index).toBe(0);
   });
 
   it("shows Girando... and disables Girar while the spin runs", async () => {
@@ -193,6 +260,10 @@ describe("Wheel", () => {
     await drive([0]);
 
     expect(screen.getByText("Girando...")).toBeVisible();
+    expect(screen.getByText("Girando...")).toHaveClass("wheel-status");
+    expect(screen.getByText("Girando...")).not.toHaveClass(
+      "wheel-status-result",
+    );
     expect(screen.getByRole("button", { name: "Girar" })).toBeDisabled();
 
     await drive([3750]);
@@ -268,7 +339,9 @@ describe("Wheel", () => {
 
     await spin();
 
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Salió: Geografía");
+    expect(status).toHaveClass("wheel-status", "wheel-status-result");
     const continuar = screen.getByRole("button", { name: "Continuar" });
     expect(continuar).toHaveClass("touch-target");
     expect(continuar).toBeVisible();
@@ -476,7 +549,12 @@ describe("Wheel", () => {
       expect(canvas.clearRect).toHaveBeenLastCalledWith(0, 0, 320, 320);
       expect(canvas.translate).toHaveBeenLastCalledWith(160, 160);
       const maxRadius = Math.max(...canvas.arcs.map((arc) => arc.r));
-      expect(maxRadius).toBe(160);
+      expect(maxRadius).toBe(148);
+      expect(160 - maxRadius).toBe(12);
+      const sectorRadius = Math.max(
+        ...canvas.arcs.map((arc) => arc.r).filter((r) => r !== maxRadius),
+      );
+      expect(sectorRadius).toBe(142);
 
       startSpin();
       await drive([0]);

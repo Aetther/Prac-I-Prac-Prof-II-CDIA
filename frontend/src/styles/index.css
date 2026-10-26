@@ -173,6 +173,16 @@ body {
   width: 320px;
   max-width: 100%;
   height: auto;
+  align-self: center;
+}
+
+.wheel-status {
+  text-align: center;
+}
+
+.wheel-status-result {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
 }
 
 .visually-hidden {
