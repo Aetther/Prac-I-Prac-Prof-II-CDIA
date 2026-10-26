@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import type { GameQuestion } from "./api/types";
@@ -57,6 +57,30 @@ function requestUrls(): string[] {
   return fetchMock.mock.calls.map(([url]) => String(url));
 }
 
+function fakeClock(): void {
+  vi.useFakeTimers({
+    shouldAdvanceTime: true,
+    toFake: [
+      "setTimeout",
+      "clearTimeout",
+      "setInterval",
+      "clearInterval",
+      "Date",
+    ],
+  });
+  vi.setSystemTime(new Date("2026-10-25T12:00:00Z"));
+}
+
+function timerUser(): User {
+  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+}
+
+function advance(ms: number): void {
+  act(() => {
+    vi.advanceTimersByTime(ms);
+  });
+}
+
 beforeEach(() => {
   vi.unstubAllEnvs();
   vi.stubEnv("VITE_API_URL", "http://localhost:8000");
@@ -68,6 +92,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -99,7 +125,7 @@ describe("App integration through the real API client", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Lima" }));
-    await screen.findByRole("button", { name: "Opción correcta: Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
 
     expect(requestUrls()[2]).toBe("http://localhost:8000/game/answer?lang=es");
     const init = fetchMock.mock.calls[2][1] as RequestInit;
@@ -297,5 +323,91 @@ describe("App integration through the real API client", () => {
     );
     expect(screen.queryByRole("alert")).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("INTT-01 the timeout answer posts the sentinel to /game/answer", async () => {
+    fakeClock();
+    const user = timerUser();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(SIX_CATEGORIES))
+      .mockResolvedValueOnce(jsonResponse(question))
+      .mockResolvedValueOnce(
+        jsonResponse({ correct: false, correct_answer: "Buenos Aires" }),
+      );
+
+    await startToWheel(user);
+    await spinAndConfirm(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(20_000);
+
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(requestUrls()[2]).toBe("http://localhost:8000/game/answer?lang=es");
+    const init = fetchMock.mock.calls[2][1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe('{"question_id":42,"answer":"(sin respuesta)"}');
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+    expect(screen.getByRole("status").textContent).toBe(
+      "La respuesta correcta era: Buenos Aires",
+    );
+    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
+  });
+
+  it("INTT-02 the Result screen makes no fetch", async () => {
+    const user = userEvent.setup();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(SIX_CATEGORIES))
+      .mockResolvedValueOnce(jsonResponse(question))
+      .mockResolvedValueOnce(
+        jsonResponse({ correct: true, correct_answer: "Lima" }),
+      );
+
+    await startToWheel(user);
+    await spinAndConfirm(user);
+    await screen.findByText("¿Capital de Francia?");
+    await user.click(screen.getByRole("button", { name: "Lima" }));
+    await screen.findByRole("heading", { name: "Resultado" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("INTT-03 a network error on the timeout retry keeps the sentinel body", async () => {
+    fakeClock();
+    const user = timerUser();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(SIX_CATEGORIES))
+      .mockResolvedValueOnce(jsonResponse(question))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(
+        jsonResponse({ correct: false, correct_answer: "Buenos Aires" }),
+      );
+
+    await startToWheel(user);
+    await spinAndConfirm(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(20_000);
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("¿Está corriendo la API?")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(requestUrls()[2]).toBe("http://localhost:8000/game/answer?lang=es");
+    expect(requestUrls()[3]).toBe("http://localhost:8000/game/answer?lang=es");
+    expect((fetchMock.mock.calls[2][1] as RequestInit).body).toBe(
+      '{"question_id":42,"answer":"(sin respuesta)"}',
+    );
+    expect((fetchMock.mock.calls[3][1] as RequestInit).body).toBe(
+      '{"question_id":42,"answer":"(sin respuesta)"}',
+    );
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
   });
 });

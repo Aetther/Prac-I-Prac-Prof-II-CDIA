@@ -1,8 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GameQuestion } from "../api/types";
-import type { LastAnswer, Player, PlayerIndex } from "../game/types";
+import type { Player, PlayerIndex } from "../game/types";
 import { QuestionCard } from "./QuestionCard";
 
 const question: GameQuestion = {
@@ -23,10 +29,11 @@ interface Props {
   lang?: "es" | "en";
   currentPlayer?: PlayerIndex;
   loading?: boolean;
-  feedback?: LastAnswer | null;
+  seconds?: number;
+  timerActive?: boolean;
   categoryLabel?: string | null;
   onAnswer?: (answer: string) => void;
-  onContinue?: () => void;
+  onTimeout?: () => void;
 }
 
 function renderCard({
@@ -34,10 +41,11 @@ function renderCard({
   lang = "es",
   currentPlayer = 0,
   loading = false,
-  feedback = null,
+  seconds = 20,
+  timerActive = false,
   categoryLabel = null,
   onAnswer = vi.fn(),
-  onContinue = vi.fn(),
+  onTimeout = vi.fn(),
 }: Props = {}) {
   const view = render(
     <QuestionCard
@@ -48,20 +56,127 @@ function renderCard({
       round={1}
       totalRounds={3}
       loading={loading}
-      feedback={feedback}
+      seconds={seconds}
+      timerActive={timerActive}
       categoryLabel={categoryLabel}
       onAnswer={onAnswer}
-      onContinue={onContinue}
+      onTimeout={onTimeout}
     />,
   );
-  return { ...view, onAnswer, onContinue };
+  return { ...view, onAnswer, onTimeout };
 }
 
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
 describe("QuestionCard", () => {
-  it("renders the question and the four options in API order with nothing marked", () => {
-    renderCard();
+  it("QC-01 shows the question and timer but no timer without an active question", () => {
+    vi.useFakeTimers();
+    const { rerender } = renderCard({ timerActive: true });
 
     expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
+    expect(
+      screen.getByRole("timer", { name: "Tiempo restante" }),
+    ).toHaveTextContent("20 s");
+
+    rerender(
+      <QuestionCard
+        question={question}
+        lang="es"
+        players={players}
+        currentPlayer={0}
+        round={1}
+        totalRounds={3}
+        loading={false}
+        seconds={20}
+        timerActive={false}
+        categoryLabel={null}
+        onAnswer={vi.fn()}
+        onTimeout={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
+  });
+
+  it("QC-02 the first option click locks the question and stops the timer", () => {
+    vi.useFakeTimers();
+    const onAnswer = vi.fn();
+    const onTimeout = vi.fn();
+    const { rerender } = renderCard({
+      timerActive: true,
+      onAnswer,
+      onTimeout,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Lima" }));
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer).toHaveBeenCalledWith("Lima");
+    for (const option of screen.getAllByRole("button")) {
+      expect(option).toBeDisabled();
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Quito" }));
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(20_000);
+    });
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    rerender(
+      <QuestionCard
+        question={question}
+        lang="es"
+        players={players}
+        currentPlayer={0}
+        round={1}
+        totalRounds={3}
+        loading
+        seconds={20}
+        timerActive={false}
+        categoryLabel={null}
+        onAnswer={onAnswer}
+        onTimeout={onTimeout}
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe(
+      "Enviando respuesta...",
+    );
+    expect(screen.queryByRole("timer")).toBeNull();
+    for (const option of screen.getAllByRole("button")) {
+      expect(option).toBeDisabled();
+    }
+  });
+
+  it("the expiry path calls onTimeout once and ignores a later click", () => {
+    vi.useFakeTimers();
+    const onAnswer = vi.fn();
+    const onTimeout = vi.fn();
+    renderCard({ timerActive: true, onAnswer, onTimeout });
+
+    act(() => {
+      vi.advanceTimersByTime(20_000);
+    });
+
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Lima" }));
+    expect(onAnswer).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(20_000);
+    });
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("QC-03 renders four options in API order and no correct mark", () => {
+    renderCard();
+
     const options = screen
       .getAllByRole("button")
       .map((button) => button.textContent);
@@ -70,7 +185,6 @@ describe("QuestionCard", () => {
     expect(screen.queryByText("Correcta")).toBeNull();
     expect(screen.queryByText("Incorrecta")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Opción/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull();
   });
 
   it("shows the served category label with the question", () => {
@@ -89,7 +203,7 @@ describe("QuestionCard", () => {
     expect(screen.getAllByRole("button")).toHaveLength(4);
   });
 
-  it("renders the options as touch-target buttons", () => {
+  it("QC-05 all option buttons are touch targets", () => {
     renderCard();
 
     const options = screen.getAllByRole("button");
@@ -131,7 +245,7 @@ describe("QuestionCard", () => {
     expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
   });
 
-  it("disables the options and announces Enviando respuesta... while loading", async () => {
+  it("QC-04 disables the options while loading", async () => {
     const user = userEvent.setup();
     const onAnswer = vi.fn();
     const { rerender } = renderCard({ loading: true, onAnswer });
@@ -142,6 +256,7 @@ describe("QuestionCard", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "Enviando respuesta...",
     );
+    expect(screen.queryByRole("timer")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Lima" }));
     expect(onAnswer).not.toHaveBeenCalled();
 
@@ -154,10 +269,11 @@ describe("QuestionCard", () => {
         round={1}
         totalRounds={3}
         loading={false}
-        feedback={null}
+        seconds={20}
+        timerActive={false}
         categoryLabel={null}
         onAnswer={onAnswer}
-        onContinue={vi.fn()}
+        onTimeout={vi.fn()}
       />,
     );
 
@@ -184,155 +300,14 @@ describe("QuestionCard", () => {
     expect(current[0]).toHaveTextContent("Ana: 0 puntos");
   });
 
-  it("marks the chosen correct option and shows the API answer in a status sentence", () => {
-    renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Lima",
-      },
-    });
+  it("QC-06 has no inline feedback or Continue", () => {
+    renderCard({ timerActive: false });
 
-    const chosen = screen.getByRole("button", {
-      name: "Opción correcta: Lima",
-    });
-    expect(within(chosen).getByText("Correcta")).toBeVisible();
-    expect(screen.getByRole("status").textContent).toBe(
-      "La respuesta correcta era: Lima",
-    );
-    expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
-  });
-
-  it("marks the chosen incorrect option and shows the API answer", () => {
-    renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: false,
-        correctAnswer: "Buenos Aires",
-      },
-    });
-
-    const chosen = screen.getByRole("button", {
-      name: "Opción incorrecta: Lima",
-    });
-    expect(within(chosen).getByText("Incorrecta")).toBeVisible();
-    expect(screen.getByRole("status").textContent).toBe(
-      "La respuesta correcta era: Buenos Aires",
-    );
-    expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
-  });
-
-  it("marks from feedback.correct even when the API answer differs from the click", () => {
-    renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Buenos Aires",
-      },
-    });
-
-    expect(
-      screen.getByRole("button", { name: "Opción correcta: Lima" }),
-    ).toBeVisible();
-    expect(screen.getByText("Correcta")).toBeVisible();
-    expect(screen.getByRole("status").textContent).toBe(
-      "La respuesta correcta era: Buenos Aires",
-    );
-  });
-
-  it("keeps all four options disabled after the feedback appears", async () => {
-    const user = userEvent.setup();
-    const onAnswer = vi.fn();
-    renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Lima",
-      },
-      onAnswer,
-    });
-
-    const options = [
-      screen.getByRole("button", { name: "Opción correcta: Lima" }),
-      screen.getByRole("button", { name: "Quito" }),
-      screen.getByRole("button", { name: "Bogotá" }),
-      screen.getByRole("button", { name: "Buenos Aires" }),
-    ];
-    for (const option of options) {
-      expect(option).toBeDisabled();
-    }
-    await user.click(options[1]);
-    expect(onAnswer).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
-  });
-
-  it("shows no Reportar action with Continuar and the sentence visible", () => {
-    renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Lima",
-      },
-    });
-
-    expect(screen.queryByRole("button", { name: /Reportar/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
-    expect(screen.getByRole("status").textContent).toBe(
-      "La respuesta correcta era: Lima",
-    );
-  });
-
-  it("calls onContinue from a touch-target Continuar button", async () => {
-    const user = userEvent.setup();
-    const onContinue = vi.fn();
-    renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Lima",
-      },
-      onContinue,
-    });
-
-    const button = screen.getByRole("button", { name: "Continuar" });
-    expect(button).toHaveClass("touch-target");
-    await user.click(button);
-    expect(onContinue).toHaveBeenCalledTimes(1);
-  });
-
-  it("renders a script-shaped correct answer as literal text", () => {
-    const { container } = renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: false,
-        correctAnswer: "<b>Lima</b>",
-      },
-    });
-
-    expect(screen.getByRole("status").textContent).toBe(
-      "La respuesta correcta era: <b>Lima</b>",
-    );
-    expect(container.querySelector("b")).toBeNull();
-  });
-
-  it("marks only the chosen option", () => {
-    renderCard({
-      feedback: {
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Buenos Aires",
-      },
-    });
-
-    const marked = screen
-      .getAllByRole("button")
-      .filter((button) =>
-        (button.getAttribute("aria-label") ?? "").startsWith("Opción"),
-      );
-    expect(marked).toHaveLength(1);
-    expect(marked[0]).toHaveAccessibleName("Opción correcta: Lima");
-    expect(screen.getByRole("button", { name: "Quito" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Bogotá" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Buenos Aires" })).toBeVisible();
+    expect(screen.queryByText(/La respuesta correcta era:/)).toBeNull();
+    expect(screen.queryByText("Correcta")).toBeNull();
+    expect(screen.queryByText("Incorrecta")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull();
+    expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
+    expect(screen.getAllByRole("button")).toHaveLength(4);
   });
 });

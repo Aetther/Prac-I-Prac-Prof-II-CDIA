@@ -99,11 +99,13 @@ function withAnswerReceived(
   ];
   const nextState: GameState = {
     ...state,
+    phase: "Result",
     players: updatedPlayers,
     lastAnswer: {
       chosenAnswer: action.chosenAnswer,
       correct: action.correct,
       correctAnswer: action.correctAnswer,
+      timedOut: action.timedOut,
     },
   };
   if (!isMatchComplete(nextState)) {
@@ -175,7 +177,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       return withAnswerReceived(state, action);
     case "CONTINUE_AFTER_ANSWER":
-      if (state.phase !== "QuestionCard" || state.lastAnswer === null) {
+      if (state.phase !== "Result" || state.lastAnswer === null) {
         return state;
       }
       return withAnswerContinued(state);

@@ -30,9 +30,10 @@ export interface Player {
 }
 
 export interface LastAnswer {
-  readonly chosenAnswer: string;
+  readonly chosenAnswer: string | null;
   readonly correct: boolean;
   readonly correctAnswer: string;
+  readonly timedOut: boolean;
 }
 
 export type GameResult =
@@ -64,9 +65,10 @@ export type GameAction =
   | { readonly type: "QUESTION_LOADED"; readonly question: GameQuestion }
   | {
       readonly type: "ANSWER_RECEIVED";
-      readonly chosenAnswer: string;
+      readonly chosenAnswer: string | null;
       readonly correct: boolean;
       readonly correctAnswer: string;
+      readonly timedOut: boolean;
     }
   | { readonly type: "CONTINUE_AFTER_ANSWER" }
   | { readonly type: "ADVANCE_TURN" }

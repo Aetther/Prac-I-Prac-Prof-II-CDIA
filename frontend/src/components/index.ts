@@ -5,5 +5,6 @@ export { QuestionCard } from "./QuestionCard";
 export { SwitchTurn } from "./SwitchTurn";
 export { GameOver } from "./GameOver";
 export { ErrorScreen } from "./ErrorScreen";
+export { Timer } from "./Timer";
 export { GameScreen } from "./GameScreen";
 export { Admin } from "./Admin";

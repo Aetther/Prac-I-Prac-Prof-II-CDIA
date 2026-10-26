@@ -1,7 +1,9 @@
+import { useRef, useState } from "react";
 import type { GameQuestion } from "../api/types";
 import { isUntranslated } from "../game/question";
-import type { Lang, LastAnswer, Player, PlayerIndex } from "../game/types";
+import type { Lang, Player, PlayerIndex } from "../game/types";
 import { Scoreboard } from "./Scoreboard";
+import { Timer } from "./Timer";
 
 interface QuestionCardProps {
   question: GameQuestion;
@@ -11,10 +13,11 @@ interface QuestionCardProps {
   round: number;
   totalRounds: number;
   loading: boolean;
-  feedback: LastAnswer | null;
+  seconds: number;
+  timerActive: boolean;
   categoryLabel: string | null;
   onAnswer: (answer: string) => void;
-  onContinue: () => void;
+  onTimeout: () => void;
 }
 
 export function QuestionCard({
@@ -25,13 +28,33 @@ export function QuestionCard({
   round,
   totalRounds,
   loading,
-  feedback,
+  seconds,
+  timerActive,
   categoryLabel,
   onAnswer,
-  onContinue,
+  onTimeout,
 }: QuestionCardProps) {
-  const answered = feedback !== null;
-  const optionsDisabled = loading || answered;
+  const [locked, setLocked] = useState(false);
+  const lockedRef = useRef(false);
+
+  const lock = (): boolean => {
+    if (lockedRef.current) return false;
+    lockedRef.current = true;
+    setLocked(true);
+    return true;
+  };
+
+  const handleAnswer = (answer: string) => {
+    if (!lock()) return;
+    onAnswer(answer);
+  };
+
+  const handleExpire = () => {
+    if (!lock()) return;
+    onTimeout();
+  };
+
+  const optionsDisabled = loading || locked;
 
   return (
     <section className="question-card">
@@ -46,43 +69,22 @@ export function QuestionCard({
         <p className="untranslated-badge">Sin traducir</p>
       ) : null}
       <h2>{question.question}</h2>
+      {timerActive ? <Timer seconds={seconds} onExpire={handleExpire} /> : null}
       <p>Elegí una opción</p>
       <div className="option-list">
-        {question.options.map((option) => {
-          const isChosen = feedback?.chosenAnswer === option;
-          const isCorrect = isChosen && feedback?.correct === true;
-          return (
-            <button
-              key={option}
-              type="button"
-              className="option-button touch-target"
-              disabled={optionsDisabled}
-              aria-label={
-                isChosen
-                  ? `${isCorrect ? "Opción correcta" : "Opción incorrecta"}: ${option}`
-                  : undefined
-              }
-              onClick={() => onAnswer(option)}
-            >
-              <span className="option-text">{option}</span>
-              {isChosen ? (
-                <span className="option-mark">
-                  {isCorrect ? "Correcta" : "Incorrecta"}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-      {loading && !answered ? <p role="status">Enviando respuesta...</p> : null}
-      {answered ? (
-        <>
-          <p role="status">{`La respuesta correcta era: ${feedback.correctAnswer}`}</p>
-          <button type="button" className="touch-target" onClick={onContinue}>
-            Continuar
+        {question.options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className="option-button touch-target"
+            disabled={optionsDisabled}
+            onClick={() => handleAnswer(option)}
+          >
+            <span className="option-text">{option}</span>
           </button>
-        </>
-      ) : null}
+        ))}
+      </div>
+      {loading ? <p role="status">Enviando respuesta...</p> : null}
     </section>
   );
 }

@@ -21,6 +21,10 @@
   --color-wheel-hub: #f9fafb;
   --color-wheel-stroke: #ffffff;
 
+  --color-timer-track: #e5e7eb;
+  --color-timer-fill: #4f46e5;
+  --color-timer-urgent: #dc2626;
+
   --font-family-sans:
     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, "Helvetica Neue", sans-serif;

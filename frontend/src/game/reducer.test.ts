@@ -63,9 +63,9 @@ const players = (
   { name: "Beto", score: secondScore },
 ];
 
-function feedbackState(overrides: Partial<GameState> = {}): GameState {
+function resultState(overrides: Partial<GameState> = {}): GameState {
   return stateWith({
-    phase: "QuestionCard",
+    phase: "Result",
     config,
     players: players(10, 0),
     round: 1,
@@ -76,10 +76,19 @@ function feedbackState(overrides: Partial<GameState> = {}): GameState {
       chosenAnswer: "Lima",
       correct: true,
       correctAnswer: "Lima",
+      timedOut: false,
     },
     ...overrides,
   });
 }
+
+const clickedCorrect: GameAction = {
+  type: "ANSWER_RECEIVED",
+  chosenAnswer: "Lima",
+  correct: true,
+  correctAnswer: "Lima",
+  timedOut: false,
+};
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object") {
@@ -130,10 +139,22 @@ describe("game reducer", () => {
     expect(gameReducer(started, { type: "START_GAME", config })).toBe(started);
   });
 
-  it("QUESTION_LOADED stores the question, appends its id and clears stale feedback", () => {
+  it("QUESTION_LOADED stores the question, appends its id and clears the stale answer", () => {
     const staleResult = { kind: "tie" as const, scores: [0, 0] as const };
-    const previous = feedbackState({
+    const previous = stateWith({
+      phase: "QuestionCard",
+      config,
+      players: players(10, 0),
+      round: 1,
+      currentPlayer: 0,
+      usedQuestionIds: [42],
       currentQuestion: null,
+      lastAnswer: {
+        chosenAnswer: "Lima",
+        correct: true,
+        correctAnswer: "Lima",
+        timedOut: false,
+      },
       result: staleResult,
     });
 
@@ -157,23 +178,19 @@ describe("game reducer", () => {
     ).toBe(INITIAL_GAME_STATE);
   });
 
-  it("ANSWER_RECEIVED correct adds 10 and keeps the QuestionCard phase", () => {
-    const next = gameReducer(questionLoaded, {
-      type: "ANSWER_RECEIVED",
-      chosenAnswer: "Lima",
-      correct: true,
-      correctAnswer: "Lima",
-    });
+  it("RED-33 ANSWER_RECEIVED for a clicked answer reaches Result and adds 10", () => {
+    const next = gameReducer(questionLoaded, clickedCorrect);
 
     expect(next.players).toEqual([
       { name: "Ana", score: 10 },
       { name: "Beto", score: 0 },
     ]);
-    expect(next.phase).toBe("QuestionCard");
+    expect(next.phase).toBe("Result");
     expect(next.lastAnswer).toEqual({
       chosenAnswer: "Lima",
       correct: true,
       correctAnswer: "Lima",
+      timedOut: false,
     });
     expect(next.result).toBeNull();
     expect(next.round).toBe(1);
@@ -181,23 +198,25 @@ describe("game reducer", () => {
     expect(next.usedQuestionIds).toEqual([42]);
   });
 
-  it("ANSWER_RECEIVED incorrect adds nothing and sets the exact feedback", () => {
+  it("ANSWER_RECEIVED incorrect adds nothing and sets the exact answer", () => {
     const next = gameReducer(questionLoaded, {
       type: "ANSWER_RECEIVED",
       chosenAnswer: "Lima",
       correct: false,
       correctAnswer: "Buenos Aires",
+      timedOut: false,
     });
 
     expect(next.players).toEqual([
       { name: "Ana", score: 0 },
       { name: "Beto", score: 0 },
     ]);
-    expect(next.phase).toBe("QuestionCard");
+    expect(next.phase).toBe("Result");
     expect(next.lastAnswer).toEqual({
       chosenAnswer: "Lima",
       correct: false,
       correctAnswer: "Buenos Aires",
+      timedOut: false,
     });
   });
 
@@ -211,17 +230,13 @@ describe("game reducer", () => {
       currentQuestion: question(),
     });
 
-    const next = gameReducer(playerTwoTurn, {
-      type: "ANSWER_RECEIVED",
-      chosenAnswer: "Lima",
-      correct: true,
-      correctAnswer: "Lima",
-    });
+    const next = gameReducer(playerTwoTurn, clickedCorrect);
 
     expect(next.players).toEqual([
       { name: "Ana", score: 10 },
       { name: "Beto", score: 10 },
     ]);
+    expect(next.phase).toBe("Result");
   });
 
   it("ANSWER_RECEIVED without a question or config returns the same state", () => {
@@ -240,33 +255,80 @@ describe("game reducer", () => {
       config: null,
       currentQuestion: question(),
     });
-    const action: GameAction = {
-      type: "ANSWER_RECEIVED",
-      chosenAnswer: "Lima",
-      correct: true,
-      correctAnswer: "Lima",
-    };
 
-    expect(gameReducer(wrongPhase, action)).toBe(wrongPhase);
-    expect(gameReducer(noQuestion, action)).toBe(noQuestion);
-    expect(gameReducer(noConfig, action)).toBe(noConfig);
+    expect(gameReducer(wrongPhase, clickedCorrect)).toBe(wrongPhase);
+    expect(gameReducer(noQuestion, clickedCorrect)).toBe(noQuestion);
+    expect(gameReducer(noConfig, clickedCorrect)).toBe(noConfig);
   });
 
-  it("a second ANSWER_RECEIVED after feedback returns the same state", () => {
-    const feedback = feedbackState();
+  it("RED-31 ANSWER_RECEIVED moves from QuestionCard to Result with the exact timeout payload", () => {
+    const next = gameReducer(questionLoaded, {
+      type: "ANSWER_RECEIVED",
+      chosenAnswer: null,
+      correct: false,
+      correctAnswer: "Buenos Aires",
+      timedOut: true,
+    });
 
-    const next = gameReducer(feedback, {
+    expect(next.phase).toBe("Result");
+    expect(next.lastAnswer).toEqual({
+      chosenAnswer: null,
+      correct: false,
+      correctAnswer: "Buenos Aires",
+      timedOut: true,
+    });
+    expect(next.players).toEqual([
+      { name: "Ana", score: 0 },
+      { name: "Beto", score: 0 },
+    ]);
+    expect(next.result).toBeNull();
+  });
+
+  it("RED-32 ANSWER_RECEIVED with a timeout payload stores a null chosen answer and adds no points", () => {
+    const tenPoints = stateWith({
+      phase: "QuestionCard",
+      config,
+      players: players(10, 0),
+      round: 1,
+      currentPlayer: 0,
+      usedQuestionIds: [42],
+      currentQuestion: question(),
+    });
+
+    const next = gameReducer(tenPoints, {
+      type: "ANSWER_RECEIVED",
+      chosenAnswer: null,
+      correct: false,
+      correctAnswer: "Lima",
+      timedOut: true,
+    });
+
+    expect(next.phase).toBe("Result");
+    expect(next.lastAnswer).toEqual({
+      chosenAnswer: null,
+      correct: false,
+      correctAnswer: "Lima",
+      timedOut: true,
+    });
+    expect(next.players[0].score).toBe(10);
+  });
+
+  it("a second ANSWER_RECEIVED after the result returns the same state", () => {
+    const answered = resultState();
+
+    const next = gameReducer(answered, {
       type: "ANSWER_RECEIVED",
       chosenAnswer: "Quito",
       correct: true,
       correctAnswer: "Lima",
+      timedOut: false,
     });
 
-    expect(next).toBe(feedback);
+    expect(next).toBe(answered);
     expect(next.players[0].score).toBe(10);
   });
 
-  it("the final ANSWER_RECEIVED computes the exact winner and stays in QuestionCard", () => {
+  it("RED-34 the final ANSWER_RECEIVED computes the result and stays in Result", () => {
     const finalTurn = stateWith({
       phase: "QuestionCard",
       config,
@@ -277,23 +339,19 @@ describe("game reducer", () => {
       currentQuestion: question(6),
     });
 
-    const next = gameReducer(finalTurn, {
-      type: "ANSWER_RECEIVED",
-      chosenAnswer: "Lima",
-      correct: true,
-      correctAnswer: "Lima",
-    });
+    const next = gameReducer(finalTurn, clickedCorrect);
 
     expect(next.result).toEqual({
       kind: "winner",
       winnerIndex: 0,
       scores: [30, 10],
     });
-    expect(next.phase).toBe("QuestionCard");
+    expect(next.phase).toBe("Result");
     expect(next.lastAnswer).toEqual({
       chosenAnswer: "Lima",
       correct: true,
       correctAnswer: "Lima",
+      timedOut: false,
     });
   });
 
@@ -307,15 +365,10 @@ describe("game reducer", () => {
       currentQuestion: question(6),
     });
 
-    const next = gameReducer(finalTurn, {
-      type: "ANSWER_RECEIVED",
-      chosenAnswer: "Lima",
-      correct: true,
-      correctAnswer: "Lima",
-    });
+    const next = gameReducer(finalTurn, clickedCorrect);
 
     expect(next.result).toEqual({ kind: "tie", scores: [10, 10] });
-    expect(next.phase).toBe("QuestionCard");
+    expect(next.phase).toBe("Result");
   });
 
   it("computes the second player as the winner", () => {
@@ -326,16 +379,16 @@ describe("game reducer", () => {
     });
   });
 
-  it("CONTINUE_AFTER_ANSWER without a result moves to SwitchTurn and clears the feedback", () => {
-    const feedback = feedbackState({ result: null });
+  it("CONTINUE_AFTER_ANSWER without a result moves to SwitchTurn and clears the answer", () => {
+    const answered = resultState({ result: null });
 
-    const next = gameReducer(feedback, { type: "CONTINUE_AFTER_ANSWER" });
+    const next = gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" });
 
     expect(next.phase).toBe("SwitchTurn");
     expect(next.lastAnswer).toBeNull();
     expect(next.currentQuestion).toBeNull();
     expect(next.result).toBeNull();
-    expect(next.players).toEqual(feedback.players);
+    expect(next.players).toEqual(answered.players);
     expect(next.round).toBe(1);
     expect(next.currentPlayer).toBe(0);
     expect(next.usedQuestionIds).toEqual([42]);
@@ -347,26 +400,55 @@ describe("game reducer", () => {
       winnerIndex: 0 as const,
       scores: [30, 10] as const,
     };
-    const feedback = feedbackState({ result });
+    const answered = resultState({ result });
 
-    const next = gameReducer(feedback, { type: "CONTINUE_AFTER_ANSWER" });
+    const next = gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" });
 
     expect(next.phase).toBe("GameOver");
     expect(next.result).toBe(result);
     expect(next.lastAnswer).toBeNull();
     expect(next.currentQuestion).toBeNull();
-    expect(next.players).toEqual(feedback.players);
+    expect(next.players).toEqual(answered.players);
   });
 
-  it("CONTINUE_AFTER_ANSWER without feedback returns the same state", () => {
-    const noFeedback = feedbackState({ lastAnswer: null });
+  it("RED-35 CONTINUE_AFTER_ANSWER is accepted only from Result", () => {
+    const answered = resultState({ result: null });
+    const withResult = resultState({
+      result: { kind: "tie", scores: [10, 10] },
+    });
+    const questionPhase = resultState({ phase: "QuestionCard" });
+    const wheel = resultState({ phase: "Wheel" });
+    const switchTurn = stateWith({ phase: "SwitchTurn", config, round: 1 });
+    const gameOver = stateWith({
+      phase: "GameOver",
+      config,
+      result: { kind: "tie", scores: [0, 0] },
+    });
 
-    expect(gameReducer(noFeedback, { type: "CONTINUE_AFTER_ANSWER" })).toBe(
-      noFeedback,
+    expect(gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" }).phase).toBe(
+      "SwitchTurn",
     );
+    expect(
+      gameReducer(withResult, { type: "CONTINUE_AFTER_ANSWER" }).phase,
+    ).toBe("GameOver");
+    expect(gameReducer(questionPhase, { type: "CONTINUE_AFTER_ANSWER" })).toBe(
+      questionPhase,
+    );
+    expect(gameReducer(wheel, { type: "CONTINUE_AFTER_ANSWER" })).toBe(wheel);
     expect(
       gameReducer(INITIAL_GAME_STATE, { type: "CONTINUE_AFTER_ANSWER" }),
     ).toBe(INITIAL_GAME_STATE);
+    expect(gameReducer(switchTurn, { type: "CONTINUE_AFTER_ANSWER" })).toBe(
+      switchTurn,
+    );
+    expect(gameReducer(gameOver, { type: "CONTINUE_AFTER_ANSWER" })).toBe(
+      gameOver,
+    );
+    const noAnswer = resultState({ lastAnswer: null });
+
+    expect(gameReducer(noAnswer, { type: "CONTINUE_AFTER_ANSWER" })).toBe(
+      noAnswer,
+    );
   });
 
   it("getNextTurn alternates from player 1 to player 2 in the same round", () => {
@@ -383,7 +465,7 @@ describe("game reducer", () => {
     });
   });
 
-  it("advanceTurn moves the turn, enters the Wheel and clears the question, feedback and result", () => {
+  it("advanceTurn moves the turn, enters the Wheel and clears the question, answer and result", () => {
     const playerOneTurn = stateWith({
       phase: "SwitchTurn",
       config,
@@ -396,6 +478,7 @@ describe("game reducer", () => {
         chosenAnswer: "Lima",
         correct: true,
         correctAnswer: "Lima",
+        timedOut: false,
       },
       result: { kind: "tie", scores: [10, 10] },
     });
@@ -420,9 +503,10 @@ describe("game reducer", () => {
       usedQuestionIds: [42],
       currentQuestion: question(),
       lastAnswer: {
-        chosenAnswer: "Lima",
-        correct: true,
+        chosenAnswer: null,
+        correct: false,
         correctAnswer: "Lima",
+        timedOut: true,
       },
       result: { kind: "tie", scores: [10, 10] },
     });
@@ -440,12 +524,10 @@ describe("game reducer", () => {
   });
 
   it("ADVANCE_TURN outside SwitchTurn returns the same state", () => {
-    const questionTurn = feedbackState();
+    const answerTurn = resultState();
     const gameOver = stateWith({ phase: "GameOver", config });
 
-    expect(gameReducer(questionTurn, { type: "ADVANCE_TURN" })).toBe(
-      questionTurn,
-    );
+    expect(gameReducer(answerTurn, { type: "ADVANCE_TURN" })).toBe(answerTurn);
     expect(gameReducer(gameOver, { type: "ADVANCE_TURN" })).toBe(gameOver);
   });
 
@@ -461,6 +543,7 @@ describe("game reducer", () => {
         chosenAnswer: "Lima",
         correct: true,
         correctAnswer: "Lima",
+        timedOut: false,
       },
       result: { kind: "tie", scores: [10, 0] },
     });
@@ -515,14 +598,7 @@ describe("game reducer", () => {
       currentQuestion: question(),
     });
 
-    expect(
-      gameReducer(wheel, {
-        type: "ANSWER_RECEIVED",
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Lima",
-      }),
-    ).toBe(wheel);
+    expect(gameReducer(wheel, clickedCorrect)).toBe(wheel);
   });
 
   it("RESPIN_CATEGORY returns to the Wheel from a failed QuestionCard load", () => {
@@ -538,6 +614,7 @@ describe("game reducer", () => {
         chosenAnswer: "Lima",
         correct: true,
         correctAnswer: "Lima",
+        timedOut: false,
       },
       result: { kind: "tie", scores: [10, 0] },
     });
@@ -582,7 +659,7 @@ describe("game reducer", () => {
   });
 
   it("RESET_GAME returns exactly the initial state", () => {
-    const midMatch = feedbackState({ round: 2, currentPlayer: 1 });
+    const midMatch = resultState({ round: 2, currentPlayer: 1 });
     const gameOver = stateWith({
       phase: "GameOver",
       config,
@@ -656,12 +733,11 @@ describe("game reducer", () => {
     ).toBe(second[1]);
   });
 
-  it("no action produces the Result phase and the Wheel is entered only by the three turn actions", () => {
+  it("RED-36 no action other than ANSWER_RECEIVED produces Result", () => {
     const states: GameState[] = [
       INITIAL_GAME_STATE,
       started,
       questionLoaded,
-      feedbackState(),
       stateWith({
         phase: "QuestionCard",
         config,
@@ -678,60 +754,19 @@ describe("game reducer", () => {
       { type: "START_GAME", config },
       { type: "CATEGORY_CONFIRMED" },
       { type: "QUESTION_LOADED", question: question() },
-      {
-        type: "ANSWER_RECEIVED",
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Lima",
-      },
       { type: "CONTINUE_AFTER_ANSWER" },
       { type: "ADVANCE_TURN" },
       { type: "RESPIN_CATEGORY" },
       { type: "RESET_GAME" },
     ];
-    const wheelActions = new Set([
-      "START_GAME",
-      "ADVANCE_TURN",
-      "RESPIN_CATEGORY",
-    ]);
 
     for (const state of states) {
       for (const action of actions) {
-        const next = gameReducer(state, action);
-        expect(next.phase).not.toBe("Result");
-        if (state.phase !== "Wheel" && next.phase === "Wheel") {
-          expect(wheelActions.has(action.type)).toBe(true);
-        }
+        expect(gameReducer(state, action).phase).not.toBe("Result");
       }
     }
 
-    const failedLoad = stateWith({
-      phase: "QuestionCard",
-      config,
-      usedQuestionIds: [42],
-    });
-    const switchTurn = stateWith({ phase: "SwitchTurn", config, round: 1 });
-
-    expect(
-      gameReducer(INITIAL_GAME_STATE, { type: "START_GAME", config }).phase,
-    ).toBe("Wheel");
-    expect(gameReducer(switchTurn, { type: "ADVANCE_TURN" }).phase).toBe(
-      "Wheel",
-    );
-    expect(gameReducer(failedLoad, { type: "RESPIN_CATEGORY" }).phase).toBe(
-      "Wheel",
-    );
-    expect(gameReducer(started, { type: "CATEGORY_CONFIRMED" }).phase).toBe(
-      "QuestionCard",
-    );
-    expect(
-      gameReducer(questionLoaded, {
-        type: "ANSWER_RECEIVED",
-        chosenAnswer: "Lima",
-        correct: true,
-        correctAnswer: "Lima",
-      }).phase,
-    ).toBe("QuestionCard");
+    expect(gameReducer(questionLoaded, clickedCorrect).phase).toBe("Result");
   });
 
   it("ignores an unknown action", () => {
@@ -740,14 +775,8 @@ describe("game reducer", () => {
     expect(gameReducer(started, unknownAction)).toBe(started);
   });
 
-  it("the reducer leaves the input state untouched", () => {
-    const frozen = deepFreeze(
-      feedbackState({
-        phase: "QuestionCard",
-        round: 1,
-        currentPlayer: 0,
-      }),
-    );
+  it("RED-37 the reducer leaves the input state untouched with the timeout payload", () => {
+    const frozen = deepFreeze(resultState({ phase: "Result" }));
     const snapshot = JSON.stringify(frozen);
 
     gameReducer(frozen, {
@@ -756,9 +785,10 @@ describe("game reducer", () => {
     });
     gameReducer(frozen, {
       type: "ANSWER_RECEIVED",
-      chosenAnswer: "Quito",
-      correct: true,
+      chosenAnswer: null,
+      correct: false,
       correctAnswer: "Lima",
+      timedOut: true,
     });
     gameReducer(frozen, { type: "CONTINUE_AFTER_ANSWER" });
     gameReducer(frozen, { type: "ADVANCE_TURN" });

@@ -7,6 +7,7 @@ import { ErrorScreen } from "./ErrorScreen";
 import { GameOver } from "./GameOver";
 import { Lobby } from "./Lobby";
 import { QuestionCard } from "./QuestionCard";
+import { Result } from "./Result";
 import { SwitchTurn } from "./SwitchTurn";
 import { Wheel } from "./Wheel";
 
@@ -17,6 +18,7 @@ interface GameScreenProps {
   errorMessage: string | null;
   onStart: (input: LobbyInput) => void;
   onAnswer: (answer: string) => void;
+  onTimeout: () => void;
   onAnswerContinue: () => void;
   onTurnContinue: () => void;
   onChooseCategory: (category: CategoryName) => void;
@@ -32,6 +34,7 @@ export function GameScreen({
   errorMessage,
   onStart,
   onAnswer,
+  onTimeout,
   onAnswerContinue,
   onTurnContinue,
   onChooseCategory,
@@ -87,10 +90,11 @@ export function GameScreen({
           round={game.round}
           totalRounds={game.config.rounds}
           loading={loading}
-          feedback={game.lastAnswer}
+          seconds={game.config.secondsPerQuestion}
+          timerActive={!loading && game.lastAnswer === null}
           categoryLabel={categoryLabel}
           onAnswer={onAnswer}
-          onContinue={onAnswerContinue}
+          onTimeout={onTimeout}
         />
       );
     }
@@ -118,7 +122,23 @@ export function GameScreen({
           totalRounds={game.config.rounds}
         />
       );
-    case "Result":
-      return null;
+    case "Result": {
+      const question = game.currentQuestion;
+      const lastAnswer = game.lastAnswer;
+      if (game.config === null || question === null || lastAnswer === null) {
+        return null;
+      }
+      return (
+        <Result
+          question={question}
+          lastAnswer={lastAnswer}
+          players={game.players}
+          currentPlayer={game.currentPlayer}
+          round={game.round}
+          totalRounds={game.config.rounds}
+          onContinue={onAnswerContinue}
+        />
+      );
+    }
   }
 }

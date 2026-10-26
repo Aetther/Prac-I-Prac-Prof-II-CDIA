@@ -7,6 +7,7 @@ export * from "./wheel";
 export * from "./question";
 export * from "./errors";
 export * from "./reducer";
+export * from "./timer";
 
 export { type GamePhase };
 export const INITIAL_PHASE: GamePhase = "Lobby";

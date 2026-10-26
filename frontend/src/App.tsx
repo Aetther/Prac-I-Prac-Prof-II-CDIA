@@ -8,6 +8,7 @@ import {
   ALL_CATEGORIES_404_MESSAGE,
   DuplicateQuestionExhaustedError,
   INITIAL_GAME_STATE,
+  TIMEOUT_ANSWER,
   buildWheelCategories,
   createLobbyConfig,
   fetchUnusedQuestion,
@@ -36,6 +37,7 @@ interface SubmitRetryTarget {
   readonly type: "submitAnswer";
   readonly questionId: number;
   readonly answer: string;
+  readonly timedOut: boolean;
 }
 
 type RetryTarget =
@@ -172,15 +174,17 @@ function App() {
     questionId: number,
     answer: string,
     lang: Lang,
+    timedOut: boolean,
   ): Promise<void> {
     setRequest({ status: "loading" });
     try {
       const result = await submitAnswer(questionId, answer, lang);
       dispatch({
         type: "ANSWER_RECEIVED",
-        chosenAnswer: answer,
-        correct: result.correct,
+        chosenAnswer: timedOut ? null : answer,
+        correct: timedOut ? false : result.correct,
         correctAnswer: result.correct_answer,
+        timedOut,
       });
       setRequest({ status: "idle" });
     } catch (error) {
@@ -198,7 +202,7 @@ function App() {
       setRequest({
         status: "error",
         message,
-        retry: { type: "submitAnswer", questionId, answer },
+        retry: { type: "submitAnswer", questionId, answer, timedOut },
       });
     }
   }
@@ -215,15 +219,32 @@ function App() {
   const handleAnswer = (answer: string) => {
     const question = game.currentQuestion;
     const config = game.config;
+    if (game.phase !== "QuestionCard") return;
     if (question === null || config === null) return;
     if (game.lastAnswer !== null || request.status === "loading") return;
     void runExclusive(async () => {
-      await submitAnswerWithRetry(question.id, answer, config.lang);
+      await submitAnswerWithRetry(question.id, answer, config.lang, false);
+    });
+  };
+
+  const handleTimeout = () => {
+    const question = game.currentQuestion;
+    const config = game.config;
+    if (game.phase !== "QuestionCard") return;
+    if (question === null || config === null) return;
+    if (game.lastAnswer !== null || request.status === "loading") return;
+    void runExclusive(async () => {
+      await submitAnswerWithRetry(
+        question.id,
+        TIMEOUT_ANSWER,
+        config.lang,
+        true,
+      );
     });
   };
 
   const handleAnswerContinue = () => {
-    if (game.phase !== "QuestionCard" || game.lastAnswer === null) return;
+    if (game.phase !== "Result" || game.lastAnswer === null) return;
     dispatch({ type: "CONTINUE_AFTER_ANSWER" });
   };
 
@@ -266,7 +287,12 @@ function App() {
         dispatch({ type: "RESPIN_CATEGORY" });
         setRequest({ status: "idle" });
       } else {
-        await submitAnswerWithRetry(target.questionId, target.answer, lang);
+        await submitAnswerWithRetry(
+          target.questionId,
+          target.answer,
+          lang,
+          target.timedOut,
+        );
       }
     });
   };
@@ -290,6 +316,7 @@ function App() {
               errorMessage={request.status === "error" ? request.message : null}
               onStart={handleStart}
               onAnswer={handleAnswer}
+              onTimeout={handleTimeout}
               onAnswerContinue={handleAnswerContinue}
               onTurnContinue={handleTurnContinue}
               onChooseCategory={handleChooseCategory}

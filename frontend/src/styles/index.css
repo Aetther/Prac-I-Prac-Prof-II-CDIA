@@ -20,6 +20,7 @@ body {
 
 .lobby,
 .question-card,
+.result,
 .switch-turn,
 .game-over,
 .error-screen,
@@ -51,6 +52,7 @@ body {
 }
 
 .lobby button,
+.result button,
 .switch-turn button,
 .question-card button,
 .wheel button {
@@ -65,6 +67,7 @@ body {
 }
 
 .lobby button:disabled,
+.result button:disabled,
 .question-card button:disabled,
 .wheel button:disabled {
   background-color: var(--color-text-secondary);
@@ -87,7 +90,36 @@ body {
   border: 1px solid var(--color-border);
 }
 
-.option-mark {
+.timer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.timer-track {
+  width: 100%;
+  height: var(--spacing-2);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-timer-track);
+}
+
+.timer-fill {
+  height: 100%;
+  background-color: var(--color-timer-fill);
+  transition: width 250ms linear;
+}
+
+.timer-urgent .timer-fill {
+  background-color: var(--color-timer-urgent);
+}
+
+.timer-urgent-text {
+  color: var(--color-timer-urgent);
+  font-weight: 700;
+}
+
+.result-outcome {
   font-weight: 700;
 }
 

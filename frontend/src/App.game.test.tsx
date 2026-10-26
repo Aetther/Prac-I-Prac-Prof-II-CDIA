@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import App from "./App";
@@ -139,7 +146,7 @@ async function answer(user: UserEvent, option = "Lima"): Promise<void> {
   await user.click(screen.getByRole("button", { name: option }));
 }
 
-async function continueFromFeedback(user: UserEvent): Promise<void> {
+async function continueFromResult(user: UserEvent): Promise<void> {
   await user.click(screen.getByRole("button", { name: "Continuar" }));
 }
 
@@ -165,9 +172,40 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+function fakeClock(): void {
+  vi.useFakeTimers({
+    shouldAdvanceTime: true,
+    toFake: [
+      "setTimeout",
+      "clearTimeout",
+      "setInterval",
+      "clearInterval",
+      "Date",
+    ],
+  });
+  vi.setSystemTime(new Date("2026-10-25T12:00:00Z"));
+}
+
+function timerUser(): UserEvent {
+  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+}
+
+function advance(ms: number): void {
+  act(() => {
+    vi.advanceTimersByTime(ms);
+  });
+}
+
+function expectNoTimer(): void {
+  expect(screen.queryByRole("timer")).toBeNull();
+  expect(screen.queryByRole("progressbar")).toBeNull();
+}
 
 describe("App game flow with a mocked API", () => {
   it("starts with geografia/es and renders the returned question", async () => {
@@ -257,7 +295,8 @@ describe("App game flow with a mocked API", () => {
     await answer(user);
 
     expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es");
-    await screen.findByRole("button", { name: "Opción correcta: Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(screen.getByText("Correcta")).toBeVisible();
   });
 
   it("accepts a recorded id once and skips it on the next load", async () => {
@@ -268,7 +307,7 @@ describe("App game flow with a mocked API", () => {
     await startMatch(user);
     await screen.findByText("Pregunta 7");
     await answer(user);
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     getQuestion.mockResolvedValueOnce(
       question({ id: 7, question: "Pregunta 7" }),
@@ -295,7 +334,7 @@ describe("App game flow with a mocked API", () => {
     await startMatch(user);
     await screen.findByText("Pregunta 7");
     await answer(user);
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     getQuestion.mockResolvedValue(question({ id: 7 }));
     await continueToWheel(user);
@@ -330,7 +369,7 @@ describe("App game flow with a mocked API", () => {
     expect(currentTurnRow()[0]).toHaveTextContent("Beto: 0 puntos");
   });
 
-  it("keeps the feedback on screen after a correct answer until Continuar", async () => {
+  it("APPT-10 a correct click reaches Result with the point", async () => {
     const user = userEvent.setup();
     getQuestion.mockResolvedValueOnce(question());
     postAnswer.mockResolvedValueOnce({
@@ -341,23 +380,24 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
 
-    await screen.findByRole("button", { name: "Opción correcta: Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
     expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
     expect(screen.getByText("Correcta")).toBeVisible();
     expect(screen.getByRole("status").textContent).toBe(
       "La respuesta correcta era: Lima",
     );
     expect(screen.queryByText(/Pasale el dispositivo/)).toBeNull();
-    expect(screen.queryByRole("button", { name: /Reportar/ })).toBeNull();
-    for (const button of screen
-      .getAllByRole("button")
-      .filter((candidate) => candidate.textContent !== "Continuar")) {
-      expect(button).toBeDisabled();
-    }
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeDisabled();
+    expect(
+      screen.queryAllByRole("button", {
+        name: /^(Lima|Quito|Bogotá|Buenos Aires)$/,
+      }),
+    ).toHaveLength(0);
+    expect(screen.queryByRole("timer")).toBeNull();
     expect(postAnswer).toHaveBeenCalledTimes(1);
     expect(getQuestion).toHaveBeenCalledTimes(1);
 
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
@@ -382,7 +422,7 @@ describe("App game flow with a mocked API", () => {
     expect(postAnswer).toHaveBeenCalledTimes(1);
 
     pending.resolve({ correct: true, correct_answer: "Lima" });
-    await screen.findByRole("button", { name: "Opción correcta: Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
     expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
     expect(screen.queryByText("Ana: 20 puntos")).toBeNull();
     expect(screen.getAllByRole("status")).toHaveLength(1);
@@ -399,16 +439,17 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
 
-    await screen.findByRole("button", { name: "Opción incorrecta: Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
     expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
     expect(screen.getByText("Incorrecta")).toBeVisible();
+    expect(screen.getByText("Elegiste: Lima")).toBeVisible();
     expect(screen.getByRole("status").textContent).toBe(
       "La respuesta correcta era: Lima",
     );
     expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
   });
 
-  it("moves to player 2 and then to round 2 through the wheel", async () => {
+  it("APPT-11 APPT-13 Continue from Result non-final shows the next player without the previous feedback", async () => {
     const user = userEvent.setup();
     getQuestion.mockResolvedValueOnce(
       question({ id: 1, question: "Pregunta 1" }),
@@ -417,15 +458,20 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("Pregunta 1");
     await answer(user);
 
-    await screen.findByRole("button", { name: "Continuar" });
+    await screen.findByRole("heading", { name: "Resultado" });
+    expectNoTimer();
     expect(screen.queryByText(/Pasale el dispositivo/)).toBeNull();
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
     expect(currentTurnRow()[0]).toHaveTextContent("Beto: 0 puntos");
     expect(screen.queryByText("Correcta")).toBeNull();
+    expect(screen.queryByText("Incorrecta")).toBeNull();
+    expect(screen.queryByText("Se acabó el tiempo")).toBeNull();
     expect(screen.queryByText(/La respuesta correcta era:/)).toBeNull();
+    expect(screen.queryByText(/Elegiste:/)).toBeNull();
+    expectNoTimer();
 
     getQuestion.mockResolvedValueOnce(
       question({ id: 2, question: "Pregunta 2" }),
@@ -438,14 +484,14 @@ describe("App game flow with a mocked API", () => {
     await spinWheel(user);
     await screen.findByText("Pregunta 2");
     await answer(user);
-    await screen.findByRole("button", { name: "Continuar" });
-    await continueFromFeedback(user);
+    await screen.findByRole("heading", { name: "Resultado" });
+    await continueFromResult(user);
 
     expect(screen.getByText("Pasale el dispositivo a Ana")).toBeVisible();
     expect(screen.getByText("Ronda 2 de 3")).toBeVisible();
   });
 
-  it("plays a 3-round match with six spins, six questions and six answers", async () => {
+  it("APPT-03 APPT-12 APPT-15 APPT-16 a 3-round match reaches GameOver through Result without timers and shows the winner", async () => {
     const user = userEvent.setup();
     const correctForPlayerOne = [true, false, true, false, true, false];
     const correctForPlayerTwo = [false, true, false, false, false, false];
@@ -473,13 +519,16 @@ describe("App game flow with a mocked API", () => {
       await answer(user);
 
       expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
-      await continueFromFeedback(user);
+      expectNoTimer();
+      await continueFromResult(user);
+      expectNoTimer();
     }
 
     expect(screen.getByText("Ganó Ana")).toBeVisible();
     expect(screen.getByText("Ana: 30 puntos")).toBeVisible();
     expect(screen.getByText("Beto: 10 puntos")).toBeVisible();
     expect(screen.queryByText("Turno")).toBeNull();
+    expectNoTimer();
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
     expect(getQuestion).toHaveBeenCalledTimes(6);
     expect(postAnswer).toHaveBeenCalledTimes(6);
@@ -489,7 +538,7 @@ describe("App game flow with a mocked API", () => {
     expect(postAnswer).toHaveBeenCalledTimes(6);
   });
 
-  it("ends a 10–10 match in Empate after the final Continuar", async () => {
+  it("APPT-17 Continue on the final Result with equal scores shows Empate", async () => {
     const user = userEvent.setup();
     const correctAnswers = [true, true, false, false, false, false];
 
@@ -510,17 +559,20 @@ describe("App game flow with a mocked API", () => {
         correct_answer: "Lima",
       });
       await answer(user);
-      await screen.findByRole("button", { name: "Continuar" });
-      await continueFromFeedback(user);
+      await screen.findByRole("heading", { name: "Resultado" });
+      expectNoTimer();
+      await continueFromResult(user);
     }
 
     expect(screen.getByText("Empate")).toBeVisible();
     expect(screen.getAllByText(/10 puntos/)).toHaveLength(2);
     expect(screen.queryByText(/Ganó/)).toBeNull();
+    expectNoTimer();
   });
 
   it("shows the network message and retries the same category", async () => {
-    const user = userEvent.setup();
+    fakeClock();
+    const user = timerUser();
     getQuestion.mockRejectedValueOnce(networkError());
     getQuestion.mockResolvedValueOnce(question());
     await startMatch(user);
@@ -537,6 +589,12 @@ describe("App game flow with a mocked API", () => {
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
 
     await screen.findByText("¿Capital de Francia?");
+    expect(
+      screen.getByRole("timer", { name: "Tiempo restante" }),
+    ).toHaveTextContent("20 s");
+    expect(
+      screen.getByRole("progressbar", { name: "Tiempo restante" }),
+    ).toHaveAttribute("aria-valuenow", "20");
     expect(getQuestion).toHaveBeenCalledTimes(2);
     expect(getQuestion.mock.calls[1]).toEqual(["geografia", "es"]);
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
@@ -560,19 +618,19 @@ describe("App game flow with a mocked API", () => {
     expect(screen.queryByText("Incorrecta")).toBeNull();
     expect(screen.queryByText(/La respuesta correcta era:/)).toBeNull();
     expect(screen.queryByText("Ana: 10 puntos")).toBeNull();
+    expectNoTimer();
 
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
 
-    expect(
-      screen.queryByRole("button", { name: "Opción correcta: Lima" }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Resultado" })).toBeNull();
     expect(screen.queryByText(/La respuesta correcta era:/)).toBeNull();
     expect(screen.queryByText("Ana: 10 puntos")).toBeNull();
+    expectNoTimer();
     expect(postAnswer).toHaveBeenCalledTimes(2);
     expect(postAnswer.mock.calls[1]).toEqual([42, "Lima", "es"]);
 
     retry.resolve({ correct: true, correct_answer: "Lima" });
-    await screen.findByRole("button", { name: "Opción correcta: Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
     expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
   });
 
@@ -638,7 +696,7 @@ describe("App game flow with a mocked API", () => {
 
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
 
-    await screen.findByRole("button", { name: "Opción correcta: Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
     expect(postAnswer).toHaveBeenCalledTimes(2);
     expect(postAnswer.mock.calls[1]).toEqual([42, "Lima", "es"]);
     expect(getQuestion).toHaveBeenCalledTimes(1);
@@ -751,7 +809,7 @@ describe("App game flow with a mocked API", () => {
     await startMatch(user);
     await screen.findByText("Pregunta 7");
     await answer(user);
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     for (const id of [8, 9, 10]) {
       getQuestion.mockResolvedValueOnce(
@@ -761,7 +819,7 @@ describe("App game flow with a mocked API", () => {
       await spinWheel(user);
       await screen.findByText(`Pregunta ${id}`);
       await answer(user);
-      await continueFromFeedback(user);
+      await continueFromResult(user);
     }
 
     for (const id of [7, 8, 9, 10]) {
@@ -789,7 +847,7 @@ describe("App game flow with a mocked API", () => {
     await startMatch(user);
     await screen.findByText("Pregunta 7");
     await answer(user);
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     getQuestion.mockResolvedValue(question({ id: 7 }));
     await continueToWheel(user);
@@ -813,7 +871,7 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
     await screen.findByText("Ana: 10 puntos");
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     getQuestion.mockRejectedValue(notFound());
     await continueToWheel(user);
@@ -892,7 +950,7 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
     await screen.findByText("Ana: 10 puntos");
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     getQuestion.mockRejectedValue(notFound());
     await continueToWheel(user);
@@ -1084,7 +1142,7 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
     await screen.findByRole("button", { name: "Continuar" });
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
     await continueFromSwitchTurn(user);
@@ -1129,7 +1187,7 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
     await screen.findByText("Ana: 10 puntos");
-    await continueFromFeedback(user);
+    await continueFromResult(user);
 
     await continueToWheel(user);
 
@@ -1196,7 +1254,7 @@ describe("App game flow with a mocked API", () => {
       }
       await answer(user);
       await screen.findByRole("button", { name: "Continuar" });
-      await continueFromFeedback(user);
+      await continueFromResult(user);
     }
 
     expect(screen.getByText("Empate")).toBeVisible();
@@ -1220,4 +1278,256 @@ describe("App game flow with a mocked API", () => {
     expect(getQuestion).toHaveBeenCalledWith("geografia", "es");
     expect(getQuestion).not.toHaveBeenCalledWith("deportes", "es");
   });
+
+  it("APPT-01 shows no timer while the question loads and starts it when the question arrives", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<GameQuestion>();
+    getQuestion.mockReturnValueOnce(pending.promise);
+    await startMatch(user);
+
+    expect(screen.getByRole("status").textContent).toBe("Cargando pregunta...");
+    expectNoTimer();
+
+    pending.resolve(question());
+    await screen.findByText("¿Capital de Francia?");
+    expect(
+      screen.getByRole("timer", { name: "Tiempo restante" }).textContent,
+    ).toBe("20 s");
+  });
+
+  it("APPT-02 an answered question stops the timer and does not time out", async () => {
+    fakeClock();
+    const user = timerUser();
+    const pending = deferred<SubmitAnswerResult>();
+    getQuestion.mockResolvedValueOnce(question());
+    postAnswer.mockReturnValueOnce(pending.promise);
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(12_000);
+    expect(screen.getByRole("timer").textContent).toBe("8 s");
+
+    await answer(user);
+    expectNoTimer();
+
+    pending.resolve({ correct: true, correct_answer: "Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
+    expectNoTimer();
+
+    advance(20_000);
+
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es");
+    expect(
+      postAnswer.mock.calls.filter(([, value]) => value === "(sin respuesta)"),
+    ).toHaveLength(0);
+  });
+
+  it("APPT-04 a failed submit shows the error screen without a timer and the retry does not restart it", async () => {
+    fakeClock();
+    const user = timerUser();
+    const retry = deferred<SubmitAnswerResult>();
+    getQuestion.mockResolvedValueOnce(question());
+    postAnswer.mockRejectedValueOnce(networkError());
+    postAnswer.mockReturnValueOnce(retry.promise);
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    await answer(user);
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("¿Está corriendo la API?")).toBeVisible();
+    expectNoTimer();
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    expectNoTimer();
+
+    advance(30_000);
+    expect(postAnswer).toHaveBeenCalledTimes(2);
+    expect(postAnswer.mock.calls.map(([, value]) => value)).toEqual([
+      "Lima",
+      "Lima",
+    ]);
+
+    retry.resolve({ correct: true, correct_answer: "Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
+    expectNoTimer();
+    expect(
+      postAnswer.mock.calls.filter(([, value]) => value === "(sin respuesta)"),
+    ).toHaveLength(0);
+  });
+
+  it("APPT-05 a timeout submits the sentinel and reaches Result", async () => {
+    fakeClock();
+    const user = timerUser();
+    getQuestion.mockResolvedValueOnce(question({ id: 42 }));
+    postAnswer.mockResolvedValueOnce({
+      correct: false,
+      correct_answer: "Buenos Aires",
+    });
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(20_000);
+
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+    expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+    expect(screen.queryByText(/Elegiste:/)).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe(
+      "La respuesta correcta era: Buenos Aires",
+    );
+    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
+    expect(screen.getByText("Beto: 0 puntos")).toBeVisible();
+    expectNoTimer();
+  });
+
+  it("APPT-06 a timeout is incorrect even when the API reports correct", async () => {
+    fakeClock();
+    const user = timerUser();
+    getQuestion.mockResolvedValueOnce(question());
+    postAnswer.mockResolvedValueOnce({
+      correct: true,
+      correct_answer: "Lima",
+    });
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(20_000);
+
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+    expect(screen.queryByText("Correcta")).toBeNull();
+    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
+    expect(screen.getByText("Beto: 0 puntos")).toBeVisible();
+  });
+
+  it("APPT-07 extra time and a click after zero submit only once", async () => {
+    fakeClock();
+    const user = timerUser();
+    const pending = deferred<SubmitAnswerResult>();
+    getQuestion.mockResolvedValueOnce(question());
+    postAnswer.mockReturnValueOnce(pending.promise);
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(30_000);
+
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+    expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
+
+    fireEvent.click(screen.getByRole("button", { name: "Lima" }));
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+
+    pending.resolve({ correct: false, correct_answer: "Buenos Aires" });
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+  });
+
+  it("APPT-08 a click before zero wins over expiry", async () => {
+    fakeClock();
+    const user = timerUser();
+    getQuestion.mockResolvedValueOnce(question());
+    postAnswer.mockResolvedValueOnce({
+      correct: false,
+      correct_answer: "Buenos Aires",
+    });
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(19_000);
+    await answer(user, "Lima");
+    await screen.findByRole("heading", { name: "Resultado" });
+
+    advance(5_000);
+
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es");
+    expect(
+      postAnswer.mock.calls.filter(([, value]) => value === "(sin respuesta)"),
+    ).toHaveLength(0);
+    expect(screen.getByText("Elegiste: Lima")).toBeVisible();
+  });
+
+  it("APPT-09 a failed timeout retries the sentinel and then shows the Result", async () => {
+    fakeClock();
+    const user = timerUser();
+    const retry = deferred<SubmitAnswerResult>();
+    getQuestion.mockResolvedValueOnce(question({ id: 42 }));
+    postAnswer.mockRejectedValueOnce(networkError());
+    postAnswer.mockReturnValueOnce(retry.promise);
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(20_000);
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("¿Está corriendo la API?")).toBeVisible();
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+    expect(postAnswer.mock.calls[0]).toEqual([42, "(sin respuesta)", "es"]);
+    expectNoTimer();
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+
+    expect(screen.queryByRole("heading", { name: "Resultado" })).toBeNull();
+    expect(screen.queryByText("Se acabó el tiempo")).toBeNull();
+    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
+    expectNoTimer();
+    expect(postAnswer).toHaveBeenCalledTimes(2);
+    expect(postAnswer.mock.calls[1]).toEqual([42, "(sin respuesta)", "es"]);
+
+    retry.resolve({ correct: false, correct_answer: "Buenos Aires" });
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
+    expectNoTimer();
+  });
+
+  it("APPT-18 a background clock jump past zero submits the sentinel once", async () => {
+    fakeClock();
+    const user = timerUser();
+    getQuestion.mockResolvedValueOnce(question({ id: 42 }));
+    postAnswer.mockResolvedValueOnce({
+      correct: false,
+      correct_answer: "Buenos Aires",
+    });
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+    expect(
+      screen.getByRole("timer", { name: "Tiempo restante" }),
+    ).toHaveTextContent("20 s");
+
+    const now = Date.now();
+    act(() => {
+      vi.setSystemTime(now + 60_000);
+      vi.advanceTimersByTime(250);
+    });
+
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+    expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+
+    advance(250);
+    expect(postAnswer).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["10", "10 s", "10"],
+    ["30", "30 s", "30"],
+  ])(
+    "APPT-14 the configured %s seconds drive the timer",
+    async (seconds, expectedText, expectedMax) => {
+      const user = userEvent.setup();
+      getQuestion.mockResolvedValueOnce(question());
+      await startToWheel(user, { seconds, rounds: "3" });
+      await spinWheel(user);
+
+      await screen.findByText("¿Capital de Francia?");
+      expect(screen.getByRole("timer").textContent).toBe(expectedText);
+      expect(
+        screen.getByRole("progressbar", { name: "Tiempo restante" }),
+      ).toHaveAttribute("aria-valuemax", expectedMax);
+    },
+  );
 });

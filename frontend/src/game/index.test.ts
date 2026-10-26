@@ -5,10 +5,13 @@ import {
   INITIAL_GAME_STATE,
   INITIAL_PHASE,
   PHASES,
+  TIMEOUT_ANSWER,
   buildWheelCategories,
   createLobbyConfig,
   createSpinPlan,
   gameReducer,
+  getTimerSnapshot,
+  isTimerUrgent,
   sectorIndexAtRotation,
 } from "./index";
 import { SIX_CATEGORIES } from "../test/wheelFixtures";
@@ -69,6 +72,17 @@ describe("game layer", () => {
     expect(sectorIndexAtRotation(0)).toBe(0);
     expect(createSpinPlan(0, () => 0).durationMs).toBe(4000);
     expect(buildWheelCategories(SIX_CATEGORIES)).toHaveLength(6);
+  });
+
+  it("the barrel exposes the countdown rules and the timeout sentinel", () => {
+    const start = 1_000;
+
+    expect(getTimerSnapshot(20, start + 20_000, start).remainingSeconds).toBe(
+      20,
+    );
+    expect(isTimerUrgent(5_000)).toBe(true);
+    expect(isTimerUrgent(5_001)).toBe(false);
+    expect(TIMEOUT_ANSWER).toBe("(sin respuesta)");
   });
 
   it("the barrel no longer exports the retired random category picker", () => {
