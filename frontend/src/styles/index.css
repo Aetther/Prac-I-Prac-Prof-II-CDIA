@@ -55,6 +55,7 @@ body {
 .result button,
 .switch-turn button,
 .question-card button,
+.game-over button,
 .wheel button {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-4);

@@ -131,6 +131,7 @@ export function GameScreen({
           categories={wheelCategories}
           ownedCategories={game.ownedCategories}
           turnsPlayed={game.turnsPlayed}
+          onPlayAgain={onBackToLobby}
         />
       );
     case "Result": {

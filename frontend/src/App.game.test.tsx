@@ -581,6 +581,63 @@ describe("App game flow with a mocked API", () => {
     expect(postAnswer).toHaveBeenCalledTimes(6);
   });
 
+  it("returns to the Lobby with defaults from Jugar de nuevo after a rounds match, with no API call", async () => {
+    const user = userEvent.setup();
+
+    for (let index = 0; index < 6; index += 1) {
+      const id = 400 + index;
+      getQuestion.mockResolvedValueOnce(
+        question({ id, question: `Pregunta ${index + 1}` }),
+      );
+      if (index === 0) {
+        await startToWheel(user, { rounds: "3" });
+      } else {
+        await continueToWheel(user);
+      }
+      await spinWheel(user);
+      await screen.findByText(`Pregunta ${index + 1}`);
+      postAnswer.mockResolvedValueOnce({
+        correct: false,
+        correct_answer: "Lima",
+      });
+      await answer(user);
+      await continueFromResult(user);
+    }
+
+    expect(screen.getByText("Empate")).toBeVisible();
+    const categoryCalls = getCategoriesMock.mock.calls.length;
+    const questionCalls = getQuestion.mock.calls.length;
+    const answerCalls = postAnswer.mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
+
+    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect((screen.getByLabelText("Jugador 2") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect(
+      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
+        .value,
+    ).toBe("es");
+    expect(
+      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
+    ).toBe("20");
+    expect(
+      (screen.getByLabelText("Modo de juego") as HTMLSelectElement).value,
+    ).toBe("rounds");
+    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
+      "5",
+    );
+    expect(screen.queryByText("Empate")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
+    expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);
+    expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
+    expect(postAnswer).toHaveBeenCalledTimes(answerCalls);
+  });
+
   it("APPT-17 Continue on the final Result with equal scores shows Empate", async () => {
     const user = userEvent.setup();
     const correctAnswers = [true, true, false, false, false, false];
@@ -1825,6 +1882,58 @@ describe("App six-categories flow with a mocked API", () => {
     expect(screen.queryByText("Turno")).toBeNull();
     expectNoRoundLabel();
     expectNoPoints();
+    expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
+    expect(postAnswer).toHaveBeenCalledTimes(answerCalls);
+  });
+
+  it("returns to the Lobby with defaults from Jugar de nuevo after a six-mode match, with no API call", async () => {
+    const user = userEvent.setup();
+    mockQuestionsEchoCategory();
+
+    for (let index = 0; index < 6; index += 1) {
+      if (index === 0) {
+        await startToWheel(user, { mode: "six-categories" });
+      } else {
+        await screen.findByRole("button", { name: "Girar" });
+      }
+      await spinWheel(user, index);
+      await screen.findByText("¿Capital de Francia?");
+      await answerCorrect();
+      await answer(user);
+      await screen.findByText("Correcta");
+      await continueFromResult(user);
+    }
+
+    expect(screen.getByText("Ganó Ana")).toBeVisible();
+    const categoryCalls = getCategoriesMock.mock.calls.length;
+    const questionCalls = getQuestion.mock.calls.length;
+    const answerCalls = postAnswer.mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
+
+    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect((screen.getByLabelText("Jugador 2") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect(
+      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
+        .value,
+    ).toBe("es");
+    expect(
+      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
+    ).toBe("20");
+    expect(
+      (screen.getByLabelText("Modo de juego") as HTMLSelectElement).value,
+    ).toBe("rounds");
+    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
+      "5",
+    );
+    expect(screen.queryByText("Ganó Ana")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
+    expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);
     expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
     expect(postAnswer).toHaveBeenCalledTimes(answerCalls);
   });

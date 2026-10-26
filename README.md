@@ -631,7 +631,7 @@ Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celul
 3. **Pregunta**: aparece la pregunta con su categoría, sus 4 opciones y el **temporizador** (10, 20 o 30 segundos, según el lobby). En los últimos 5 segundos la barra se pone roja y aparece "Últimos 5 segundos". Si el tiempo se acaba, cuenta como respuesta incorrecta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
 4. **Resultado**: "Correcta", "Incorrecta" (con la opción elegida) o "Se acabó el tiempo", junto con la respuesta correcta, el marcador y el botón **Continuar**. El botón **Reportar** ya aparece, pero se habilita en una etapa posterior.
 5. **Cambio de turno**: una pantalla intermedia ("Pasale el dispositivo a ...") para que el otro jugador no vea la respuesta anterior.
-6. **Fin de la partida**: se muestra el ganador o el empate (ver los dos modos más abajo).
+6. **Fin de la partida**: se muestra el ganador o el empate (ver los dos modos más abajo). **Jugar de nuevo** vuelve al lobby para empezar otra partida.
 
 #### Modo por rondas
 
@@ -1151,7 +1151,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **422 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **426 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
 - **Cobertura exigida: 100% de líneas y de ramas** en `src/game` y `src/api`.
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.

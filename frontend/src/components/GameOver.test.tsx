@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type {
   CategoryName,
   GameResult,
@@ -31,7 +32,11 @@ function rows(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>(".scoreboard-row"));
 }
 
-function renderRounds(result: GameResult, roundPlayers = players) {
+function renderRounds(
+  result: GameResult,
+  roundPlayers = players,
+  onPlayAgain = vi.fn(),
+) {
   return render(
     <GameOver
       result={result}
@@ -39,6 +44,7 @@ function renderRounds(result: GameResult, roundPlayers = players) {
       categories={SIX_WHEEL_CATEGORIES}
       ownedCategories={[[], []]}
       turnsPlayed={[0, 0]}
+      onPlayAgain={onPlayAgain}
     />,
   );
 }
@@ -47,6 +53,7 @@ function renderSix(
   result: SixCategoriesGameResult,
   ownedCategories: readonly [readonly CategoryName[], readonly CategoryName[]],
   turnsPlayed: readonly [number, number],
+  onPlayAgain = vi.fn(),
 ) {
   return render(
     <GameOver
@@ -55,6 +62,7 @@ function renderSix(
       categories={SIX_WHEEL_CATEGORIES}
       ownedCategories={ownedCategories}
       turnsPlayed={turnsPlayed}
+      onPlayAgain={onPlayAgain}
     />,
   );
 }
@@ -88,7 +96,7 @@ describe("GameOver", () => {
     expect(screen.queryByText(/Ganó/)).toBeNull();
   });
 
-  it("shows both scores with no turn marker and no action", () => {
+  it("shows both scores with no turn marker and only the Jugar de nuevo action", () => {
     const result: GameResult = {
       kind: "winner",
       winnerIndex: 0,
@@ -98,9 +106,31 @@ describe("GameOver", () => {
 
     expect(screen.queryAllByText("Turno")).toHaveLength(0);
     expect(document.querySelector("[aria-current]")).toBeNull();
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(
+      screen.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Jugar de nuevo"]);
     expect(screen.getByText("Ana: 30 puntos")).toBeVisible();
     expect(screen.getByText("Beto: 10 puntos")).toBeVisible();
+  });
+
+  it("shows a touch-target Jugar de nuevo below Fin de la partida in rounds mode", async () => {
+    const user = userEvent.setup();
+    const onPlayAgain = vi.fn();
+    const result: GameResult = {
+      kind: "winner",
+      winnerIndex: 0,
+      scores: [30, 10],
+    };
+    renderRounds(result, players, onPlayAgain);
+
+    const end = screen.getByText("Fin de la partida");
+    const button = screen.getByRole("button", { name: "Jugar de nuevo" });
+    expect(button).toBeVisible();
+    expect(button).toHaveClass("touch-target");
+    expect(end.nextElementSibling).toBe(button);
+
+    await user.click(button);
+    expect(onPlayAgain).toHaveBeenCalledTimes(1);
   });
 
   it("shows Fin de la partida", () => {
@@ -276,5 +306,34 @@ describe("GameOver", () => {
     expect(container.textContent).not.toContain(
       "Se alcanzó el límite de 20 turnos.",
     );
+  });
+
+  it("shows a touch-target Jugar de nuevo below Fin de la partida in six mode", async () => {
+    const user = userEvent.setup();
+    const onPlayAgain = vi.fn();
+    renderSix(
+      {
+        mode: "six-categories",
+        kind: "winner",
+        winnerIndex: 0,
+        categories: [6, 2],
+        reason: "six-categories",
+      },
+      [
+        [...five, "deportes"],
+        ["geografia", "historia"],
+      ],
+      [19, 19],
+      onPlayAgain,
+    );
+
+    const end = screen.getByText("Fin de la partida");
+    const button = screen.getByRole("button", { name: "Jugar de nuevo" });
+    expect(button).toBeVisible();
+    expect(button).toHaveClass("touch-target");
+    expect(end.nextElementSibling).toBe(button);
+
+    await user.click(button);
+    expect(onPlayAgain).toHaveBeenCalledTimes(1);
   });
 });

@@ -15,6 +15,7 @@ interface GameOverProps {
   categories: readonly WheelCategory[];
   ownedCategories: CategoryOwners;
   turnsPlayed: TurnsPlayed;
+  onPlayAgain: () => void;
 }
 
 export function GameOver({
@@ -23,6 +24,7 @@ export function GameOver({
   categories,
   ownedCategories,
   turnsPlayed,
+  onPlayAgain,
 }: GameOverProps) {
   if (isSixCategoriesResult(result)) {
     const progress: MatchProgress = {
@@ -49,6 +51,9 @@ export function GameOver({
           headingLevel={3}
         />
         <p>Fin de la partida</p>
+        <button type="button" className="touch-target" onClick={onPlayAgain}>
+          Jugar de nuevo
+        </button>
       </section>
     );
   }
@@ -71,6 +76,9 @@ export function GameOver({
         </ul>
       </section>
       <p>Fin de la partida</p>
+      <button type="button" className="touch-target" onClick={onPlayAgain}>
+        Jugar de nuevo
+      </button>
     </section>
   );
 }
