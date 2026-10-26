@@ -5,19 +5,32 @@ import type {
   SecondsPerQuestion,
 } from "./types";
 
-export interface LobbyInput {
-  readonly playerNames: readonly [string, string];
+export type LobbyInput =
+  | {
+      readonly playerNames: readonly [string, string];
+      readonly lang: Lang;
+      readonly secondsPerQuestion: SecondsPerQuestion;
+      readonly mode: "rounds";
+      readonly rounds: RoundsCount;
+    }
+  | {
+      readonly playerNames: readonly [string, string];
+      readonly lang: Lang;
+      readonly secondsPerQuestion: SecondsPerQuestion;
+      readonly mode: "six-categories";
+    };
+
+export interface LobbyDefaults {
   readonly lang: Lang;
   readonly secondsPerQuestion: SecondsPerQuestion;
+  readonly mode: "rounds";
   readonly rounds: RoundsCount;
 }
 
-export const DEFAULT_LOBBY_SETTINGS: Pick<
-  LobbyConfig,
-  "lang" | "secondsPerQuestion" | "rounds"
-> = {
+export const DEFAULT_LOBBY_SETTINGS: LobbyDefaults = {
   lang: "es",
   secondsPerQuestion: 20,
+  mode: "rounds",
   rounds: 5,
 };
 
@@ -30,11 +43,13 @@ export function createLobbyConfig(input: LobbyInput): LobbyConfig | null {
   if (!isValidPlayerName(first) || !isValidPlayerName(second)) {
     return null;
   }
-  return {
-    playerNames: [first.trim(), second.trim()],
+  const base = {
+    playerNames: [first.trim(), second.trim()] as const,
     lang: input.lang,
     secondsPerQuestion: input.secondsPerQuestion,
-    mode: "rounds",
-    rounds: input.rounds,
   };
+  if (input.mode === "six-categories") {
+    return { ...base, mode: "six-categories" };
+  }
+  return { ...base, mode: "rounds", rounds: input.rounds };
 }

@@ -4,7 +4,12 @@ import {
   isValidPlayerName,
   type LobbyInput,
 } from "../game/lobby";
-import type { Lang, RoundsCount, SecondsPerQuestion } from "../game/types";
+import type {
+  GameMode,
+  Lang,
+  RoundsCount,
+  SecondsPerQuestion,
+} from "../game/types";
 
 interface LobbyProps {
   onStart: (input: LobbyInput) => void;
@@ -20,15 +25,26 @@ export function Lobby({ onStart }: LobbyProps) {
   const [rounds, setRounds] = useState<RoundsCount>(
     DEFAULT_LOBBY_SETTINGS.rounds,
   );
+  const [mode, setMode] = useState<GameMode>(DEFAULT_LOBBY_SETTINGS.mode);
 
   const canStart = isValidPlayerName(first) && isValidPlayerName(second);
 
   const handleStart = () => {
     if (!canStart) return;
+    if (mode === "six-categories") {
+      onStart({
+        playerNames: [first, second],
+        lang,
+        secondsPerQuestion: seconds,
+        mode: "six-categories",
+      });
+      return;
+    }
     onStart({
       playerNames: [first, second],
       lang,
       secondsPerQuestion: seconds,
+      mode: "rounds",
       rounds,
     });
   };
@@ -83,22 +99,35 @@ export function Lobby({ onStart }: LobbyProps) {
           <option value="30">30 segundos</option>
         </select>
       </div>
-      <p>Modo de juego: Por rondas</p>
       <div className="lobby-field">
-        <label htmlFor="lobby-rounds">Rondas</label>
+        <label htmlFor="lobby-mode">Modo de juego</label>
         <select
-          id="lobby-rounds"
+          id="lobby-mode"
           className="touch-target"
-          value={String(rounds)}
-          onChange={(event) =>
-            setRounds(Number(event.target.value) as RoundsCount)
-          }
+          value={mode}
+          onChange={(event) => setMode(event.target.value as GameMode)}
         >
-          <option value="3">3 rondas</option>
-          <option value="5">5 rondas</option>
-          <option value="10">10 rondas</option>
+          <option value="rounds">Por rondas</option>
+          <option value="six-categories">Juntar las 6 categorías</option>
         </select>
       </div>
+      {mode === "rounds" ? (
+        <div className="lobby-field">
+          <label htmlFor="lobby-rounds">Rondas</label>
+          <select
+            id="lobby-rounds"
+            className="touch-target"
+            value={String(rounds)}
+            onChange={(event) =>
+              setRounds(Number(event.target.value) as RoundsCount)
+            }
+          >
+            <option value="3">3 rondas</option>
+            <option value="5">5 rondas</option>
+            <option value="10">10 rondas</option>
+          </select>
+        </div>
+      ) : null}
       <button
         type="button"
         className="touch-target"

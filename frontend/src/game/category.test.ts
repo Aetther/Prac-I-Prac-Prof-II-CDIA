@@ -1,10 +1,12 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Category } from "../api/types";
-import { SIX_CATEGORIES } from "../test/wheelFixtures";
+import { SIX_CATEGORIES, SIX_WHEEL_CATEGORIES } from "../test/wheelFixtures";
 import {
   CATEGORY_NAMES,
   buildWheelCategories,
+  findCategoryLabel,
+  isCategoryName,
   pickCategoryExcluding,
 } from "./category";
 
@@ -54,6 +56,28 @@ describe("category selection", () => {
     expect(
       pickCategoryExcluding(["geografia", "historia"], () => 0.5),
     ).not.toBe("arte");
+  });
+});
+
+describe("category names and labels", () => {
+  it("isCategoryName accepts exactly the six declared names", () => {
+    for (const name of CATEGORY_NAMES) {
+      expect(isCategoryName(name)).toBe(true);
+    }
+    expect(isCategoryName("otra")).toBe(false);
+    expect(isCategoryName("")).toBe(false);
+    expect(isCategoryName("Geografía")).toBe(false);
+  });
+
+  it("findCategoryLabel returns the API label and falls back to the name", () => {
+    expect(findCategoryLabel(SIX_WHEEL_CATEGORIES, "geografia")).toBe(
+      "Geografía",
+    );
+    const withoutArte = SIX_WHEEL_CATEGORIES.filter(
+      (category) => category.name !== "arte",
+    );
+    expect(findCategoryLabel(withoutArte, "arte")).toBe("arte");
+    expect(findCategoryLabel([], "geografia")).toBe("geografia");
   });
 });
 

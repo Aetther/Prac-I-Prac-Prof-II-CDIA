@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WheelCategory } from "../game/category";
+import type { MatchProgress } from "../game/progress";
 import type { CategoryName, Player, PlayerIndex } from "../game/types";
 import {
   INITIAL_WHEEL_ROTATION,
@@ -35,8 +36,7 @@ interface WheelProps {
   categories: readonly WheelCategory[];
   players: readonly [Player, Player];
   currentPlayer: PlayerIndex;
-  round: number;
-  totalRounds: number;
+  progress: MatchProgress;
   onChooseCategory: (category: CategoryName) => void;
   onSectorCross?: WheelTickHandler;
 }
@@ -45,8 +45,7 @@ export function Wheel({
   categories,
   players,
   currentPlayer,
-  round,
-  totalRounds,
+  progress,
   onChooseCategory,
   onSectorCross,
 }: WheelProps) {
@@ -206,8 +205,8 @@ export function Wheel({
       <Scoreboard
         players={players}
         currentPlayer={currentPlayer}
-        round={round}
-        totalRounds={totalRounds}
+        progress={progress}
+        categories={categories}
       />
       <canvas
         ref={canvasRef}

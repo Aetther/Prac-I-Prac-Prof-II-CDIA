@@ -37,6 +37,12 @@ const SECTOR_SENTINELS = [
 
 type WheelProps = ComponentProps<typeof Wheel>;
 
+const roundsProgress = {
+  mode: "rounds",
+  round: 1,
+  totalRounds: 3,
+} as const;
+
 let canvas: CanvasHarness;
 let queue: RafQueue;
 
@@ -48,8 +54,7 @@ function renderWheel(overrides: Partial<WheelProps> = {}) {
       categories={SIX_WHEEL_CATEGORIES}
       players={PLAYERS}
       currentPlayer={0}
-      round={1}
-      totalRounds={3}
+      progress={roundsProgress}
       onChooseCategory={onChooseCategory}
       onSectorCross={onSectorCross}
       {...overrides}
@@ -500,8 +505,7 @@ describe("Wheel", () => {
         categories={second}
         players={PLAYERS}
         currentPlayer={0}
-        round={1}
-        totalRounds={3}
+        progress={roundsProgress}
         onChooseCategory={onChooseCategory}
         onSectorCross={onSectorCross}
       />,
@@ -564,5 +568,28 @@ describe("Wheel", () => {
       unmount();
       queue.frames.length = 0;
     }
+  });
+
+  it("WUI-23 a six-mode Wheel shows the six scoreboard and no round", () => {
+    const { container } = renderWheel({
+      progress: {
+        mode: "six-categories",
+        ownedCategories: [["geografia"], []],
+        turnsPlayed: [2, 0],
+      },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Girá la ruleta" }),
+    ).toBeVisible();
+    expect(screen.getByRole("img")).toHaveAccessibleDescription(
+      "Geografía, Historia, Ciencia, Arte, Entretenimiento, Deportes.",
+    );
+    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
+    expect(screen.getByText("Turnos: 2 de 20")).toBeVisible();
+    expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
+    expect(container.textContent).not.toMatch(/puntos/i);
+    expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
   });
 });

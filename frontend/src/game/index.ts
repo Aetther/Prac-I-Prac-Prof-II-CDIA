@@ -8,6 +8,8 @@ export * from "./question";
 export * from "./errors";
 export * from "./reducer";
 export * from "./timer";
+export * from "./sixCategories";
+export * from "./progress";
 
 export { type GamePhase };
 export const INITIAL_PHASE: GamePhase = "Lobby";

@@ -135,13 +135,31 @@ body {
 
 .scoreboard-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  align-items: center;
   gap: var(--spacing-2);
+  row-gap: var(--spacing-2);
 }
 
 .scoreboard-row-current {
   color: var(--color-primary);
   font-weight: 700;
+}
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: var(--spacing-1);
+  list-style: none;
+}
+
+.category-chip {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-background);
+  font-size: var(--font-size-sm);
 }
 
 .untranslated-badge {

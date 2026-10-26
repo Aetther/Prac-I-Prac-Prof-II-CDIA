@@ -6,11 +6,16 @@ import {
   INITIAL_PHASE,
   PHASES,
   TIMEOUT_ANSWER,
+  TURN_LIMIT,
+  applySixCategoriesAnswer,
   buildWheelCategories,
   createLobbyConfig,
   createSpinPlan,
+  findCategoryLabel,
   gameReducer,
+  getMatchProgress,
   getTimerSnapshot,
+  isCategoryName,
   isTimerUrgent,
   sectorIndexAtRotation,
 } from "./index";
@@ -43,6 +48,7 @@ describe("game layer", () => {
       playerNames: [" Ana ", "Beto"],
       lang: "en",
       secondsPerQuestion: 30,
+      mode: "rounds",
       rounds: 5,
     });
     expect(config).not.toBeNull();
@@ -89,5 +95,49 @@ describe("game layer", () => {
     expect(barrel).not.toHaveProperty("pickRandomCategory");
     expect(sectorIndexAtRotation(0)).toBe(0);
     expect(buildWheelCategories(SIX_CATEGORIES)).toHaveLength(6);
+  });
+
+  it("BRL-05 the barrel exposes the six-categories rules and progress", () => {
+    expect(TURN_LIMIT).toBe(20);
+    expect(
+      applySixCategoriesAnswer({
+        ownedCategories: [[], []],
+        turnsPlayed: [0, 0],
+        currentPlayer: 0,
+        category: "geografia",
+        correct: true,
+      }),
+    ).toStrictEqual({
+      ownedCategories: [["geografia"], []],
+      turnsPlayed: [0, 0],
+      keepsTurn: true,
+      result: null,
+    });
+    expect(
+      getMatchProgress(
+        {
+          playerNames: ["Ana", "Beto"],
+          lang: "es",
+          secondsPerQuestion: 20,
+          mode: "six-categories",
+        },
+        {
+          round: 1,
+          ownedCategories: [["geografia"], []],
+          turnsPlayed: [2, 0],
+        },
+      ),
+    ).toStrictEqual({
+      mode: "six-categories",
+      ownedCategories: [["geografia"], []],
+      turnsPlayed: [2, 0],
+    });
+    expect(isCategoryName("otra")).toBe(false);
+    expect(
+      findCategoryLabel(
+        [{ name: "geografia", label: "Geografía" }],
+        "geografia",
+      ),
+    ).toBe("Geografía");
   });
 });

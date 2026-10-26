@@ -1,11 +1,13 @@
+import type { WheelCategory } from "../game/category";
+import type { MatchProgress } from "../game/progress";
 import type { Player, PlayerIndex } from "../game/types";
 import { Scoreboard } from "./Scoreboard";
 
 interface SwitchTurnProps {
   nextPlayerName: string;
   nextPlayerIndex: PlayerIndex;
-  round: number;
-  totalRounds: number;
+  progress: MatchProgress;
+  categories: readonly WheelCategory[];
   players: readonly [Player, Player];
   onContinue: () => void;
 }
@@ -13,8 +15,8 @@ interface SwitchTurnProps {
 export function SwitchTurn({
   nextPlayerName,
   nextPlayerIndex,
-  round,
-  totalRounds,
+  progress,
+  categories,
   players,
   onContinue,
 }: SwitchTurnProps) {
@@ -24,8 +26,8 @@ export function SwitchTurn({
       <Scoreboard
         players={players}
         currentPlayer={nextPlayerIndex}
-        round={round}
-        totalRounds={totalRounds}
+        progress={progress}
+        categories={categories}
       />
       <button type="button" className="touch-target" onClick={onContinue}>
         Continuar

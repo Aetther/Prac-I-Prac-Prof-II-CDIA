@@ -1,5 +1,6 @@
 import type { WheelCategory } from "../game/category";
 import type { LobbyInput } from "../game/lobby";
+import { getMatchProgress } from "../game/progress";
 import { getNextTurn } from "../game/reducer";
 import type { CategoryName, GameState } from "../game/types";
 import type { WheelTickHandler } from "../game/wheel";
@@ -52,28 +53,33 @@ export function GameScreen({
     );
   }
 
+  if (game.phase === "Lobby") {
+    return <Lobby onStart={onStart} />;
+  }
+
+  if (game.config === null) return null;
+
+  const progress = getMatchProgress(game.config, game);
+  const wheelCategories = categories ?? [];
+
   switch (game.phase) {
-    case "Lobby":
-      return <Lobby onStart={onStart} />;
     case "Wheel":
       if (categories === null) {
         return <p role="status">Cargando categorías...</p>;
       }
-      if (game.config === null) return null;
       return (
         <Wheel
           categories={categories}
           players={game.players}
           currentPlayer={game.currentPlayer}
-          round={game.round}
-          totalRounds={game.config.rounds}
+          progress={progress}
           onChooseCategory={onChooseCategory}
           onSectorCross={onSectorCross}
         />
       );
     case "QuestionCard": {
       const question = game.currentQuestion;
-      if (game.config === null || question === null) {
+      if (question === null) {
         return <p role="status">Cargando pregunta...</p>;
       }
       const categoryLabel =
@@ -87,8 +93,8 @@ export function GameScreen({
           lang={game.config.lang}
           players={game.players}
           currentPlayer={game.currentPlayer}
-          round={game.round}
-          totalRounds={game.config.rounds}
+          progress={progress}
+          categories={wheelCategories}
           loading={loading}
           seconds={game.config.secondsPerQuestion}
           timerActive={!loading && game.lastAnswer === null}
@@ -99,33 +105,38 @@ export function GameScreen({
       );
     }
     case "SwitchTurn": {
-      if (game.config === null) return null;
       const next = getNextTurn(game);
       const nextPlayer = game.players[next.currentPlayer];
+      const nextProgress =
+        progress.mode === "rounds"
+          ? { ...progress, round: next.round }
+          : progress;
       return (
         <SwitchTurn
           nextPlayerName={nextPlayer.name}
           nextPlayerIndex={next.currentPlayer}
-          round={next.round}
-          totalRounds={game.config.rounds}
+          progress={nextProgress}
+          categories={wheelCategories}
           players={game.players}
           onContinue={onTurnContinue}
         />
       );
     }
     case "GameOver":
-      if (game.result === null || game.config === null) return null;
+      if (game.result === null) return null;
       return (
         <GameOver
           result={game.result}
           players={game.players}
-          totalRounds={game.config.rounds}
+          categories={wheelCategories}
+          ownedCategories={game.ownedCategories}
+          turnsPlayed={game.turnsPlayed}
         />
       );
     case "Result": {
       const question = game.currentQuestion;
       const lastAnswer = game.lastAnswer;
-      if (game.config === null || question === null || lastAnswer === null) {
+      if (question === null || lastAnswer === null) {
         return null;
       }
       return (
@@ -134,8 +145,8 @@ export function GameScreen({
           lastAnswer={lastAnswer}
           players={game.players}
           currentPlayer={game.currentPlayer}
-          round={game.round}
-          totalRounds={game.config.rounds}
+          progress={progress}
+          categories={wheelCategories}
           onContinue={onAnswerContinue}
         />
       );

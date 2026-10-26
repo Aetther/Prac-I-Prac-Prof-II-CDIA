@@ -1,8 +1,11 @@
 import type { GameQuestion } from "../api/types";
+import { applySixCategoriesAnswer } from "./sixCategories";
 import type {
   GameAction,
   GameResult,
   GameState,
+  LastAnswer,
+  LobbyConfig,
   Player,
   PlayerIndex,
 } from "./types";
@@ -20,6 +23,8 @@ export const INITIAL_GAME_STATE: GameState = {
   currentQuestion: null,
   lastAnswer: null,
   result: null,
+  ownedCategories: [[], []],
+  turnsPlayed: [0, 0],
 };
 
 export interface NextTurn {
@@ -28,17 +33,17 @@ export interface NextTurn {
 }
 
 export function getNextTurn(state: GameState): NextTurn {
+  const keepRound =
+    state.config !== null && state.config.mode === "six-categories";
   return state.currentPlayer === 0
     ? { currentPlayer: 1, round: state.round }
-    : { currentPlayer: 0, round: state.round + 1 };
+    : { currentPlayer: 0, round: keepRound ? state.round : state.round + 1 };
 }
 
 export function isMatchComplete(state: GameState): boolean {
-  return (
-    state.config !== null &&
-    state.round === state.config.rounds &&
-    state.currentPlayer === 1
-  );
+  if (state.config === null) return false;
+  if (state.config.mode === "six-categories") return false;
+  return state.round === state.config.rounds && state.currentPlayer === 1;
 }
 
 export function computeGameResult(
@@ -87,8 +92,33 @@ function withQuestionLoaded(
 
 function withAnswerReceived(
   state: GameState,
+  config: LobbyConfig,
+  question: GameQuestion,
   action: Extract<GameAction, { type: "ANSWER_RECEIVED" }>,
 ): GameState {
+  if (config.mode === "six-categories") {
+    const outcome = applySixCategoriesAnswer({
+      ownedCategories: state.ownedCategories,
+      turnsPlayed: state.turnsPlayed,
+      currentPlayer: state.currentPlayer,
+      category: question.category,
+      correct: action.correct,
+    });
+    return {
+      ...state,
+      phase: "Result",
+      ownedCategories: outcome.ownedCategories,
+      turnsPlayed: outcome.turnsPlayed,
+      result: outcome.result,
+      lastAnswer: {
+        chosenAnswer: action.chosenAnswer,
+        correct: action.correct,
+        correctAnswer: action.correctAnswer,
+        timedOut: action.timedOut,
+      },
+    };
+  }
+
   const updatedPlayers: readonly [Player, Player] = [
     state.currentPlayer === 0 && action.correct
       ? { ...state.players[0], score: state.players[0].score + 10 }
@@ -114,10 +144,18 @@ function withAnswerReceived(
   return { ...nextState, result: computeGameResult(updatedPlayers) };
 }
 
-function withAnswerContinued(state: GameState): GameState {
+function withAnswerContinued(
+  state: GameState,
+  lastAnswer: LastAnswer,
+): GameState {
+  const keepsTurn =
+    state.config !== null &&
+    state.config.mode === "six-categories" &&
+    lastAnswer.correct;
   return {
     ...state,
-    phase: state.result !== null ? "GameOver" : "SwitchTurn",
+    phase:
+      state.result !== null ? "GameOver" : keepsTurn ? "Wheel" : "SwitchTurn",
     lastAnswer: null,
     currentQuestion: null,
   };
@@ -159,6 +197,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentQuestion: null,
         lastAnswer: null,
         result: null,
+        ownedCategories: [[], []],
+        turnsPlayed: [0, 0],
       };
     case "CATEGORY_CONFIRMED":
       if (state.phase !== "Wheel") return state;
@@ -175,12 +215,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       ) {
         return state;
       }
-      return withAnswerReceived(state, action);
+      return withAnswerReceived(
+        state,
+        state.config,
+        state.currentQuestion,
+        action,
+      );
     case "CONTINUE_AFTER_ANSWER":
       if (state.phase !== "Result" || state.lastAnswer === null) {
         return state;
       }
-      return withAnswerContinued(state);
+      return withAnswerContinued(state, state.lastAnswer);
     case "ADVANCE_TURN":
       if (state.phase !== "SwitchTurn") return state;
       return advanceTurn(state);

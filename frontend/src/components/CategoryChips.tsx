@@ -1,0 +1,44 @@
+import { findCategoryLabel } from "../game/category";
+import type { WheelCategory } from "../game/category";
+import type { CategoryName } from "../game/types";
+
+// The map is static data, so exporting it next to the component is safe.
+// eslint-disable-next-line react-refresh/only-export-components
+export const CATEGORY_COLOR_TOKENS: Readonly<Record<CategoryName, string>> = {
+  geografia: "var(--color-category-geografia)",
+  historia: "var(--color-category-historia)",
+  ciencia: "var(--color-category-ciencia)",
+  arte: "var(--color-category-arte)",
+  entretenimiento: "var(--color-category-entretenimiento)",
+  deportes: "var(--color-category-deportes)",
+};
+
+interface CategoryChipsProps {
+  playerName: string;
+  categories: readonly WheelCategory[];
+  owned: readonly CategoryName[];
+}
+
+export function CategoryChips({
+  playerName,
+  categories,
+  owned,
+}: CategoryChipsProps) {
+  if (owned.length === 0) {
+    return <p>Sin categorías</p>;
+  }
+  return (
+    <ul className="category-chips" aria-label={`Categorías de ${playerName}`}>
+      {owned.map((name) => (
+        <li
+          key={name}
+          className="category-chip"
+          data-category={name}
+          style={{ backgroundColor: CATEGORY_COLOR_TOKENS[name] }}
+        >
+          {findCategoryLabel(categories, name)}
+        </li>
+      ))}
+    </ul>
+  );
+}

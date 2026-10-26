@@ -47,3 +47,14 @@ export function pickCategoryExcluding(
   if (remaining.length === 0) return null;
   return remaining[clampIndex(random(), remaining.length)];
 }
+
+export function isCategoryName(value: string): value is CategoryName {
+  return (CATEGORY_NAMES as readonly string[]).includes(value);
+}
+
+export function findCategoryLabel(
+  categories: readonly WheelCategory[],
+  name: CategoryName,
+): string {
+  return categories.find((category) => category.name === name)?.label ?? name;
+}

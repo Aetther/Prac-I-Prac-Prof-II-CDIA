@@ -626,18 +626,29 @@ Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celul
 
 ### Cómo se juega
 
-1. **Lobby**: los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y la cantidad de rondas (3, 5 o 10; 5 por defecto).
+1. **Lobby**: los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y el **modo de juego**: por rondas (3, 5 o 10; 5 por defecto) o juntar las 6 categorías.
 2. **Ruleta**: el jugador de turno toca **Girar**. La ruleta, con las 6 categorías, da entre 4 y 6 vueltas y va frenando hasta detenerse; se muestra **"Salió: ..."** y, con **Continuar**, aparece la pregunta de esa categoría.
 3. **Pregunta**: aparece la pregunta con su categoría, sus 4 opciones y el **temporizador** (10, 20 o 30 segundos, según el lobby). En los últimos 5 segundos la barra se pone roja y aparece "Últimos 5 segundos". Si el tiempo se acaba, cuenta como respuesta incorrecta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
 4. **Resultado**: "Correcta", "Incorrecta" (con la opción elegida) o "Se acabó el tiempo", junto con la respuesta correcta, el marcador y el botón **Continuar**. El botón **Reportar** ya aparece, pero se habilita en una etapa posterior.
 5. **Cambio de turno**: una pantalla intermedia ("Pasale el dispositivo a ...") para que el otro jugador no vea la respuesta anterior.
-6. **Fin de la partida**: después de que cada jugador respondió una pregunta por ronda, se muestra el ganador o el empate, con los puntajes. Cada acierto suma 10 puntos.
+6. **Fin de la partida**: se muestra el ganador o el empate (ver los dos modos más abajo).
+
+#### Modo por rondas
+
+Cada jugador responde una pregunta por ronda, alternando turnos. Cada acierto suma 10 puntos; al terminar las rondas gana quien tiene más puntos, y si empatan, es empate.
+
+#### Modo "juntar las 6 categorías"
+
+- **Al acertar, el jugador sigue**: vuelve a girar la ruleta sin pasar el dispositivo. Al fallar o si se acaba el tiempo, el turno pasa al otro.
+- **Acertar una pregunta de una categoría nueva** la suma a su colección; el marcador muestra las categorías de cada jugador como fichas en sus colores. Una categoría que ya tiene se puede volver a jugar: si acierta, sigue, pero no suma nada.
+- **Gana el primero que junta las 6.**
+- **Límite de 20 turnos por jugador.** Un turno es una racha: termina cuando el jugador falla o se le acaba el tiempo, y los aciertos dentro de la racha no suman turnos. Si los dos completan sus 20 turnos sin que nadie junte las 6, gana quien tiene más categorías, y si empatan, es empate. Como siempre empieza el primer jugador, el segundo juega su turno 20 aunque el primero ya haya terminado el suyo, así que los dos tienen las mismas oportunidades.
 
 En una partida no se repiten preguntas. Si no quedan preguntas de la categoría que salió, se usa otra categoría al azar, y la pantalla de la pregunta muestra la que realmente se usó; si ya no quedan en ninguna de las 6, aparece un aviso y **Reintentar** vuelve a la ruleta. Si la API no responde, aparece "¿Está corriendo la API?" con los botones **Reintentar** y **Volver al lobby**.
 
 ### Estado actual
 
-El frontend se construye en 10 etapas. Están terminadas las cuatro primeras:
+El frontend se construye en 10 etapas. Están terminadas las cinco primeras:
 
 | Etapa | Estado |
 |---|---|
@@ -645,7 +656,7 @@ El frontend se construye en 10 etapas. Están terminadas las cuatro primeras:
 | Lobby, pantalla de pregunta y modo por rondas | ✅ |
 | Ruleta de categorías (Canvas) | ✅ |
 | Temporizador y pantalla de resultado | ✅ |
-| Modo "juntar las 6 categorías" | Pendiente |
+| Modo "juntar las 6 categorías" | ✅ |
 | Reportar una pregunta | Pendiente |
 | Vista de administración (`/admin`): reportes y edición de preguntas | Pendiente (dos etapas) |
 | Estilos finales y prueba en celular | Pendiente |
@@ -654,7 +665,7 @@ El frontend se construye en 10 etapas. Están terminadas las cuatro primeras:
 ### Cómo está armado
 
 - **`src/api/`**: el **único** lugar que llama a la API. Valida a mano cada respuesta (que la pregunta tenga 4 opciones, que el idioma sea `es` o `en`, etc.) y convierte cualquier falla en un error con un tipo fijo: red, tiempo agotado (10 segundos), HTTP o validación. Una regla de ESLint impide usar `fetch` fuera de esta carpeta.
-- **`src/game/`**: las reglas del juego en TypeScript puro, sin interfaz: turnos, puntos, rondas, fin de partida, la ruleta (cuánto gira, cuánto tarda y en qué categoría frena) y el temporizador. Así se prueban sin navegador.
+- **`src/game/`**: las reglas del juego en TypeScript puro, sin interfaz: turnos, puntos, rondas, las reglas del modo de 6 categorías (quién sigue, las categorías de cada uno, el límite de turnos y quién gana), fin de partida, la ruleta (cuánto gira, cuánto tarda y en qué categoría frena) y el temporizador. Así se prueban sin navegador.
 - **`src/components/`**: las pantallas. Muestran el estado y avisan qué hizo el jugador; nunca llaman a la API directamente.
 - **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que va a usar el sonido. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
 - **El temporizador** guarda la hora en que se termina el tiempo y la compara con el reloj, en vez de contar segundos: así no se atrasa ni se congela si el navegador pone la pestaña en segundo plano (algo común en el celular). Cuando el tiempo se acaba, igual se le pregunta a la API (`POST /game/answer` con la respuesta "(sin respuesta)"), solo para mostrar la respuesta correcta: el turno cuenta siempre como incorrecto. Si el jugador elige una opción justo cuando se acaba el tiempo, se manda una sola respuesta, la que llegó primero.
@@ -1140,7 +1151,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **323 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas del juego, la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **422 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
 - **Cobertura exigida: 100% de líneas y de ramas** en `src/game` y `src/api`.
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
@@ -1262,7 +1273,7 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
-- El frontend todavía no tiene el modo "juntar las 6 categorías", los reportes, la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
+- El frontend todavía no tiene los reportes, la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 

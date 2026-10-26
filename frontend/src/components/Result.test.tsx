@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { GameQuestion } from "../api/types";
+import type { MatchProgress } from "../game/progress";
 import type { LastAnswer, Player, PlayerIndex } from "../game/types";
+import { SIX_WHEEL_CATEGORIES } from "../test/wheelFixtures";
 import { Result } from "./Result";
 
 const question: GameQuestion = {
@@ -27,12 +29,20 @@ const correctAnswer: LastAnswer = {
 interface Props {
   lastAnswer?: LastAnswer;
   currentPlayer?: PlayerIndex;
+  progress?: MatchProgress;
   onContinue?: () => void;
 }
+
+const roundsProgress: MatchProgress = {
+  mode: "rounds",
+  round: 1,
+  totalRounds: 3,
+};
 
 function renderResult({
   lastAnswer = correctAnswer,
   currentPlayer = 0,
+  progress = roundsProgress,
   onContinue = vi.fn(),
 }: Props = {}) {
   const view = render(
@@ -41,8 +51,8 @@ function renderResult({
       lastAnswer={lastAnswer}
       players={players}
       currentPlayer={currentPlayer}
-      round={1}
-      totalRounds={3}
+      progress={progress}
+      categories={SIX_WHEEL_CATEGORIES}
       onContinue={onContinue}
     />,
   );
@@ -200,5 +210,26 @@ describe("Result", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "La respuesta correcta era: Lima",
     );
+  });
+
+  it("RES-09 a six-mode Result shows the chips and no points", () => {
+    const { container } = renderResult({
+      progress: {
+        mode: "six-categories",
+        ownedCategories: [["geografia"], []],
+        turnsPlayed: [0, 0],
+      },
+    });
+
+    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
+    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Geografía")).toBeVisible();
+    expect(screen.getByText("Geografía").style.backgroundColor).toBe(
+      "var(--color-category-geografia)",
+    );
+    expect(container.textContent).not.toMatch(/puntos/i);
+    expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeDisabled();
   });
 });

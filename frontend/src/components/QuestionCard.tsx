@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import type { GameQuestion } from "../api/types";
+import type { WheelCategory } from "../game/category";
+import type { MatchProgress } from "../game/progress";
 import { isUntranslated } from "../game/question";
 import type { Lang, Player, PlayerIndex } from "../game/types";
 import { Scoreboard } from "./Scoreboard";
@@ -10,8 +12,8 @@ interface QuestionCardProps {
   lang: Lang;
   players: readonly [Player, Player];
   currentPlayer: PlayerIndex;
-  round: number;
-  totalRounds: number;
+  progress: MatchProgress;
+  categories: readonly WheelCategory[];
   loading: boolean;
   seconds: number;
   timerActive: boolean;
@@ -25,8 +27,8 @@ export function QuestionCard({
   lang,
   players,
   currentPlayer,
-  round,
-  totalRounds,
+  progress,
+  categories,
   loading,
   seconds,
   timerActive,
@@ -61,8 +63,8 @@ export function QuestionCard({
       <Scoreboard
         players={players}
         currentPlayer={currentPlayer}
-        round={round}
-        totalRounds={totalRounds}
+        progress={progress}
+        categories={categories}
       />
       {categoryLabel !== null ? <p>{`Categoría: ${categoryLabel}`}</p> : null}
       {isUntranslated(lang, question.lang) ? (

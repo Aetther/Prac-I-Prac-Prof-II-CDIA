@@ -5,12 +5,14 @@ import {
   createLobbyConfig,
   isValidPlayerName,
 } from "./lobby";
+import type { LobbyInput } from "./lobby";
 
 describe("lobby rules", () => {
-  it("returns the exact default lobby settings", () => {
+  it("returns the exact default lobby settings with the rounds mode", () => {
     expect(DEFAULT_LOBBY_SETTINGS).toEqual({
       lang: "es",
       secondsPerQuestion: 20,
+      mode: "rounds",
       rounds: 5,
     });
   });
@@ -28,6 +30,7 @@ describe("lobby rules", () => {
         playerNames: [" Ana ", "Beto"],
         lang: "en",
         secondsPerQuestion: 30,
+        mode: "rounds",
         rounds: 3,
       }),
     ).toEqual({
@@ -39,12 +42,66 @@ describe("lobby rules", () => {
     });
   });
 
+  it("builds the six-categories config without a rounds property", () => {
+    const result = createLobbyConfig({
+      playerNames: ["Ana", "Beto"],
+      lang: "en",
+      secondsPerQuestion: 30,
+      mode: "six-categories",
+    });
+
+    expect(result).toStrictEqual({
+      playerNames: ["Ana", "Beto"],
+      lang: "en",
+      secondsPerQuestion: 30,
+      mode: "six-categories",
+    });
+    expect(result).not.toHaveProperty("rounds");
+    expect(result !== null && "rounds" in result).toBe(false);
+  });
+
+  it("returns null for a blank name in both modes", () => {
+    const inputs: LobbyInput[] = [
+      {
+        playerNames: ["", "Beto"],
+        lang: "es",
+        secondsPerQuestion: 20,
+        mode: "rounds",
+        rounds: 5,
+      },
+      {
+        playerNames: ["Ana", "   "],
+        lang: "es",
+        secondsPerQuestion: 20,
+        mode: "rounds",
+        rounds: 5,
+      },
+      {
+        playerNames: ["", "Beto"],
+        lang: "es",
+        secondsPerQuestion: 20,
+        mode: "six-categories",
+      },
+      {
+        playerNames: ["Ana", "   "],
+        lang: "es",
+        secondsPerQuestion: 20,
+        mode: "six-categories",
+      },
+    ];
+
+    for (const input of inputs) {
+      expect(createLobbyConfig(input)).toBeNull();
+    }
+  });
+
   it("returns null when the first name is blank", () => {
     expect(
       createLobbyConfig({
         playerNames: ["", "Beto"],
         lang: "es",
         secondsPerQuestion: 20,
+        mode: "rounds",
         rounds: 5,
       }),
     ).toBeNull();
@@ -53,6 +110,7 @@ describe("lobby rules", () => {
         playerNames: ["   ", "Beto"],
         lang: "es",
         secondsPerQuestion: 20,
+        mode: "rounds",
         rounds: 5,
       }),
     ).toBeNull();
@@ -64,6 +122,7 @@ describe("lobby rules", () => {
         playerNames: ["Ana", "   "],
         lang: "es",
         secondsPerQuestion: 20,
+        mode: "rounds",
         rounds: 5,
       }),
     ).toBeNull();
@@ -75,6 +134,7 @@ describe("lobby rules", () => {
         playerNames: ["Ana", "Ana"],
         lang: "es",
         secondsPerQuestion: 20,
+        mode: "rounds",
         rounds: 5,
       })?.playerNames,
     ).toEqual(["Ana", "Ana"]);
@@ -98,6 +158,7 @@ describe("lobby rules", () => {
           playerNames: ["Ana", "Beto"],
           lang: "es",
           secondsPerQuestion,
+          mode: "rounds",
           rounds,
         }),
       ).toMatchObject({ rounds, secondsPerQuestion });

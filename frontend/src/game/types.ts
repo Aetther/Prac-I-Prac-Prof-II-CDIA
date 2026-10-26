@@ -6,7 +6,7 @@ export type GamePhase =
 export type Lang = "es" | "en";
 export type SecondsPerQuestion = 10 | 20 | 30;
 export type RoundsCount = 3 | 5 | 10;
-export type GameMode = "rounds";
+export type GameMode = "rounds" | "six-categories";
 export type PlayerIndex = 0 | 1;
 export type CategoryName =
   | "geografia"
@@ -16,13 +16,29 @@ export type CategoryName =
   | "entretenimiento"
   | "deportes";
 
-export interface LobbyConfig {
+interface LobbyConfigBase {
   readonly playerNames: readonly [string, string];
   readonly lang: Lang;
   readonly secondsPerQuestion: SecondsPerQuestion;
-  readonly mode: GameMode;
+}
+
+export interface RoundsLobbyConfig extends LobbyConfigBase {
+  readonly mode: "rounds";
   readonly rounds: RoundsCount;
 }
+
+export interface SixCategoriesLobbyConfig extends LobbyConfigBase {
+  readonly mode: "six-categories";
+}
+
+export type LobbyConfig = RoundsLobbyConfig | SixCategoriesLobbyConfig;
+
+export type CategoryOwners = readonly [
+  readonly CategoryName[],
+  readonly CategoryName[],
+];
+
+export type TurnsPlayed = readonly [number, number];
 
 export interface Player {
   readonly name: string;
@@ -36,7 +52,7 @@ export interface LastAnswer {
   readonly timedOut: boolean;
 }
 
-export type GameResult =
+export type RoundsGameResult =
   | {
       readonly kind: "winner";
       readonly winnerIndex: PlayerIndex;
@@ -46,6 +62,23 @@ export type GameResult =
       readonly kind: "tie";
       readonly scores: readonly [number, number];
     };
+
+export type SixCategoriesGameResult =
+  | {
+      readonly mode: "six-categories";
+      readonly kind: "winner";
+      readonly winnerIndex: PlayerIndex;
+      readonly categories: readonly [number, number];
+      readonly reason: "six-categories" | "turn-limit";
+    }
+  | {
+      readonly mode: "six-categories";
+      readonly kind: "tie";
+      readonly categories: readonly [number, number];
+      readonly reason: "turn-limit";
+    };
+
+export type GameResult = RoundsGameResult | SixCategoriesGameResult;
 
 export interface GameState {
   readonly phase: GamePhase;
@@ -57,6 +90,8 @@ export interface GameState {
   readonly currentQuestion: GameQuestion | null;
   readonly lastAnswer: LastAnswer | null;
   readonly result: GameResult | null;
+  readonly ownedCategories: CategoryOwners;
+  readonly turnsPlayed: TurnsPlayed;
 }
 
 export type GameAction =

@@ -33,9 +33,15 @@ async function fillNames(user: User): Promise<void> {
   await user.type(screen.getByLabelText("Jugador 2"), "Beto");
 }
 
-async function startToWheel(user: User): Promise<void> {
+async function startToWheel(
+  user: User,
+  mode: "rounds" | "six-categories" = "rounds",
+): Promise<void> {
   render(<App />);
   await fillNames(user);
+  if (mode === "six-categories") {
+    await user.selectOptions(screen.getByLabelText("Modo de juego"), mode);
+  }
   await user.click(screen.getByRole("button", { name: "Comenzar" }));
   await screen.findByRole("button", { name: "Girar" });
 }
@@ -409,5 +415,125 @@ describe("App integration through the real API client", () => {
       '{"question_id":42,"answer":"(sin respuesta)"}',
     );
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+  });
+
+  it("INTT-04 six mode requests the spun category and posts the clicked answer", async () => {
+    const user = userEvent.setup();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(SIX_CATEGORIES))
+      .mockResolvedValueOnce(jsonResponse(question))
+      .mockResolvedValueOnce(
+        jsonResponse({ correct: true, correct_answer: "Lima" }),
+      );
+
+    await startToWheel(user, "six-categories");
+
+    expect(requestUrls()[0]).toBe("http://localhost:8000/categories");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await spinAndConfirm(user);
+
+    await screen.findByText("¿Capital de Francia?");
+    expect(requestUrls()[1]).toBe(
+      "http://localhost:8000/game/question?category=geografia&lang=es",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Lima" }));
+    await screen.findByRole("heading", { name: "Resultado" });
+
+    expect(requestUrls()[2]).toBe("http://localhost:8000/game/answer?lang=es");
+    const init = fetchMock.mock.calls[2][1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe('{"question_id":42,"answer":"Lima"}');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(screen.getByText("Correcta")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(
+      screen.getByRole("heading", { name: "Girá la ruleta" }),
+    ).toBeVisible();
+  });
+
+  it("INTT-05 the six-mode timeout posts the sentinel", async () => {
+    fakeClock();
+    const user = timerUser();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(SIX_CATEGORIES))
+      .mockResolvedValueOnce(jsonResponse(question))
+      .mockResolvedValueOnce(
+        jsonResponse({ correct: false, correct_answer: "Buenos Aires" }),
+      );
+
+    await startToWheel(user, "six-categories");
+    await spinAndConfirm(user);
+    await screen.findByText("¿Capital de Francia?");
+
+    advance(20_000);
+
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const init = fetchMock.mock.calls[2][1] as RequestInit;
+    expect(init.body).toBe('{"question_id":42,"answer":"(sin respuesta)"}');
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+    expect(document.querySelectorAll(".category-chip")).toHaveLength(0);
+  });
+
+  it("INTT-06 the six-mode 404 fallback goes to historia", async () => {
+    const user = userEvent.setup();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(SIX_CATEGORIES))
+      .mockResolvedValueOnce(jsonResponse({ detail: "sin preguntas" }, 404))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 43,
+          question: "Pregunta de historia",
+          category: "historia",
+          options: ["A", "B", "C", "D"],
+          lang: "es",
+        }),
+      );
+
+    await startToWheel(user, "six-categories");
+    await spinAndConfirm(user);
+
+    await screen.findByText("Pregunta de historia");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(requestUrls()[1]).toBe(
+      "http://localhost:8000/game/question?category=geografia&lang=es",
+    );
+    expect(requestUrls()[2]).toBe(
+      "http://localhost:8000/game/question?category=historia&lang=es",
+    );
+    expect(screen.getByText("Categoría: Historia")).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("INTT-07 Continuar after a six-mode correct answer makes no fetch", async () => {
+    const user = userEvent.setup();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(SIX_CATEGORIES))
+      .mockResolvedValueOnce(jsonResponse(question))
+      .mockResolvedValueOnce(
+        jsonResponse({ correct: true, correct_answer: "Lima" }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ...question, id: 43 }));
+
+    await startToWheel(user, "six-categories");
+    await spinAndConfirm(user);
+    await screen.findByText("¿Capital de Francia?");
+    await user.click(screen.getByRole("button", { name: "Lima" }));
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    await screen.findByRole("button", { name: "Girar" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await spinAndConfirm(user);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(requestUrls()[3]).toBe(
+      "http://localhost:8000/game/question?category=geografia&lang=es",
+    );
   });
 });

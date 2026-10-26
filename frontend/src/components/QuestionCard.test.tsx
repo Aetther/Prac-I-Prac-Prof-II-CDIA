@@ -8,7 +8,9 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GameQuestion } from "../api/types";
+import type { MatchProgress } from "../game/progress";
 import type { Player, PlayerIndex } from "../game/types";
+import { SIX_WHEEL_CATEGORIES } from "../test/wheelFixtures";
 import { QuestionCard } from "./QuestionCard";
 
 const question: GameQuestion = {
@@ -24,10 +26,17 @@ const players: readonly [Player, Player] = [
   { name: "Beto", score: 0 },
 ];
 
+const roundsProgress = {
+  mode: "rounds",
+  round: 1,
+  totalRounds: 3,
+} as const;
+
 interface Props {
   question?: GameQuestion;
   lang?: "es" | "en";
   currentPlayer?: PlayerIndex;
+  progress?: MatchProgress;
   loading?: boolean;
   seconds?: number;
   timerActive?: boolean;
@@ -40,6 +49,7 @@ function renderCard({
   question: cardQuestion = question,
   lang = "es",
   currentPlayer = 0,
+  progress = roundsProgress,
   loading = false,
   seconds = 20,
   timerActive = false,
@@ -53,8 +63,8 @@ function renderCard({
       lang={lang}
       players={players}
       currentPlayer={currentPlayer}
-      round={1}
-      totalRounds={3}
+      progress={progress}
+      categories={SIX_WHEEL_CATEGORIES}
       loading={loading}
       seconds={seconds}
       timerActive={timerActive}
@@ -87,8 +97,8 @@ describe("QuestionCard", () => {
         lang="es"
         players={players}
         currentPlayer={0}
-        round={1}
-        totalRounds={3}
+        progress={roundsProgress}
+        categories={SIX_WHEEL_CATEGORIES}
         loading={false}
         seconds={20}
         timerActive={false}
@@ -135,8 +145,8 @@ describe("QuestionCard", () => {
         lang="es"
         players={players}
         currentPlayer={0}
-        round={1}
-        totalRounds={3}
+        progress={roundsProgress}
+        categories={SIX_WHEEL_CATEGORIES}
         loading
         seconds={20}
         timerActive={false}
@@ -266,8 +276,8 @@ describe("QuestionCard", () => {
         lang="es"
         players={players}
         currentPlayer={0}
-        round={1}
-        totalRounds={3}
+        progress={roundsProgress}
+        categories={SIX_WHEEL_CATEGORIES}
         loading={false}
         seconds={20}
         timerActive={false}
@@ -309,5 +319,23 @@ describe("QuestionCard", () => {
     expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull();
     expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
     expect(screen.getAllByRole("button")).toHaveLength(4);
+  });
+
+  it("QC-07 a six-mode QuestionCard shows the six scoreboard and no round", () => {
+    const { container } = renderCard({
+      progress: {
+        mode: "six-categories",
+        ownedCategories: [["geografia"], []],
+        turnsPlayed: [2, 0],
+      },
+    });
+
+    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
+    expect(screen.getByText("Turnos: 2 de 20")).toBeVisible();
+    expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
+    expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
+    expect(screen.getAllByRole("button")).toHaveLength(4);
+    expect(screen.getByText("Elegí una opción")).toBeVisible();
   });
 });

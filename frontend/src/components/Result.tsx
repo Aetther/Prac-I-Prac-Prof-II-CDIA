@@ -1,5 +1,7 @@
 import { useId, useRef } from "react";
 import type { GameQuestion } from "../api/types";
+import type { WheelCategory } from "../game/category";
+import type { MatchProgress } from "../game/progress";
 import type { LastAnswer, Player, PlayerIndex } from "../game/types";
 import { Scoreboard } from "./Scoreboard";
 
@@ -8,8 +10,8 @@ interface ResultProps {
   lastAnswer: LastAnswer;
   players: readonly [Player, Player];
   currentPlayer: PlayerIndex;
-  round: number;
-  totalRounds: number;
+  progress: MatchProgress;
+  categories: readonly WheelCategory[];
   onContinue: () => void;
 }
 
@@ -23,8 +25,8 @@ export function Result({
   lastAnswer,
   players,
   currentPlayer,
-  round,
-  totalRounds,
+  progress,
+  categories,
   onContinue,
 }: ResultProps) {
   const descriptionId = useId();
@@ -45,8 +47,8 @@ export function Result({
       <Scoreboard
         players={players}
         currentPlayer={currentPlayer}
-        round={round}
-        totalRounds={totalRounds}
+        progress={progress}
+        categories={categories}
       />
       <h2>Resultado</h2>
       <p>{question.question}</p>

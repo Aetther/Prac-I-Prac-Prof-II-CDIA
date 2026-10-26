@@ -2,12 +2,14 @@
 import { describe, expect, it } from "vitest";
 import type { GameQuestion } from "../api/types";
 import type {
+  CategoryName,
   GameAction,
   GameState,
   LobbyConfig,
   Player,
   PlayerIndex,
   RoundsCount,
+  SixCategoriesLobbyConfig,
 } from "./types";
 import {
   INITIAL_GAME_STATE,
@@ -90,6 +92,67 @@ const clickedCorrect: GameAction = {
   timedOut: false,
 };
 
+const sixConfig: SixCategoriesLobbyConfig = {
+  playerNames: ["Ana", "Beto"],
+  lang: "es",
+  secondsPerQuestion: 20,
+  mode: "six-categories",
+};
+
+function sixQuestion(category: CategoryName = "geografia"): GameQuestion {
+  return {
+    id: 42,
+    question: "¿Capital de Francia?",
+    category,
+    options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
+    lang: "es",
+  };
+}
+
+function sixState(overrides: Partial<GameState> = {}): GameState {
+  return stateWith({
+    phase: "QuestionCard",
+    config: sixConfig,
+    players: players(0, 0),
+    round: 1,
+    currentPlayer: 0,
+    usedQuestionIds: [42],
+    currentQuestion: sixQuestion(),
+    ownedCategories: [[], []],
+    turnsPlayed: [0, 0],
+    ...overrides,
+  });
+}
+
+const wrongAnswer: GameAction = {
+  type: "ANSWER_RECEIVED",
+  chosenAnswer: "Lima",
+  correct: false,
+  correctAnswer: "Buenos Aires",
+  timedOut: false,
+};
+
+const timeoutAnswer: GameAction = {
+  type: "ANSWER_RECEIVED",
+  chosenAnswer: null,
+  correct: false,
+  correctAnswer: "Buenos Aires",
+  timedOut: true,
+};
+
+function sixResultState(overrides: Partial<GameState> = {}): GameState {
+  return sixState({
+    phase: "Result",
+    lastAnswer: {
+      chosenAnswer: "Lima",
+      correct: true,
+      correctAnswer: "Lima",
+      timedOut: false,
+    },
+    ...overrides,
+  });
+}
+
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object") {
     Object.freeze(value);
@@ -115,6 +178,8 @@ describe("game reducer", () => {
       currentQuestion: null,
       lastAnswer: null,
       result: null,
+      ownedCategories: [[], []],
+      turnsPlayed: [0, 0],
     });
   });
 
@@ -132,6 +197,8 @@ describe("game reducer", () => {
       currentQuestion: null,
       lastAnswer: null,
       result: null,
+      ownedCategories: [[], []],
+      turnsPlayed: [0, 0],
     });
   });
 
@@ -798,5 +865,448 @@ describe("game reducer", () => {
     gameReducer(frozen, { type: "START_GAME", config });
 
     expect(JSON.stringify(frozen)).toBe(snapshot);
+  });
+
+  it("RED-39 a correct six-mode answer does not increment turnsPlayed and continues to the Wheel for the same player", () => {
+    const answered = sixResultState({
+      turnsPlayed: [3, 2],
+      ownedCategories: [["geografia"], ["historia"]],
+    });
+
+    const next = gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" });
+
+    expect(next.phase).toBe("Wheel");
+    expect(next.currentPlayer).toBe(0);
+    expect(next.round).toBe(1);
+    expect(next.lastAnswer).toBeNull();
+    expect(next.currentQuestion).toBeNull();
+    expect(next.turnsPlayed).toStrictEqual([3, 2]);
+    expect(next.ownedCategories).toStrictEqual([["geografia"], ["historia"]]);
+  });
+
+  it("RED-40 a wrong six-mode answer increments exactly once and continues to SwitchTurn", () => {
+    const next = gameReducer(sixState(), wrongAnswer);
+
+    expect(next.phase).toBe("Result");
+    expect(next.turnsPlayed).toStrictEqual([1, 0]);
+    expect(next.ownedCategories).toStrictEqual([[], []]);
+    expect(next.players).toEqual([
+      { name: "Ana", score: 0 },
+      { name: "Beto", score: 0 },
+    ]);
+    expect(next.lastAnswer).toStrictEqual({
+      chosenAnswer: "Lima",
+      correct: false,
+      correctAnswer: "Buenos Aires",
+      timedOut: false,
+    });
+
+    const continued = gameReducer(next, { type: "CONTINUE_AFTER_ANSWER" });
+    expect(continued.phase).toBe("SwitchTurn");
+
+    const advanced = gameReducer(continued, { type: "ADVANCE_TURN" });
+    expect(advanced.phase).toBe("Wheel");
+    expect(advanced.currentPlayer).toBe(1);
+    expect(advanced.round).toBe(1);
+    expect(advanced.turnsPlayed).toStrictEqual([1, 0]);
+  });
+
+  it("RED-41 a six-mode timeout stores a null chosen answer, adds no category and increments the turn once", () => {
+    const next = gameReducer(
+      sixState({ turnsPlayed: [1, 0], currentPlayer: 0 }),
+      timeoutAnswer,
+    );
+
+    expect(next.phase).toBe("Result");
+    expect(next.lastAnswer).toStrictEqual({
+      chosenAnswer: null,
+      correct: false,
+      correctAnswer: "Buenos Aires",
+      timedOut: true,
+    });
+    expect(next.ownedCategories).toStrictEqual([[], []]);
+    expect(next.turnsPlayed).toStrictEqual([2, 0]);
+    expect(next.players).toEqual([
+      { name: "Ana", score: 0 },
+      { name: "Beto", score: 0 },
+    ]);
+    expect(gameReducer(next, { type: "CONTINUE_AFTER_ANSWER" }).phase).toBe(
+      "SwitchTurn",
+    );
+  });
+
+  it("RED-42 ANSWER_RECEIVED in six mode adds the served category, keeps the score at 0 and does not count a turn", () => {
+    const next = gameReducer(
+      sixState({
+        currentQuestion: sixQuestion("geografia"),
+        ownedCategories: [[], []],
+        turnsPlayed: [0, 0],
+      }),
+      clickedCorrect,
+    );
+
+    expect(next.ownedCategories).toStrictEqual([["geografia"], []]);
+    expect(next.turnsPlayed).toStrictEqual([0, 0]);
+    expect(next.players).toEqual([
+      { name: "Ana", score: 0 },
+      { name: "Beto", score: 0 },
+    ]);
+    expect(next.phase).toBe("Result");
+    expect(next.lastAnswer).toStrictEqual({
+      chosenAnswer: "Lima",
+      correct: true,
+      correctAnswer: "Lima",
+      timedOut: false,
+    });
+  });
+
+  it("RED-43 ANSWER_RECEIVED in six mode on an owned category adds no second entry and does not count a turn", () => {
+    const next = gameReducer(
+      sixState({
+        ownedCategories: [["geografia"], []],
+        turnsPlayed: [3, 2],
+      }),
+      clickedCorrect,
+    );
+
+    expect(next.ownedCategories).toStrictEqual([["geografia"], []]);
+    expect(next.turnsPlayed).toStrictEqual([3, 2]);
+  });
+
+  it("RED-44 the sixth category sets a six-categories result and takes precedence", () => {
+    const five: readonly CategoryName[] = [
+      "geografia",
+      "historia",
+      "ciencia",
+      "arte",
+      "entretenimiento",
+    ];
+    const playerOneWins = gameReducer(
+      sixState({
+        currentPlayer: 0,
+        currentQuestion: sixQuestion("deportes"),
+        ownedCategories: [five, ["historia", "arte"]],
+        turnsPlayed: [19, 19],
+      }),
+      clickedCorrect,
+    );
+
+    expect(playerOneWins.phase).toBe("Result");
+    expect(playerOneWins.turnsPlayed).toStrictEqual([19, 19]);
+    expect(playerOneWins.result).toStrictEqual({
+      mode: "six-categories",
+      kind: "winner",
+      winnerIndex: 0,
+      categories: [6, 2],
+      reason: "six-categories",
+    });
+    expect(
+      gameReducer(playerOneWins, { type: "CONTINUE_AFTER_ANSWER" }).phase,
+    ).toBe("GameOver");
+
+    const playerTwoWins = gameReducer(
+      sixState({
+        currentPlayer: 1,
+        currentQuestion: sixQuestion("deportes"),
+        ownedCategories: [["historia", "arte"], five],
+        turnsPlayed: [20, 19],
+      }),
+      clickedCorrect,
+    );
+
+    expect(playerTwoWins.phase).toBe("Result");
+    expect(playerTwoWins.turnsPlayed).toStrictEqual([20, 19]);
+    expect(playerTwoWins.result).toStrictEqual({
+      mode: "six-categories",
+      kind: "winner",
+      winnerIndex: 1,
+      categories: [2, 6],
+      reason: "six-categories",
+    });
+    expect(
+      gameReducer(playerTwoWins, { type: "CONTINUE_AFTER_ANSWER" }).phase,
+    ).toBe("GameOver");
+  });
+
+  it("RED-45 player 1 at 20 continues and player 2 at 20 ends", () => {
+    const playerOneEnds = gameReducer(
+      sixState({
+        currentPlayer: 0,
+        turnsPlayed: [19, 19],
+        ownedCategories: [
+          ["geografia", "historia", "ciencia", "arte"],
+          ["deportes", "entretenimiento"],
+        ],
+        currentQuestion: sixQuestion("deportes"),
+      }),
+      wrongAnswer,
+    );
+
+    expect(playerOneEnds.turnsPlayed).toStrictEqual([20, 19]);
+    expect(playerOneEnds.result).toBeNull();
+    expect(playerOneEnds.phase).toBe("Result");
+
+    const continued = gameReducer(playerOneEnds, {
+      type: "CONTINUE_AFTER_ANSWER",
+    });
+    expect(continued.phase).toBe("SwitchTurn");
+
+    const advanced = gameReducer(continued, { type: "ADVANCE_TURN" });
+    expect(advanced.phase).toBe("Wheel");
+    expect(advanced.currentPlayer).toBe(1);
+    expect(advanced.round).toBe(1);
+    expect(advanced.turnsPlayed).toStrictEqual([20, 19]);
+
+    const playerTwoEnds = gameReducer(
+      sixState({
+        currentPlayer: 1,
+        turnsPlayed: [20, 19],
+        ownedCategories: [
+          ["geografia", "historia", "ciencia", "arte"],
+          ["deportes", "entretenimiento"],
+        ],
+        currentQuestion: sixQuestion("deportes"),
+      }),
+      wrongAnswer,
+    );
+
+    expect(playerTwoEnds.turnsPlayed).toStrictEqual([20, 20]);
+    expect(playerTwoEnds.result).toStrictEqual({
+      mode: "six-categories",
+      kind: "winner",
+      winnerIndex: 0,
+      categories: [4, 2],
+      reason: "turn-limit",
+    });
+    expect(
+      gameReducer(playerTwoEnds, { type: "CONTINUE_AFTER_ANSWER" }).phase,
+    ).toBe("GameOver");
+  });
+
+  it("RED-46 a correct answer during player 2's twentieth turn sets no result and keeps the turn", () => {
+    const five: readonly CategoryName[] = [
+      "geografia",
+      "historia",
+      "ciencia",
+      "arte",
+      "entretenimiento",
+    ];
+    const next = gameReducer(
+      sixState({
+        currentPlayer: 1,
+        turnsPlayed: [20, 19],
+        ownedCategories: [["geografia", "historia", "ciencia", "arte"], five],
+      }),
+      clickedCorrect,
+    );
+
+    expect(next.turnsPlayed).toStrictEqual([20, 19]);
+    expect(next.result).toBeNull();
+    expect(next.phase).toBe("Result");
+    expect(gameReducer(next, { type: "CONTINUE_AFTER_ANSWER" })).toMatchObject({
+      phase: "Wheel",
+      currentPlayer: 1,
+    });
+  });
+
+  it("RED-47 CONTINUE_AFTER_ANSWER keeps a six result and reaches GameOver", () => {
+    const result = {
+      mode: "six-categories" as const,
+      kind: "tie" as const,
+      categories: [3, 3] as const,
+      reason: "turn-limit" as const,
+    };
+    const answered = sixResultState({ result });
+
+    const next = gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" });
+
+    expect(next.phase).toBe("GameOver");
+    expect(next.result).toBe(result);
+  });
+
+  it("RED-48 getNextTurn keeps the round in six mode and toggles the player", () => {
+    expect(getNextTurn(sixState({ round: 1, currentPlayer: 0 }))).toEqual({
+      currentPlayer: 1,
+      round: 1,
+    });
+    expect(getNextTurn(sixState({ round: 1, currentPlayer: 1 }))).toEqual({
+      currentPlayer: 0,
+      round: 1,
+    });
+  });
+
+  it("RED-49 isMatchComplete is false in six mode", () => {
+    expect(
+      isMatchComplete(
+        sixState({ config: sixConfig, round: 10, currentPlayer: 0 }),
+      ),
+    ).toBe(false);
+    expect(
+      isMatchComplete(
+        sixState({ config: sixConfig, round: 10, currentPlayer: 1 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("RED-50 RESET_GAME clears categories and turns", () => {
+    const midMatch = sixState({
+      phase: "Result",
+      ownedCategories: [["geografia", "historia"], ["arte"]],
+      turnsPlayed: [7, 6],
+      lastAnswer: {
+        chosenAnswer: "Lima",
+        correct: true,
+        correctAnswer: "Lima",
+        timedOut: false,
+      },
+    });
+
+    const next = gameReducer(midMatch, { type: "RESET_GAME" });
+
+    expect(next).toEqual(INITIAL_GAME_STATE);
+    expect(next).not.toBe(midMatch);
+    expect(next.ownedCategories).toStrictEqual([[], []]);
+    expect(next.turnsPlayed).toStrictEqual([0, 0]);
+  });
+
+  it("RED-51 RESPIN_CATEGORY keeps six categories and turns", () => {
+    const failed = sixState({
+      phase: "QuestionCard",
+      currentQuestion: null,
+      ownedCategories: [["geografia"], ["historia"]],
+      turnsPlayed: [2, 1],
+      result: {
+        mode: "six-categories",
+        kind: "tie",
+        categories: [1, 1],
+        reason: "turn-limit",
+      },
+      lastAnswer: {
+        chosenAnswer: "Lima",
+        correct: true,
+        correctAnswer: "Lima",
+        timedOut: false,
+      },
+    });
+
+    const next = gameReducer(failed, { type: "RESPIN_CATEGORY" });
+
+    expect(next.phase).toBe("Wheel");
+    expect(next.result).toBeNull();
+    expect(next.ownedCategories).toBe(failed.ownedCategories);
+    expect(next.turnsPlayed).toBe(failed.turnsPlayed);
+  });
+
+  it("RED-52 a rounds-mode answer with turnsPlayed at 20 produces no turn-limit result", () => {
+    const roundsWithCounters = stateWith({
+      phase: "QuestionCard",
+      config,
+      players: players(0, 0),
+      round: 1,
+      currentPlayer: 0,
+      currentQuestion: question(),
+      ownedCategories: [["geografia"], []],
+      turnsPlayed: [20, 20],
+    });
+
+    const next = gameReducer(roundsWithCounters, clickedCorrect);
+
+    expect(next.result).toBeNull();
+    expect(next.players[0].score).toBe(10);
+    expect(next.phase).toBe("Result");
+    expect(gameReducer(next, { type: "CONTINUE_AFTER_ANSWER" }).phase).toBe(
+      "SwitchTurn",
+    );
+  });
+
+  it("RED-53 the reducer leaves a six-mode input state untouched", () => {
+    const frozen = deepFreeze(
+      sixState({
+        phase: "Result",
+        ownedCategories: [["geografia"], ["historia"]],
+        turnsPlayed: [2, 1],
+        lastAnswer: {
+          chosenAnswer: null,
+          correct: false,
+          correctAnswer: "Lima",
+          timedOut: true,
+        },
+      }),
+    );
+    const snapshot = JSON.stringify(frozen);
+    const actions: GameAction[] = [
+      { type: "QUESTION_LOADED", question: sixQuestion("ciencia") },
+      wrongAnswer,
+      { type: "CONTINUE_AFTER_ANSWER" },
+      { type: "ADVANCE_TURN" },
+      { type: "CATEGORY_CONFIRMED" },
+      { type: "RESPIN_CATEGORY" },
+      { type: "RESET_GAME" },
+      { type: "START_GAME", config: sixConfig },
+    ];
+
+    for (const action of actions) {
+      gameReducer(frozen, action);
+    }
+
+    expect(JSON.stringify(frozen)).toBe(snapshot);
+  });
+
+  it("RED-54 ADVANCE_TURN does not increment turnsPlayed", () => {
+    const switchTurn = sixState({
+      phase: "SwitchTurn",
+      currentPlayer: 0,
+      turnsPlayed: [1, 0],
+    });
+
+    const next = gameReducer(switchTurn, { type: "ADVANCE_TURN" });
+
+    expect(next.phase).toBe("Wheel");
+    expect(next.currentPlayer).toBe(1);
+    expect(next.turnsPlayed).toStrictEqual([1, 0]);
+  });
+
+  it("RED-55 a failure after a five-category streak increments the turn exactly once", () => {
+    const five: readonly CategoryName[] = [
+      "geografia",
+      "historia",
+      "ciencia",
+      "arte",
+      "entretenimiento",
+    ];
+    const inStreak = sixState({
+      phase: "QuestionCard",
+      currentPlayer: 0,
+      ownedCategories: [five, []],
+      turnsPlayed: [0, 0],
+      currentQuestion: sixQuestion("deportes"),
+    });
+
+    const next = gameReducer(inStreak, wrongAnswer);
+
+    expect(next.turnsPlayed).toStrictEqual([1, 0]);
+    expect(next.phase).toBe("Result");
+
+    const continued = gameReducer(next, { type: "CONTINUE_AFTER_ANSWER" });
+    expect(continued.phase).toBe("SwitchTurn");
+    const advanced = gameReducer(continued, { type: "ADVANCE_TURN" });
+    expect(advanced.turnsPlayed).toStrictEqual([1, 0]);
+  });
+
+  it("CONTINUE_AFTER_ANSWER without a config falls back to SwitchTurn", () => {
+    const answered = stateWith({
+      phase: "Result",
+      config: null,
+      lastAnswer: {
+        chosenAnswer: "Lima",
+        correct: true,
+        correctAnswer: "Lima",
+        timedOut: false,
+      },
+    });
+
+    expect(gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" }).phase).toBe(
+      "SwitchTurn",
+    );
   });
 });
