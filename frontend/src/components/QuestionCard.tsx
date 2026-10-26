@@ -12,6 +12,7 @@ interface QuestionCardProps {
   totalRounds: number;
   loading: boolean;
   feedback: LastAnswer | null;
+  categoryLabel: string | null;
   onAnswer: (answer: string) => void;
   onContinue: () => void;
 }
@@ -25,6 +26,7 @@ export function QuestionCard({
   totalRounds,
   loading,
   feedback,
+  categoryLabel,
   onAnswer,
   onContinue,
 }: QuestionCardProps) {
@@ -39,6 +41,7 @@ export function QuestionCard({
         round={round}
         totalRounds={totalRounds}
       />
+      {categoryLabel !== null ? <p>{`Categoría: ${categoryLabel}`}</p> : null}
       {isUntranslated(lang, question.lang) ? (
         <p className="untranslated-badge">Sin traducir</p>
       ) : null}

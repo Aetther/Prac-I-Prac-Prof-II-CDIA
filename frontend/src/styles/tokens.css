@@ -9,6 +9,18 @@
   --color-error: #ef4444;
   --color-success: #10b981;
 
+  --color-category-geografia: #1d4ed8;
+  --color-category-historia: #b45309;
+  --color-category-ciencia: #0f766e;
+  --color-category-arte: #7e22ce;
+  --color-category-entretenimiento: #be185d;
+  --color-category-deportes: #15803d;
+
+  --color-wheel-pointer: #111827;
+  --color-wheel-label: #ffffff;
+  --color-wheel-hub: #f9fafb;
+  --color-wheel-stroke: #ffffff;
+
   --font-family-sans:
     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, "Helvetica Neue", sans-serif;

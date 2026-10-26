@@ -1,12 +1,17 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import * as barrel from "./index";
 import {
   INITIAL_GAME_STATE,
   INITIAL_PHASE,
   PHASES,
+  buildWheelCategories,
   createLobbyConfig,
+  createSpinPlan,
   gameReducer,
+  sectorIndexAtRotation,
 } from "./index";
+import { SIX_CATEGORIES } from "../test/wheelFixtures";
 import type { GamePhase } from "./types";
 
 describe("game layer", () => {
@@ -30,7 +35,7 @@ describe("game layer", () => {
     expect(phase).toBe("Lobby");
   });
 
-  it("the barrel exposes a working reducer and lobby factory", () => {
+  it("the barrel starts a match on the Wheel and confirms the category", () => {
     const config = createLobbyConfig({
       playerNames: [" Ana ", "Beto"],
       lang: "en",
@@ -42,16 +47,33 @@ describe("game layer", () => {
       throw new Error("expected a valid lobby config");
     }
 
-    const next = gameReducer(INITIAL_GAME_STATE, {
+    const started = gameReducer(INITIAL_GAME_STATE, {
       type: "START_GAME",
       config,
     });
 
-    expect(next.phase).toBe("QuestionCard");
-    expect(next.players).toEqual([
+    expect(started.phase).toBe("Wheel");
+    expect(started.players).toEqual([
       { name: "Ana", score: 0 },
       { name: "Beto", score: 0 },
     ]);
-    expect(next.config?.playerNames).toEqual(["Ana", "Beto"]);
+    expect(started.config?.playerNames).toEqual(["Ana", "Beto"]);
+
+    const confirmed = gameReducer(started, { type: "CATEGORY_CONFIRMED" });
+
+    expect(confirmed.phase).toBe("QuestionCard");
+    expect(confirmed.currentQuestion).toBeNull();
+  });
+
+  it("the barrel exposes the wheel math", () => {
+    expect(sectorIndexAtRotation(0)).toBe(0);
+    expect(createSpinPlan(0, () => 0).durationMs).toBe(4000);
+    expect(buildWheelCategories(SIX_CATEGORIES)).toHaveLength(6);
+  });
+
+  it("the barrel no longer exports the retired random category picker", () => {
+    expect(barrel).not.toHaveProperty("pickRandomCategory");
+    expect(sectorIndexAtRotation(0)).toBe(0);
+    expect(buildWheelCategories(SIX_CATEGORIES)).toHaveLength(6);
   });
 });

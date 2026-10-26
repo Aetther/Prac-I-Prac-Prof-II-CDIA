@@ -24,6 +24,7 @@ interface Props {
   currentPlayer?: PlayerIndex;
   loading?: boolean;
   feedback?: LastAnswer | null;
+  categoryLabel?: string | null;
   onAnswer?: (answer: string) => void;
   onContinue?: () => void;
 }
@@ -34,6 +35,7 @@ function renderCard({
   currentPlayer = 0,
   loading = false,
   feedback = null,
+  categoryLabel = null,
   onAnswer = vi.fn(),
   onContinue = vi.fn(),
 }: Props = {}) {
@@ -47,6 +49,7 @@ function renderCard({
       totalRounds={3}
       loading={loading}
       feedback={feedback}
+      categoryLabel={categoryLabel}
       onAnswer={onAnswer}
       onContinue={onContinue}
     />,
@@ -68,6 +71,22 @@ describe("QuestionCard", () => {
     expect(screen.queryByText("Incorrecta")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Opción/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull();
+  });
+
+  it("shows the served category label with the question", () => {
+    renderCard({ categoryLabel: "Geografía" });
+
+    expect(screen.getByText("Categoría: Geografía")).toBeVisible();
+    expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
+    expect(screen.getAllByRole("button")).toHaveLength(4);
+  });
+
+  it("omits the category line when the served label is unknown", () => {
+    renderCard({ categoryLabel: null });
+
+    expect(screen.queryByText(/Categoría:/)).toBeNull();
+    expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
+    expect(screen.getAllByRole("button")).toHaveLength(4);
   });
 
   it("renders the options as touch-target buttons", () => {
@@ -136,6 +155,7 @@ describe("QuestionCard", () => {
         totalRounds={3}
         loading={false}
         feedback={null}
+        categoryLabel={null}
         onAnswer={onAnswer}
         onContinue={vi.fn()}
       />,

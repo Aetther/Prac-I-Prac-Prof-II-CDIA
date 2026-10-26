@@ -1,22 +1,22 @@
 import { useReducer, useRef, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ApiError } from "./api/errors";
-import { getGameQuestion, submitAnswer } from "./api/game";
+import { getCategories, getGameQuestion, submitAnswer } from "./api/game";
 import { Admin } from "./components/Admin";
 import { GameScreen } from "./components/GameScreen";
 import {
   ALL_CATEGORIES_404_MESSAGE,
   DuplicateQuestionExhaustedError,
   INITIAL_GAME_STATE,
+  buildWheelCategories,
   createLobbyConfig,
   fetchUnusedQuestion,
   gameReducer,
   getApiErrorMessage,
   loadQuestionWithFallback,
   pickCategoryExcluding,
-  pickRandomCategory,
 } from "./game";
-import type { CategoryName, Lang, LobbyInput } from "./game";
+import type { CategoryName, Lang, LobbyInput, WheelCategory } from "./game";
 
 interface LoadRetryTarget {
   readonly type: "loadQuestion";
@@ -24,8 +24,12 @@ interface LoadRetryTarget {
   readonly attempted404: readonly CategoryName[];
 }
 
-interface RestartLoadTarget {
-  readonly type: "restartQuestionLoad";
+interface LoadCategoriesTarget {
+  readonly type: "loadCategories";
+}
+
+interface RespinTarget {
+  readonly type: "respinCategory";
 }
 
 interface SubmitRetryTarget {
@@ -34,7 +38,8 @@ interface SubmitRetryTarget {
   readonly answer: string;
 }
 
-type RetryTarget = LoadRetryTarget | RestartLoadTarget | SubmitRetryTarget;
+type RetryTarget =
+  LoadRetryTarget | LoadCategoriesTarget | RespinTarget | SubmitRetryTarget;
 
 type RequestState =
   | { readonly status: "idle" }
@@ -60,6 +65,9 @@ function isQuestion404(error: unknown): boolean {
 
 function App() {
   const [game, dispatch] = useReducer(gameReducer, INITIAL_GAME_STATE);
+  const [categories, setCategories] = useState<readonly WheelCategory[] | null>(
+    null,
+  );
   const [request, setRequest] = useState<RequestState>({ status: "idle" });
   const inFlightRef = useRef(false);
 
@@ -70,6 +78,40 @@ function App() {
       await task();
     } finally {
       inFlightRef.current = false;
+    }
+  }
+
+  async function loadCategories(): Promise<void> {
+    setRequest({ status: "loading" });
+    try {
+      const data = await getCategories();
+      const wheelCategories = buildWheelCategories(data);
+      if (wheelCategories === null) {
+        setRequest({
+          status: "error",
+          message: "Respuesta inválida del servidor.",
+          retry: { type: "loadCategories" },
+        });
+        return;
+      }
+      setCategories(wheelCategories);
+      setRequest({ status: "idle" });
+    } catch (error) {
+      let message: string;
+      if (error instanceof ApiError) {
+        message = getApiErrorMessage(error);
+        console.error("No se pudieron cargar las categorías", {
+          kind: error.kind,
+          status: error.status,
+        });
+      } else {
+        message = "Ocurrió un error inesperado.";
+      }
+      setRequest({
+        status: "error",
+        message,
+        retry: { type: "loadCategories" },
+      });
     }
   }
 
@@ -98,7 +140,7 @@ function App() {
       setRequest({
         status: "error",
         message: ALL_CATEGORIES_404_MESSAGE,
-        retry: { type: "restartQuestionLoad" },
+        retry: { type: "respinCategory" },
       });
       return;
     }
@@ -123,19 +165,6 @@ function App() {
         category: outcome.category,
         attempted404: outcome.attempted404,
       },
-    });
-  }
-
-  async function beginTurn(
-    usedQuestionIds: readonly number[],
-    lang: Lang,
-    category: CategoryName = pickRandomCategory(),
-  ): Promise<void> {
-    await beginQuestion({
-      category,
-      attempted404: [],
-      usedQuestionIds,
-      lang,
     });
   }
 
@@ -179,7 +208,7 @@ function App() {
     if (config === null) return;
     void runExclusive(async () => {
       dispatch({ type: "START_GAME", config });
-      await beginTurn([], config.lang);
+      await loadCategories();
     });
   };
 
@@ -200,11 +229,21 @@ function App() {
 
   const handleTurnContinue = () => {
     if (game.phase !== "SwitchTurn" || game.config === null) return;
+    dispatch({ type: "ADVANCE_TURN" });
+  };
+
+  const handleChooseCategory = (category: CategoryName) => {
+    if (game.phase !== "Wheel" || game.config === null) return;
     const usedQuestionIds = game.usedQuestionIds;
     const lang = game.config.lang;
     void runExclusive(async () => {
-      dispatch({ type: "ADVANCE_TURN" });
-      await beginTurn(usedQuestionIds, lang);
+      dispatch({ type: "CATEGORY_CONFIRMED" });
+      await beginQuestion({
+        category,
+        attempted404: [],
+        usedQuestionIds,
+        lang,
+      });
     });
   };
 
@@ -221,8 +260,11 @@ function App() {
           usedQuestionIds,
           lang,
         });
-      } else if (target.type === "restartQuestionLoad") {
-        await beginTurn(usedQuestionIds, lang);
+      } else if (target.type === "loadCategories") {
+        await loadCategories();
+      } else if (target.type === "respinCategory") {
+        dispatch({ type: "RESPIN_CATEGORY" });
+        setRequest({ status: "idle" });
       } else {
         await submitAnswerWithRetry(target.questionId, target.answer, lang);
       }
@@ -231,6 +273,7 @@ function App() {
 
   const handleBackToLobby = () => {
     dispatch({ type: "RESET_GAME" });
+    setCategories(null);
     setRequest({ status: "idle" });
   };
 
@@ -242,12 +285,14 @@ function App() {
           element={
             <GameScreen
               game={game}
+              categories={categories}
               loading={request.status === "loading"}
               errorMessage={request.status === "error" ? request.message : null}
               onStart={handleStart}
               onAnswer={handleAnswer}
               onAnswerContinue={handleAnswerContinue}
               onTurnContinue={handleTurnContinue}
+              onChooseCategory={handleChooseCategory}
               onRetry={handleRetry}
               onBackToLobby={handleBackToLobby}
             />

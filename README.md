@@ -167,7 +167,7 @@ flowchart LR
 ├── frontend/                       # Juego web (React + Vite + TypeScript), ver Frontend (juego web)
 │   ├── src/api/                    # Único lugar que llama a la API: valida cada respuesta
 │   ├── src/game/                   # Reglas del juego en TypeScript puro (sin interfaz)
-│   ├── src/components/             # Pantallas: lobby, pregunta, cambio de turno, fin de partida
+│   ├── src/components/             # Pantallas: lobby, ruleta, pregunta, cambio de turno, fin de partida
 │   ├── src/styles/                 # Estilos y variables de diseño (tokens.css)
 │   ├── package.json                # Dependencias y comandos (npm)
 │   └── .env.example                # Dirección de la API (VITE_API_URL)
@@ -627,21 +627,22 @@ Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celul
 ### Cómo se juega
 
 1. **Lobby**: los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y la cantidad de rondas (3, 5 o 10; 5 por defecto).
-2. **Pregunta**: aparece la pregunta con sus 4 opciones. Al elegir una, se marca si fue correcta o no y se muestra la respuesta correcta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
-3. **Cambio de turno**: una pantalla intermedia ("Pasale el dispositivo a ...") para que el otro jugador no vea la respuesta anterior.
-4. **Fin de la partida**: después de que cada jugador respondió una pregunta por ronda, se muestra el ganador o el empate, con los puntajes. Cada acierto suma 10 puntos.
+2. **Ruleta**: el jugador de turno toca **Girar**. La ruleta, con las 6 categorías, da entre 4 y 6 vueltas y va frenando hasta detenerse; se muestra **"Salió: ..."** y, con **Continuar**, aparece la pregunta de esa categoría.
+3. **Pregunta**: aparece la pregunta con su categoría y sus 4 opciones. Al elegir una, se marca si fue correcta o no y se muestra la respuesta correcta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
+4. **Cambio de turno**: una pantalla intermedia ("Pasale el dispositivo a ...") para que el otro jugador no vea la respuesta anterior.
+5. **Fin de la partida**: después de que cada jugador respondió una pregunta por ronda, se muestra el ganador o el empate, con los puntajes. Cada acierto suma 10 puntos.
 
-En una partida no se repiten preguntas. Si la API no responde, aparece "¿Está corriendo la API?" con los botones **Reintentar** y **Volver al lobby**.
+En una partida no se repiten preguntas. Si no quedan preguntas de la categoría que salió, se usa otra categoría al azar, y la pantalla de la pregunta muestra la que realmente se usó; si ya no quedan en ninguna de las 6, aparece un aviso y **Reintentar** vuelve a la ruleta. Si la API no responde, aparece "¿Está corriendo la API?" con los botones **Reintentar** y **Volver al lobby**.
 
 ### Estado actual
 
-El frontend se construye en 10 etapas. Están terminadas las dos primeras:
+El frontend se construye en 10 etapas. Están terminadas las tres primeras:
 
 | Etapa | Estado |
 |---|---|
 | Base del proyecto y cliente de la API | ✅ |
 | Lobby, pantalla de pregunta y modo por rondas | ✅ |
-| Ruleta de categorías (Canvas) | Pendiente (por ahora, la categoría sale al azar) |
+| Ruleta de categorías (Canvas) | ✅ |
 | Temporizador y pantalla de resultado | Pendiente (el tiempo se elige, pero todavía no corre) |
 | Modo "juntar las 6 categorías" | Pendiente |
 | Reportar una pregunta | Pendiente |
@@ -652,10 +653,11 @@ El frontend se construye en 10 etapas. Están terminadas las dos primeras:
 ### Cómo está armado
 
 - **`src/api/`**: el **único** lugar que llama a la API. Valida a mano cada respuesta (que la pregunta tenga 4 opciones, que el idioma sea `es` o `en`, etc.) y convierte cualquier falla en un error con un tipo fijo: red, tiempo agotado (10 segundos), HTTP o validación. Una regla de ESLint impide usar `fetch` fuera de esta carpeta.
-- **`src/game/`**: las reglas del juego en TypeScript puro, sin interfaz: turnos, puntos, rondas, fin de partida y la elección de la categoría. Así se prueban sin navegador.
+- **`src/game/`**: las reglas del juego en TypeScript puro, sin interfaz: turnos, puntos, rondas, fin de partida y la ruleta: cuánto gira, cuánto tarda y en qué categoría frena. Así se prueban sin navegador.
 - **`src/components/`**: las pantallas. Muestran el estado y avisan qué hizo el jugador; nunca llaman a la API directamente.
+- **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que va a usar el sonido. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
 - **La respuesta correcta la decide siempre la API** (`POST /game/answer`): el frontend nunca la conoce antes de que el jugador elija.
-- **Solo usa los endpoints públicos del juego** (`/game/question` y `/game/answer`). Nunca los de administración, que muestran las respuestas.
+- **Solo usa los endpoints públicos del juego** (`/categories`, una vez por partida para los nombres de la ruleta, `/game/question` y `/game/answer`). Nunca los de administración, que muestran las respuestas.
 
 La dirección de la API sale de `VITE_API_URL` (por defecto `http://localhost:8000`; ver `frontend/.env.example`). La API ya tiene CORS habilitado para `http://localhost:5173` (ver [CORS](#cors)).
 
@@ -1136,7 +1138,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **212 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas del juego, el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **284 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas del juego, la matemática de la ruleta, el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
 - **Cobertura exigida: 100% de líneas y de ramas** en `src/game` y `src/api`.
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
@@ -1258,7 +1260,7 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
-- El frontend todavía no tiene la ruleta, el temporizador, el modo "juntar las 6 categorías", los reportes, la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
+- El frontend todavía no tiene el temporizador, el modo "juntar las 6 categorías", los reportes, la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 

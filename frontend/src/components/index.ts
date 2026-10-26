@@ -1,4 +1,5 @@
 export { Lobby } from "./Lobby";
+export { Wheel } from "./Wheel";
 export { Scoreboard } from "./Scoreboard";
 export { QuestionCard } from "./QuestionCard";
 export { SwitchTurn } from "./SwitchTurn";

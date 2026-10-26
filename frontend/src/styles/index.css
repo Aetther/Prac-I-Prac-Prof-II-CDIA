@@ -22,7 +22,8 @@ body {
 .question-card,
 .switch-turn,
 .game-over,
-.error-screen {
+.error-screen,
+.wheel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
@@ -51,7 +52,8 @@ body {
 
 .lobby button,
 .switch-turn button,
-.question-card button {
+.question-card button,
+.wheel button {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-4);
   border: none;
@@ -63,7 +65,8 @@ body {
 }
 
 .lobby button:disabled,
-.question-card button:disabled {
+.question-card button:disabled,
+.wheel button:disabled {
   background-color: var(--color-text-secondary);
   cursor: not-allowed;
 }
@@ -132,4 +135,22 @@ body {
   color: var(--color-background);
   font: inherit;
   cursor: pointer;
+}
+
+.wheel-canvas {
+  width: 320px;
+  max-width: 100%;
+  height: auto;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

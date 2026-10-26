@@ -3,6 +3,7 @@ import type { GamePhase } from "./types";
 export type * from "./types";
 export * from "./lobby";
 export * from "./category";
+export * from "./wheel";
 export * from "./question";
 export * from "./errors";
 export * from "./reducer";

@@ -64,7 +64,7 @@ export function advanceTurn(state: GameState): GameState {
   const next = getNextTurn(state);
   return {
     ...state,
-    phase: "QuestionCard",
+    phase: "Wheel",
     currentPlayer: next.currentPlayer,
     round: next.round,
     currentQuestion: null,
@@ -121,12 +121,31 @@ function withAnswerContinued(state: GameState): GameState {
   };
 }
 
+function withCategoryConfirmed(state: GameState): GameState {
+  return {
+    ...state,
+    phase: "QuestionCard",
+    currentQuestion: null,
+    lastAnswer: null,
+    result: null,
+  };
+}
+
+function withRespinCategory(state: GameState): GameState {
+  return {
+    ...state,
+    phase: "Wheel",
+    lastAnswer: null,
+    result: null,
+  };
+}
+
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "START_GAME":
       if (state.phase !== "Lobby") return state;
       return {
-        phase: "QuestionCard",
+        phase: "Wheel",
         config: action.config,
         players: [
           { name: action.config.playerNames[0], score: 0 },
@@ -139,6 +158,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         lastAnswer: null,
         result: null,
       };
+    case "CATEGORY_CONFIRMED":
+      if (state.phase !== "Wheel") return state;
+      return withCategoryConfirmed(state);
     case "QUESTION_LOADED":
       if (state.phase !== "QuestionCard") return state;
       return withQuestionLoaded(state, action.question);
@@ -160,6 +182,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case "ADVANCE_TURN":
       if (state.phase !== "SwitchTurn") return state;
       return advanceTurn(state);
+    case "RESPIN_CATEGORY":
+      if (state.phase !== "QuestionCard" || state.currentQuestion !== null) {
+        return state;
+      }
+      return withRespinCategory(state);
     case "RESET_GAME":
       return INITIAL_GAME_STATE;
     default:

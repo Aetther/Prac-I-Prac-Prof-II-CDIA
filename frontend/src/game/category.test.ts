@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Category } from "../api/types";
+import { SIX_CATEGORIES } from "../test/wheelFixtures";
 import {
   CATEGORY_NAMES,
+  buildWheelCategories,
   pickCategoryExcluding,
-  pickRandomCategory,
 } from "./category";
 
 afterEach(() => {
@@ -20,27 +22,6 @@ describe("category selection", () => {
       "entretenimiento",
       "deportes",
     ]);
-  });
-
-  it("maps 0 to geografia", () => {
-    expect(pickRandomCategory(() => 0)).toBe("geografia");
-  });
-
-  it("maps 0.5 to arte", () => {
-    expect(pickRandomCategory(() => 0.5)).toBe("arte");
-  });
-
-  it("maps 0.999999 to deportes", () => {
-    expect(pickRandomCategory(() => 0.999999)).toBe("deportes");
-  });
-
-  it("clamps 1 to deportes", () => {
-    expect(pickRandomCategory(() => 1)).toBe("deportes");
-  });
-
-  it("uses Math.random when no generator is injected", () => {
-    vi.spyOn(Math, "random").mockReturnValue(0);
-    expect(pickRandomCategory()).toBe("geografia");
   });
 
   it("skips excluded categories and maps 0 to the first remaining", () => {
@@ -73,5 +54,97 @@ describe("category selection", () => {
     expect(
       pickCategoryExcluding(["geografia", "historia"], () => 0.5),
     ).not.toBe("arte");
+  });
+});
+
+describe("wheel category labels", () => {
+  it("builds the wheel categories in declared order from a shuffled API response", () => {
+    const reversed = [...SIX_CATEGORIES].reverse();
+
+    expect(buildWheelCategories(reversed)).toEqual([
+      { name: "geografia", label: "Geografía" },
+      { name: "historia", label: "Historia" },
+      { name: "ciencia", label: "Ciencia" },
+      { name: "arte", label: "Arte" },
+      { name: "entretenimiento", label: "Entretenimiento" },
+      { name: "deportes", label: "Deportes" },
+    ]);
+  });
+
+  it("uses the API label instead of the name and ignores the description", () => {
+    const labels = [
+      "Etiqueta A",
+      "Etiqueta B",
+      "Etiqueta C",
+      "Etiqueta D",
+      "Etiqueta E",
+      "Etiqueta F",
+    ];
+    const categories: Category[] = SIX_CATEGORIES.map((category, index) => ({
+      name: category.name,
+      label: labels[index],
+      description: `d${index + 1}`,
+    }));
+
+    const wheel = buildWheelCategories(categories);
+
+    expect(wheel).toEqual([
+      { name: "geografia", label: "Etiqueta A" },
+      { name: "historia", label: "Etiqueta B" },
+      { name: "ciencia", label: "Etiqueta C" },
+      { name: "arte", label: "Etiqueta D" },
+      { name: "entretenimiento", label: "Etiqueta E" },
+      { name: "deportes", label: "Etiqueta F" },
+    ]);
+    for (const entry of wheel ?? []) {
+      expect(entry).not.toHaveProperty("description");
+      expect(entry.label).not.toBe(entry.name);
+    }
+  });
+
+  it("returns null for five entries", () => {
+    expect(buildWheelCategories(SIX_CATEGORIES.slice(0, 5))).toBeNull();
+  });
+
+  it("returns null when a declared name is missing", () => {
+    const withMusica = SIX_CATEGORIES.map((category) =>
+      category.name === "deportes" ? { ...category, name: "musica" } : category,
+    );
+    const duplicateGeografia = SIX_CATEGORIES.map((category) =>
+      category.name === "deportes"
+        ? { ...category, name: "geografia" }
+        : category,
+    );
+
+    expect(buildWheelCategories(withMusica)).toBeNull();
+    expect(buildWheelCategories(duplicateGeografia)).toBeNull();
+  });
+
+  it("returns null for an empty label", () => {
+    const emptyLabel = SIX_CATEGORIES.map((category) =>
+      category.name === "geografia" ? { ...category, label: "" } : category,
+    );
+
+    expect(buildWheelCategories(emptyLabel)).toBeNull();
+  });
+
+  it("returns null for seven entries even with all six declared names", () => {
+    const seven: Category[] = [
+      ...SIX_CATEGORIES,
+      { name: "musica", label: "Música", description: "Sonidos" },
+    ];
+
+    expect(buildWheelCategories(seven)).toBeNull();
+  });
+
+  it("returns the exact six-entry default result", () => {
+    expect(buildWheelCategories(SIX_CATEGORIES)).toEqual([
+      { name: "geografia", label: "Geografía" },
+      { name: "historia", label: "Historia" },
+      { name: "ciencia", label: "Ciencia" },
+      { name: "arte", label: "Arte" },
+      { name: "entretenimiento", label: "Entretenimiento" },
+      { name: "deportes", label: "Deportes" },
+    ]);
   });
 });

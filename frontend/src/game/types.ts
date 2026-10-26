@@ -60,6 +60,7 @@ export interface GameState {
 
 export type GameAction =
   | { readonly type: "START_GAME"; readonly config: LobbyConfig }
+  | { readonly type: "CATEGORY_CONFIRMED" }
   | { readonly type: "QUESTION_LOADED"; readonly question: GameQuestion }
   | {
       readonly type: "ANSWER_RECEIVED";
@@ -69,4 +70,5 @@ export type GameAction =
     }
   | { readonly type: "CONTINUE_AFTER_ANSWER" }
   | { readonly type: "ADVANCE_TURN" }
+  | { readonly type: "RESPIN_CATEGORY" }
   | { readonly type: "RESET_GAME" };
