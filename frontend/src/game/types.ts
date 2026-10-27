@@ -92,6 +92,8 @@ export interface GameState {
   readonly result: GameResult | null;
   readonly ownedCategories: CategoryOwners;
   readonly turnsPlayed: TurnsPlayed;
+  readonly matchId: number;
+  readonly reportedQuestionIds: readonly number[];
 }
 
 export type GameAction =
@@ -108,4 +110,9 @@ export type GameAction =
   | { readonly type: "CONTINUE_AFTER_ANSWER" }
   | { readonly type: "ADVANCE_TURN" }
   | { readonly type: "RESPIN_CATEGORY" }
-  | { readonly type: "RESET_GAME" };
+  | { readonly type: "RESET_GAME" }
+  | {
+      readonly type: "QUESTION_REPORTED";
+      readonly questionId: number;
+      readonly matchId: number;
+    };

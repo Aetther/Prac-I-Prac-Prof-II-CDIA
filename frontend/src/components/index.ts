@@ -8,3 +8,4 @@ export { ErrorScreen } from "./ErrorScreen";
 export { Timer } from "./Timer";
 export { GameScreen } from "./GameScreen";
 export { Admin } from "./Admin";
+export { ReportForm } from "./ReportForm";

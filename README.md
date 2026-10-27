@@ -629,7 +629,7 @@ Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celul
 1. **Lobby**: los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y el **modo de juego**: por rondas (3, 5 o 10; 5 por defecto) o juntar las 6 categorías.
 2. **Ruleta**: el jugador de turno toca **Girar**. La ruleta, con las 6 categorías, da entre 4 y 6 vueltas y va frenando hasta detenerse; se muestra **"Salió: ..."** y, con **Continuar**, aparece la pregunta de esa categoría.
 3. **Pregunta**: aparece la pregunta con su categoría, sus 4 opciones y el **temporizador** (10, 20 o 30 segundos, según el lobby). En los últimos 5 segundos la barra se pone roja y aparece "Últimos 5 segundos". Si el tiempo se acaba, cuenta como respuesta incorrecta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
-4. **Resultado**: "Correcta", "Incorrecta" (con la opción elegida) o "Se acabó el tiempo", junto con la respuesta correcta, el marcador y el botón **Continuar**. El botón **Reportar** ya aparece, pero se habilita en una etapa posterior.
+4. **Resultado**: "Correcta", "Incorrecta" (con la opción elegida) o "Se acabó el tiempo", junto con la respuesta correcta, el marcador y el botón **Continuar**. Desde acá también se puede **reportar la pregunta** (ver abajo).
 5. **Cambio de turno**: una pantalla intermedia ("Pasale el dispositivo a ...") para que el otro jugador no vea la respuesta anterior.
 6. **Fin de la partida**: se muestra el ganador o el empate (ver los dos modos más abajo). **Jugar de nuevo** vuelve al lobby para empezar otra partida.
 
@@ -644,11 +644,21 @@ Cada jugador responde una pregunta por ronda, alternando turnos. Cada acierto su
 - **Gana el primero que junta las 6.**
 - **Límite de 20 turnos por jugador.** Un turno es una racha: termina cuando el jugador falla o se le acaba el tiempo, y los aciertos dentro de la racha no suman turnos. Si los dos completan sus 20 turnos sin que nadie junte las 6, gana quien tiene más categorías, y si empatan, es empate. Como siempre empieza el primer jugador, el segundo juega su turno 20 aunque el primero ya haya terminado el suyo, así que los dos tienen las mismas oportunidades.
 
+#### Reportar una pregunta
+
+En la pantalla de resultado, **Reportar** abre un formulario debajo de la respuesta, sin tapar la pregunta:
+
+- El motivo es obligatorio: **Traducción**, **Respuesta incorrecta**, **Error en el texto** u **Otro**. Ninguno viene marcado, para no mandar uno equivocado por un toque distraído.
+- El comentario es opcional, de hasta 500 caracteres, con un contador; con **Otro** es obligatorio.
+- Se manda con el idioma de la partida. Al enviarlo aparece una confirmación y **Reportar** queda deshabilitado: una pregunta se reporta una sola vez por partida.
+- Si algo falla, el motivo y el comentario no se pierden. Con un problema de red o si la API pide esperar (`429`, "Esperá N segundos"), aparece **Reintentar**; si la pregunta ya no existe, se avisa sin reintento; si el reporte no es válido, se puede corregir y volver a enviar.
+- **Continuar** funciona siempre: reportar nunca frena la partida.
+
 En una partida no se repiten preguntas. Si no quedan preguntas de la categoría que salió, se usa otra categoría al azar, y la pantalla de la pregunta muestra la que realmente se usó; si ya no quedan en ninguna de las 6, aparece un aviso y **Reintentar** vuelve a la ruleta. Si la API no responde, aparece "¿Está corriendo la API?" con los botones **Reintentar** y **Volver al lobby**.
 
 ### Estado actual
 
-El frontend se construye en 10 etapas. Están terminadas las cinco primeras:
+El frontend se construye en 10 etapas. Están terminadas las seis primeras:
 
 | Etapa | Estado |
 |---|---|
@@ -657,7 +667,7 @@ El frontend se construye en 10 etapas. Están terminadas las cinco primeras:
 | Ruleta de categorías (Canvas) | ✅ |
 | Temporizador y pantalla de resultado | ✅ |
 | Modo "juntar las 6 categorías" | ✅ |
-| Reportar una pregunta | Pendiente |
+| Reportar una pregunta | ✅ |
 | Vista de administración (`/admin`): reportes y edición de preguntas | Pendiente (dos etapas) |
 | Estilos finales y prueba en celular | Pendiente |
 | Sonido y música | Pendiente |
@@ -670,7 +680,7 @@ El frontend se construye en 10 etapas. Están terminadas las cinco primeras:
 - **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que va a usar el sonido. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
 - **El temporizador** guarda la hora en que se termina el tiempo y la compara con el reloj, en vez de contar segundos: así no se atrasa ni se congela si el navegador pone la pestaña en segundo plano (algo común en el celular). Cuando el tiempo se acaba, igual se le pregunta a la API (`POST /game/answer` con la respuesta "(sin respuesta)"), solo para mostrar la respuesta correcta: el turno cuenta siempre como incorrecto. Si el jugador elige una opción justo cuando se acaba el tiempo, se manda una sola respuesta, la que llegó primero.
 - **La respuesta correcta la decide siempre la API** (`POST /game/answer`): el frontend nunca la conoce antes de que el jugador elija.
-- **Solo usa los endpoints públicos del juego** (`/categories`, una vez por partida para los nombres de la ruleta, `/game/question` y `/game/answer`). Nunca los de administración, que muestran las respuestas.
+- **Solo usa los endpoints públicos del juego** (`/categories`, una vez por partida para los nombres de la ruleta, `/game/question`, `/game/answer` y `/reports` para reportar). Nunca los de administración, que muestran las respuestas.
 
 La dirección de la API sale de `VITE_API_URL` (por defecto `http://localhost:8000`; ver `frontend/.env.example`). La API ya tiene CORS habilitado para `http://localhost:5173` (ver [CORS](#cors)).
 
@@ -1151,7 +1161,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **426 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **597 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
 - **Cobertura exigida: 100% de líneas y de ramas** en `src/game` y `src/api`.
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
@@ -1273,7 +1283,7 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
-- El frontend todavía no tiene los reportes, la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
+- El frontend todavía no tiene la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 

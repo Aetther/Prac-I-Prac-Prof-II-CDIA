@@ -1,5 +1,25 @@
 import { ApiError } from "./errors";
-import type { Category, GameQuestion, SubmitAnswerResult } from "./types";
+import { isReportReason } from "./reportReasons";
+import type {
+  Category,
+  GameQuestion,
+  ReportQuestionResult,
+  ReportStatus,
+  SubmitAnswerResult,
+} from "./types";
+
+const REPORT_STATUSES: readonly ReportStatus[] = [
+  "pendiente",
+  "resuelto",
+  "descartado",
+];
+
+function isReportStatus(value: unknown): value is ReportStatus {
+  return (
+    typeof value === "string" &&
+    (REPORT_STATUSES as readonly string[]).includes(value)
+  );
+}
 
 export function validateCategories(data: unknown): Category[] {
   if (!Array.isArray(data)) {
@@ -98,4 +118,49 @@ export function validateSubmitAnswer(data: unknown): SubmitAnswerResult {
     });
   }
   return data as SubmitAnswerResult;
+}
+
+export function validateReportQuestionResult(
+  data: unknown,
+): ReportQuestionResult {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    throw new ApiError("validation", "Respuesta inválida del servidor.", {
+      detail: "reporte inválido",
+    });
+  }
+  const report = data as Record<string, unknown>;
+  if (
+    typeof report.id !== "number" ||
+    !Number.isInteger(report.id) ||
+    report.id <= 0
+  ) {
+    throw new ApiError("validation", "Respuesta inválida del servidor.", {
+      detail: "id de reporte inválido",
+    });
+  }
+  if (
+    typeof report.question_id !== "number" ||
+    !Number.isInteger(report.question_id) ||
+    report.question_id <= 0
+  ) {
+    throw new ApiError("validation", "Respuesta inválida del servidor.", {
+      detail: "question_id inválido",
+    });
+  }
+  if (!isReportReason(report.reason)) {
+    throw new ApiError("validation", "Respuesta inválida del servidor.", {
+      detail: "motivo de reporte inválido",
+    });
+  }
+  if (!isReportStatus(report.status)) {
+    throw new ApiError("validation", "Respuesta inválida del servidor.", {
+      detail: "estado de reporte inválido",
+    });
+  }
+  if (typeof report.created_at !== "string" || report.created_at === "") {
+    throw new ApiError("validation", "Respuesta inválida del servidor.", {
+      detail: "fecha de creación inválida",
+    });
+  }
+  return data as ReportQuestionResult;
 }

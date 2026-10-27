@@ -2,7 +2,9 @@ import type { WheelCategory } from "../game/category";
 import type { LobbyInput } from "../game/lobby";
 import { getMatchProgress } from "../game/progress";
 import { getNextTurn } from "../game/reducer";
+import type { ReportSubmissionResult } from "../game/reporting";
 import type { CategoryName, GameState } from "../game/types";
+import type { ReportReason } from "../api/types";
 import type { WheelTickHandler } from "../game/wheel";
 import { ErrorScreen } from "./ErrorScreen";
 import { GameOver } from "./GameOver";
@@ -26,6 +28,12 @@ interface GameScreenProps {
   onSectorCross?: WheelTickHandler;
   onRetry: () => void;
   onBackToLobby: () => void;
+  reportingQuestionId: number | null;
+  unavailableQuestionId: number | null;
+  onReport: (
+    reason: ReportReason,
+    comment: string,
+  ) => Promise<ReportSubmissionResult>;
 }
 
 export function GameScreen({
@@ -42,6 +50,9 @@ export function GameScreen({
   onSectorCross,
   onRetry,
   onBackToLobby,
+  reportingQuestionId,
+  unavailableQuestionId,
+  onReport,
 }: GameScreenProps) {
   if (errorMessage !== null) {
     return (
@@ -148,6 +159,10 @@ export function GameScreen({
           currentPlayer={game.currentPlayer}
           progress={progress}
           categories={wheelCategories}
+          reported={game.reportedQuestionIds.includes(question.id)}
+          reporting={reportingQuestionId === question.id}
+          unavailable={unavailableQuestionId === question.id}
+          onReport={onReport}
           onContinue={onAnswerContinue}
         />
       );

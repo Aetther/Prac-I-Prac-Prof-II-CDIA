@@ -180,6 +180,8 @@ describe("game reducer", () => {
       result: null,
       ownedCategories: [[], []],
       turnsPlayed: [0, 0],
+      matchId: 0,
+      reportedQuestionIds: [],
     });
   });
 
@@ -199,6 +201,8 @@ describe("game reducer", () => {
       result: null,
       ownedCategories: [[], []],
       turnsPlayed: [0, 0],
+      matchId: 1,
+      reportedQuestionIds: [],
     });
   });
 
@@ -725,7 +729,7 @@ describe("game reducer", () => {
     expect(gameReducer(gameOver, { type: "RESPIN_CATEGORY" })).toBe(gameOver);
   });
 
-  it("RESET_GAME returns exactly the initial state", () => {
+  it("RESET_GAME returns the initial state with the next match token", () => {
     const midMatch = resultState({ round: 2, currentPlayer: 1 });
     const gameOver = stateWith({
       phase: "GameOver",
@@ -738,9 +742,15 @@ describe("game reducer", () => {
     const fromMidMatch = gameReducer(midMatch, { type: "RESET_GAME" });
     const fromGameOver = gameReducer(gameOver, { type: "RESET_GAME" });
 
-    expect(fromMidMatch).toEqual(INITIAL_GAME_STATE);
+    expect(fromMidMatch).toEqual({
+      ...INITIAL_GAME_STATE,
+      matchId: midMatch.matchId + 1,
+    });
     expect(fromMidMatch).not.toBe(midMatch);
-    expect(fromGameOver).toEqual(INITIAL_GAME_STATE);
+    expect(fromGameOver).toEqual({
+      ...INITIAL_GAME_STATE,
+      matchId: gameOver.matchId + 1,
+    });
   });
 
   it.each([3, 5, 10] as RoundsCount[])(
@@ -825,6 +835,7 @@ describe("game reducer", () => {
       { type: "ADVANCE_TURN" },
       { type: "RESPIN_CATEGORY" },
       { type: "RESET_GAME" },
+      { type: "QUESTION_REPORTED", questionId: 42, matchId: 0 },
     ];
 
     for (const state of states) {
@@ -863,6 +874,11 @@ describe("game reducer", () => {
     gameReducer(frozen, { type: "RESPIN_CATEGORY" });
     gameReducer(frozen, { type: "RESET_GAME" });
     gameReducer(frozen, { type: "START_GAME", config });
+    gameReducer(frozen, {
+      type: "QUESTION_REPORTED",
+      questionId: 42,
+      matchId: 0,
+    });
 
     expect(JSON.stringify(frozen)).toBe(snapshot);
   });
@@ -1163,7 +1179,10 @@ describe("game reducer", () => {
 
     const next = gameReducer(midMatch, { type: "RESET_GAME" });
 
-    expect(next).toEqual(INITIAL_GAME_STATE);
+    expect(next).toEqual({
+      ...INITIAL_GAME_STATE,
+      matchId: midMatch.matchId + 1,
+    });
     expect(next).not.toBe(midMatch);
     expect(next.ownedCategories).toStrictEqual([[], []]);
     expect(next.turnsPlayed).toStrictEqual([0, 0]);
@@ -1243,6 +1262,7 @@ describe("game reducer", () => {
       { type: "RESPIN_CATEGORY" },
       { type: "RESET_GAME" },
       { type: "START_GAME", config: sixConfig },
+      { type: "QUESTION_REPORTED", questionId: 42, matchId: 0 },
     ];
 
     for (const action of actions) {
@@ -1308,5 +1328,195 @@ describe("game reducer", () => {
     expect(gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" }).phase).toBe(
       "SwitchTurn",
     );
+  });
+
+  it("QUESTION_REPORTED appends a used question once for the current match", () => {
+    const answered = resultState({ reportedQuestionIds: [] });
+
+    const next = gameReducer(answered, {
+      type: "QUESTION_REPORTED",
+      questionId: 42,
+      matchId: answered.matchId,
+    });
+
+    expect(next).not.toBe(answered);
+    expect(next.reportedQuestionIds).toEqual([42]);
+    expect(next.players).toBe(answered.players);
+    expect(next.phase).toBe("Result");
+  });
+
+  it("QUESTION_REPORTED ignores a duplicate", () => {
+    const answered = resultState({ reportedQuestionIds: [42] });
+
+    const next = gameReducer(answered, {
+      type: "QUESTION_REPORTED",
+      questionId: 42,
+      matchId: answered.matchId,
+    });
+
+    expect(next).toBe(answered);
+    expect(next.reportedQuestionIds).toEqual([42]);
+  });
+
+  it("QUESTION_REPORTED ignores an id that was never used", () => {
+    const answered = resultState({
+      usedQuestionIds: [42],
+      reportedQuestionIds: [],
+    });
+
+    expect(
+      gameReducer(answered, {
+        type: "QUESTION_REPORTED",
+        questionId: 99,
+        matchId: answered.matchId,
+      }),
+    ).toBe(answered);
+  });
+
+  it("QUESTION_REPORTED ignores a stale match token even when the id was used", () => {
+    const answered = resultState({
+      matchId: 2,
+      usedQuestionIds: [42],
+      reportedQuestionIds: [],
+    });
+
+    expect(
+      gameReducer(answered, {
+        type: "QUESTION_REPORTED",
+        questionId: 42,
+        matchId: 1,
+      }),
+    ).toBe(answered);
+    expect(answered.reportedQuestionIds).toEqual([]);
+  });
+
+  it("QUESTION_REPORTED ignores a state without a config", () => {
+    const answered = resultState({
+      config: null,
+      reportedQuestionIds: [],
+    });
+
+    expect(
+      gameReducer(answered, {
+        type: "QUESTION_REPORTED",
+        questionId: 42,
+        matchId: answered.matchId,
+      }),
+    ).toBe(answered);
+  });
+
+  it("QUESTION_REPORTED survives Continue and ADVANCE_TURN", () => {
+    const answered = resultState({ reportedQuestionIds: [42] });
+
+    const switchTurn = gameReducer(answered, {
+      type: "CONTINUE_AFTER_ANSWER",
+    });
+    expect(switchTurn.reportedQuestionIds).toEqual([42]);
+    expect(switchTurn.matchId).toBe(answered.matchId);
+
+    const wheel = gameReducer(switchTurn, { type: "ADVANCE_TURN" });
+    expect(wheel.reportedQuestionIds).toEqual([42]);
+    expect(wheel.matchId).toBe(answered.matchId);
+  });
+
+  it("QUESTION_REPORTED survives question loading, answers, category confirmation and respin", () => {
+    const loading = stateWith({
+      phase: "QuestionCard",
+      config,
+      matchId: 4,
+      usedQuestionIds: [42],
+      reportedQuestionIds: [42],
+    });
+
+    const loaded = gameReducer(loading, {
+      type: "QUESTION_LOADED",
+      question: question(43),
+    });
+    expect(loaded.reportedQuestionIds).toEqual([42]);
+    expect(loaded.matchId).toBe(4);
+
+    const answered = gameReducer(loaded, clickedCorrect);
+    expect(answered.reportedQuestionIds).toEqual([42]);
+    expect(answered.matchId).toBe(4);
+
+    const wheel = stateWith({
+      phase: "Wheel",
+      config,
+      matchId: 5,
+      reportedQuestionIds: [42],
+    });
+    const confirmed = gameReducer(wheel, { type: "CATEGORY_CONFIRMED" });
+    expect(confirmed.reportedQuestionIds).toEqual([42]);
+    expect(confirmed.matchId).toBe(5);
+
+    const failed = stateWith({
+      phase: "QuestionCard",
+      config,
+      matchId: 6,
+      currentQuestion: null,
+      reportedQuestionIds: [42],
+    });
+    const respun = gameReducer(failed, { type: "RESPIN_CATEGORY" });
+    expect(respun.reportedQuestionIds).toEqual([42]);
+    expect(respun.matchId).toBe(6);
+  });
+
+  it("RESET_GAME clears the reported ids and increments matchId", () => {
+    const answered = resultState({ matchId: 7, reportedQuestionIds: [42] });
+
+    const next = gameReducer(answered, { type: "RESET_GAME" });
+
+    expect(next.reportedQuestionIds).toEqual([]);
+    expect(next.matchId).toBe(8);
+    expect(next).toEqual({ ...INITIAL_GAME_STATE, matchId: 8 });
+  });
+
+  it("START_GAME clears the reported ids and increments matchId", () => {
+    const lobby = stateWith({
+      phase: "Lobby",
+      config: null,
+      matchId: 9,
+      reportedQuestionIds: [42],
+    });
+
+    const next = gameReducer(lobby, { type: "START_GAME", config });
+
+    expect(next.reportedQuestionIds).toEqual([]);
+    expect(next.matchId).toBe(10);
+  });
+
+  it("a late QUESTION_REPORTED after Continue is accepted with the same token", () => {
+    const answered = resultState({ reportedQuestionIds: [] });
+    const continued = gameReducer(answered, { type: "CONTINUE_AFTER_ANSWER" });
+
+    const next = gameReducer(continued, {
+      type: "QUESTION_REPORTED",
+      questionId: 42,
+      matchId: answered.matchId,
+    });
+
+    expect(next.reportedQuestionIds).toEqual([42]);
+  });
+
+  it("a late QUESTION_REPORTED after RESET_GAME is ignored", () => {
+    const answered = resultState({ matchId: 1, reportedQuestionIds: [] });
+    const reset = gameReducer(answered, { type: "RESET_GAME" });
+    const newMatch = gameReducer(reset, { type: "START_GAME", config });
+    const loaded = gameReducer(
+      gameReducer(gameReducer(newMatch, { type: "CATEGORY_CONFIRMED" }), {
+        type: "QUESTION_LOADED",
+        question: question(),
+      }),
+      clickedCorrect,
+    );
+
+    const next = gameReducer(loaded, {
+      type: "QUESTION_REPORTED",
+      questionId: 42,
+      matchId: 1,
+    });
+
+    expect(next).toBe(loaded);
+    expect(next.reportedQuestionIds).toEqual([]);
   });
 });

@@ -9,5 +9,10 @@ describe("api index", () => {
     expect(api.submitAnswer).toBeDefined();
     expect(api.getApiBaseUrl).toBeDefined();
     expect(api.buildUrl).toBeDefined();
+    expect(api.reportQuestion).toBeDefined();
+    expect(api.REPORT_REASONS).toBeDefined();
+    expect(api.MAX_REPORT_COMMENT_LENGTH).toBe(500);
+    expect(api.isReportReason).toBeDefined();
+    expect(api.normalizeReportComment).toBeDefined();
   });
 });

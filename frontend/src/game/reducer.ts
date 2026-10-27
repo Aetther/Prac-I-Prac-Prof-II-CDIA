@@ -25,6 +25,8 @@ export const INITIAL_GAME_STATE: GameState = {
   result: null,
   ownedCategories: [[], []],
   turnsPlayed: [0, 0],
+  matchId: 0,
+  reportedQuestionIds: [],
 };
 
 export interface NextTurn {
@@ -199,6 +201,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         result: null,
         ownedCategories: [[], []],
         turnsPlayed: [0, 0],
+        matchId: state.matchId + 1,
+        reportedQuestionIds: [],
       };
     case "CATEGORY_CONFIRMED":
       if (state.phase !== "Wheel") return state;
@@ -234,8 +238,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return state;
       }
       return withRespinCategory(state);
+    case "QUESTION_REPORTED":
+      if (
+        action.matchId !== state.matchId ||
+        state.config === null ||
+        !state.usedQuestionIds.includes(action.questionId) ||
+        state.reportedQuestionIds.includes(action.questionId)
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        reportedQuestionIds: [...state.reportedQuestionIds, action.questionId],
+      };
     case "RESET_GAME":
-      return INITIAL_GAME_STATE;
+      return { ...INITIAL_GAME_STATE, matchId: state.matchId + 1 };
     default:
       return state;
   }

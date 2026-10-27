@@ -10,6 +10,7 @@ export * from "./reducer";
 export * from "./timer";
 export * from "./sixCategories";
 export * from "./progress";
+export * from "./reporting";
 
 export { type GamePhase };
 export const INITIAL_PHASE: GamePhase = "Lobby";

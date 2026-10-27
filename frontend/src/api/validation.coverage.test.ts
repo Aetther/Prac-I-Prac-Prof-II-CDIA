@@ -3,6 +3,7 @@ import { ApiError } from "./errors";
 import {
   validateCategories,
   validateGameQuestion,
+  validateReportQuestionResult,
   validateSubmitAnswer,
 } from "./validation";
 
@@ -159,5 +160,76 @@ describe("validation coverage", () => {
   it("validateSubmitAnswer - valid", () => {
     const res = validateSubmitAnswer({ correct: false, correct_answer: "C" });
     expect(res.correct).toBe(false);
+  });
+
+  const report = {
+    id: 7,
+    question_id: 42,
+    reason: "traduccion",
+    status: "pendiente",
+    created_at: "2026-10-26T12:00:00Z",
+  };
+
+  it("validateReportQuestionResult - not an object", () => {
+    expect(() => validateReportQuestionResult(null)).toThrow(ApiError);
+    expect(() => validateReportQuestionResult("x")).toThrow(ApiError);
+  });
+
+  it("validateReportQuestionResult - invalid id", () => {
+    expect(() => validateReportQuestionResult({ ...report, id: 0 })).toThrow(
+      ApiError,
+    );
+    expect(() => validateReportQuestionResult({ ...report, id: 1.5 })).toThrow(
+      ApiError,
+    );
+    expect(() => validateReportQuestionResult({ ...report, id: "7" })).toThrow(
+      ApiError,
+    );
+  });
+
+  it("validateReportQuestionResult - invalid question_id", () => {
+    expect(() =>
+      validateReportQuestionResult({ ...report, question_id: 0 }),
+    ).toThrow(ApiError);
+    expect(() =>
+      validateReportQuestionResult({ ...report, question_id: 1.5 }),
+    ).toThrow(ApiError);
+    expect(() =>
+      validateReportQuestionResult({ ...report, question_id: null }),
+    ).toThrow(ApiError);
+  });
+
+  it("validateReportQuestionResult - invalid reason", () => {
+    expect(() =>
+      validateReportQuestionResult({ ...report, reason: "foo" }),
+    ).toThrow(ApiError);
+    expect(() =>
+      validateReportQuestionResult({ ...report, reason: 7 }),
+    ).toThrow(ApiError);
+  });
+
+  it("validateReportQuestionResult - invalid status", () => {
+    for (const status of ["", "pending", 7, undefined]) {
+      expect(() => validateReportQuestionResult({ ...report, status })).toThrow(
+        ApiError,
+      );
+    }
+  });
+
+  it("validateReportQuestionResult - invalid created_at", () => {
+    expect(() =>
+      validateReportQuestionResult({ ...report, created_at: "" }),
+    ).toThrow(ApiError);
+    expect(() =>
+      validateReportQuestionResult({ ...report, created_at: 7 }),
+    ).toThrow(ApiError);
+  });
+
+  it("validateReportQuestionResult - accepts each valid status", () => {
+    for (const status of ["pendiente", "resuelto", "descartado"]) {
+      expect(validateReportQuestionResult({ ...report, status }).status).toBe(
+        status,
+      );
+    }
   });
 });

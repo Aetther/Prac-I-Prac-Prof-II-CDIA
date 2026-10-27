@@ -12,7 +12,13 @@ import type { UserEvent } from "@testing-library/user-event";
 import App from "./App";
 import { ApiError } from "./api/errors";
 import { getCategories, getGameQuestion, submitAnswer } from "./api/game";
-import type { Category, GameQuestion, SubmitAnswerResult } from "./api/types";
+import { reportQuestion } from "./api/reports";
+import type {
+  Category,
+  GameQuestion,
+  ReportQuestionResult,
+  SubmitAnswerResult,
+} from "./api/types";
 import { installRafQueue } from "./test/rafQueue";
 import type { RafQueue } from "./test/rafQueue";
 import { FRAME_TIMESTAMPS, SIX_CATEGORIES } from "./test/wheelFixtures";
@@ -23,9 +29,14 @@ vi.mock("./api/game", () => ({
   submitAnswer: vi.fn(),
 }));
 
+vi.mock("./api/reports", () => ({
+  reportQuestion: vi.fn(),
+}));
+
 const getCategoriesMock = vi.mocked(getCategories);
 const getQuestion = vi.mocked(getGameQuestion);
 const postAnswer = vi.mocked(submitAnswer);
+const reportMock = vi.mocked(reportQuestion);
 
 let queue: RafQueue;
 
@@ -194,6 +205,57 @@ async function continueFromSwitchTurn(user: UserEvent): Promise<void> {
 async function continueToWheel(user: UserEvent): Promise<void> {
   await continueFromSwitchTurn(user);
   await screen.findByRole("button", { name: "Girar" });
+}
+
+function report201(
+  overrides: Partial<ReportQuestionResult> = {},
+): ReportQuestionResult {
+  return {
+    id: 7,
+    question_id: 42,
+    reason: "traduccion",
+    status: "pendiente",
+    created_at: "2026-10-26T12:00:00Z",
+    ...overrides,
+  };
+}
+
+async function reachResult(
+  user: UserEvent,
+  overrides: Partial<GameQuestion> = {},
+): Promise<GameQuestion> {
+  const served = question(overrides);
+  getQuestion.mockResolvedValueOnce(served);
+  postAnswer.mockResolvedValueOnce({ correct: true, correct_answer: "Lima" });
+  await startMatch(user);
+  await screen.findByText(served.question);
+  await answer(user, "Lima");
+  await screen.findByRole("heading", { name: "Resultado" });
+  return served;
+}
+
+async function openReportForm(user: UserEvent): Promise<void> {
+  await user.click(screen.getByRole("button", { name: "Reportar" }));
+  await screen.findByRole("region", { name: "Reportar pregunta" });
+}
+
+async function fillReport(
+  user: UserEvent,
+  reason: "Traducción" | "Otro" | "Error en el texto" = "Traducción",
+  comment = "",
+): Promise<void> {
+  await user.click(screen.getByLabelText(reason));
+  if (comment !== "") {
+    await user.type(screen.getByLabelText("Comentario"), comment);
+  }
+}
+
+async function submitReport(user: UserEvent): Promise<void> {
+  await user.click(screen.getByRole("button", { name: "Enviar reporte" }));
+}
+
+function reportAlert(): HTMLElement {
+  return screen.getByRole("alert");
 }
 
 beforeEach(() => {
@@ -424,7 +486,7 @@ describe("App game flow with a mocked API", () => {
       "La respuesta correcta era: Lima",
     );
     expect(screen.queryByText(/Pasale el dispositivo/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Reportar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeEnabled();
     expect(
       screen.queryAllByRole("button", {
         name: /^(Lima|Quito|Bogotá|Buenos Aires)$/,
@@ -2337,3 +2399,663 @@ describe("App six-categories flow with a mocked API", () => {
     expect(currentTurnRow()[0]).toHaveTextContent("Ana");
   });
 });
+
+describe("App reporting with the report API mocked", () => {
+  it("RAG-01 a 201 confirms, closes the form and disables Reportar", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockResolvedValueOnce(report201());
+    await openReportForm(user);
+    await fillReport(user);
+
+    await submitReport(user);
+
+    const confirmation = await screen.findByText(
+      "Gracias. Recibimos tu reporte.",
+    );
+    expect(confirmation).toHaveAttribute("role", "status");
+    expect(
+      screen.queryByRole("region", { name: "Reportar pregunta" }),
+    ).toBeNull();
+    const report = screen.getByRole("button", { name: "Reportar" });
+    expect(report).toBeDisabled();
+    expect(report).toHaveAccessibleDescription("Ya reportaste esta pregunta.");
+    expect(reportMock).toHaveBeenCalledTimes(1);
+    expect(reportMock).toHaveBeenCalledWith(42, "traduccion", "", "es");
+    expect(screen.getByText("Correcta")).toBeVisible();
+    expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
+  });
+
+  it("RAG-02 a malformed 201 is editable, offers no retry and resends the edited body", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("validation", "Respuesta inválida del servidor.", {
+        detail: "id de reporte inválido",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText("Respuesta inválida del servidor."),
+    ).toBeVisible();
+    expect(
+      within(reportAlert()).getByText("id de reporte inválido"),
+    ).toBeVisible();
+    expect(screen.queryByText("Gracias. Recibimos tu reporte.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Enviar reporte" }),
+    ).toBeEnabled();
+    expect((screen.getByLabelText("Otro") as HTMLInputElement).checked).toBe(
+      true,
+    );
+
+    await user.clear(screen.getByLabelText("Comentario"));
+    await user.type(
+      screen.getByLabelText("Comentario"),
+      "Falta la tilde corregida",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    reportMock.mockResolvedValueOnce(report201({ reason: "otro" }));
+    await submitReport(user);
+
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(2);
+    expect(reportMock).toHaveBeenLastCalledWith(
+      42,
+      "otro",
+      "Falta la tilde corregida",
+      "es",
+    );
+  });
+
+  it("RAG-03 429 with Retry-After 7 shows the seconds and Retry re-sends the same body", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Demasiadas solicitudes. Esperá unos segundos.", {
+        status: 429,
+        retryAfterSeconds: 7,
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+    await submitReport(user);
+
+    expect(within(reportAlert()).getByText("Esperá 7 segundos")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeEnabled();
+    expect(reportMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reportMock).toHaveBeenCalledTimes(1);
+
+    reportMock.mockResolvedValueOnce(report201({ reason: "otro" }));
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(2);
+    expect(reportMock).toHaveBeenLastCalledWith(
+      42,
+      "otro",
+      "Falta la tilde",
+      "es",
+    );
+  });
+
+  it("RAG-04 a 404 shows the unavailable state, offers no retry and does not mark the report", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Recurso no encontrado.", {
+        status: 404,
+        detail: "Question not found",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText("La pregunta ya no está disponible."),
+    ).toBeVisible();
+    expect(within(reportAlert()).queryByText("Question not found")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    expect((screen.getByLabelText("Otro") as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect(
+      (screen.getByLabelText("Comentario") as HTMLTextAreaElement).value,
+    ).toBe("Falta la tilde");
+    expect(
+      screen.getByRole("button", { name: "Enviar reporte" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    const report = screen.getByRole("button", { name: "Reportar" });
+    expect(report).toBeDisabled();
+    expect(report).toHaveAccessibleDescription(
+      "La pregunta ya no está disponible.",
+    );
+    expect(screen.queryByText("Gracias. Recibimos tu reporte.")).toBeNull();
+    expect(screen.queryByText("Ya reportaste esta pregunta.")).toBeNull();
+    fireEvent.click(report);
+    expect(reportMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Volver al lobby")).toBeNull();
+    expect(screen.getByText("Resultado")).toBeVisible();
+    expect(screen.getByText("Correcta")).toBeVisible();
+    expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
+
+    await continueFromResult(user);
+    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(reportMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("RAG-05 a 422 list is editable, offers no retry and resends the edited body", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Los datos enviados no son válidos.", {
+        status: 422,
+        detail: "comentario requerido",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText(
+        "El reporte no es válido. Revisá el motivo y el comentario.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(reportAlert()).getByText("comentario requerido"),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Enviar reporte" }),
+    ).toBeEnabled();
+    expect((screen.getByLabelText("Otro") as HTMLInputElement).checked).toBe(
+      true,
+    );
+
+    await user.clear(screen.getByLabelText("Comentario"));
+    await user.type(
+      screen.getByLabelText("Comentario"),
+      "Falta la tilde corregida",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    reportMock.mockResolvedValueOnce(report201({ reason: "otro" }));
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenLastCalledWith(
+      42,
+      "otro",
+      "Falta la tilde corregida",
+      "es",
+    );
+  });
+
+  it("RAG-06 a 422 text detail is editable under Enviar reporte", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Los datos enviados no son válidos.", {
+        status: 422,
+        detail: "El comentario es obligatorio para el motivo Otro.",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText(
+        "El comentario es obligatorio para el motivo Otro.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Enviar reporte" }),
+    ).toBeEnabled();
+    expect(
+      (screen.getByLabelText("Comentario") as HTMLTextAreaElement).value,
+    ).toBe("Falta la tilde");
+  });
+
+  it("RAG-07 500 shows Error del servidor. inline without its detail", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Error del servidor.", {
+        status: 500,
+        detail: "boom",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText("Error del servidor."),
+    ).toBeVisible();
+    expect(screen.queryByText("boom")).toBeNull();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeEnabled();
+    expect(reportMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Resultado")).toBeVisible();
+
+    reportMock.mockResolvedValueOnce(report201());
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenLastCalledWith(42, "traduccion", "", "es");
+  });
+
+  it("RAG-08 RAG-09 network and timeout stay inline with Reintentar", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(networkError());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText("¿Está corriendo la API?"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeEnabled();
+    expect(reportMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Resultado")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
+    expect(screen.queryByText("Volver al lobby")).toBeNull();
+
+    reportMock.mockResolvedValueOnce(report201());
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("RAG-09b a timeout shows the same copy and leaves the match intact", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("timeout", "La solicitud tardó demasiado tiempo."),
+    );
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText("¿Está corriendo la API?"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeEnabled();
+    expect(screen.getByText("Correcta")).toBeVisible();
+    expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
+  });
+
+  it("RAG-10 a validation input message is shown verbatim and is editable", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("validation", "Escribí un comentario para el motivo Otro.", {
+        detail: "detalle",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText(
+        "Escribí un comentario para el motivo Otro.",
+      ),
+    ).toBeVisible();
+    expect(within(reportAlert()).getByText("detalle")).toBeVisible();
+    expect(screen.queryByText("Respuesta inválida del servidor.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Enviar reporte" }),
+    ).toBeEnabled();
+
+    await user.type(screen.getByLabelText("Comentario"), "!");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("RAG-11 the reason and comment survive a retryable failure and Retry resends them", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Demasiadas solicitudes.", {
+        status: 429,
+        retryAfterSeconds: 7,
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+    await submitReport(user);
+
+    expect((screen.getByLabelText("Otro") as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect(
+      (screen.getByLabelText("Comentario") as HTMLTextAreaElement).value,
+    ).toBe("Falta la tilde");
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeVisible();
+    expect(reportMock).toHaveBeenCalledTimes(1);
+
+    reportMock.mockResolvedValueOnce(report201({ reason: "otro" }));
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    await waitForReportConfirmation();
+    expect(reportMock).toHaveBeenLastCalledWith(
+      42,
+      "otro",
+      "Falta la tilde",
+      "es",
+    );
+  });
+
+  it("RAG-12 a double click calls reportQuestion once", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    const pending = deferred<ReportQuestionResult>();
+    reportMock.mockReturnValueOnce(pending.promise);
+    await openReportForm(user);
+    await fillReport(user);
+
+    const submit = screen.getByRole("button", { name: "Enviar reporte" });
+    act(() => {
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+    });
+
+    expect(reportMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Enviando reporte..." }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      pending.resolve(report201());
+    });
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("RAG-13 a click after success sends nothing", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockResolvedValueOnce(report201());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+
+    const report = screen.getByRole("button", { name: "Reportar" });
+    expect(report).toBeDisabled();
+    fireEvent.click(report);
+    expect(reportMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("RAG-14 Continue before a report reaches SwitchTurn with no report call", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+
+    await continueFromResult(user);
+
+    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(reportMock).not.toHaveBeenCalled();
+  });
+
+  it("RAG-15 Continue during a pending report reaches SwitchTurn and a late 201 does not corrupt it", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    const pending = deferred<ReportQuestionResult>();
+    reportMock.mockReturnValueOnce(pending.promise);
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+
+    await continueFromResult(user);
+    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
+
+    await act(async () => {
+      pending.resolve(report201());
+    });
+
+    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
+    expect(reportMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("RAG-16 a late 201 from a previous match is ignored with the same question id", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    const pending = deferred<ReportQuestionResult>();
+    reportMock.mockReturnValueOnce(pending.promise);
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+
+    await continueFromResult(user);
+    await continueToWheel(user);
+    getQuestion.mockRejectedValueOnce(networkError());
+    await spinWheel(user);
+    await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
+
+    await reachResult(user);
+    await act(async () => {
+      pending.resolve(report201());
+    });
+
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeEnabled();
+    expect(screen.queryByText("Gracias. Recibimos tu reporte.")).toBeNull();
+
+    reportMock.mockResolvedValueOnce(report201());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("RAG-17 a 201 after RESET_GAME cannot mark the new match", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    const pending = deferred<ReportQuestionResult>();
+    reportMock.mockReturnValueOnce(pending.promise);
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+
+    await continueFromResult(user);
+    await continueToWheel(user);
+    getQuestion.mockRejectedValueOnce(networkError());
+    await spinWheel(user);
+    await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
+
+    await act(async () => {
+      pending.resolve(report201());
+    });
+
+    await reachResult(user);
+
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeEnabled();
+    expect(screen.queryByText("Gracias. Recibimos tu reporte.")).toBeNull();
+  });
+
+  it("RAG-18 the log has the id, kind and status and never the comment", async () => {
+    const user = userEvent.setup();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Los datos enviados no son válidos.", {
+        status: 422,
+        detail: "detalle",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "texto privado");
+    await submitReport(user);
+
+    expect(errorSpy).toHaveBeenCalledWith("No se pudo reportar la pregunta", {
+      questionId: 42,
+      kind: "http",
+      status: 422,
+    });
+    const serialized = JSON.stringify(errorSpy.mock.calls);
+    expect(serialized).not.toContain("texto privado");
+    expect(serialized).not.toContain("X-API-Key");
+    expect(serialized).not.toContain("detalle");
+  });
+
+  it("RAG-18b a successful report logs nothing", async () => {
+    const user = userEvent.setup();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await reachResult(user);
+    reportMock.mockResolvedValueOnce(report201());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(errorSpy.mock.calls).toHaveLength(0);
+  });
+
+  it("RAG-19 a failure never replaces Result and Continuar still works", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(serverError());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+
+    expect(screen.queryByText("Volver al lobby")).toBeNull();
+    expect(screen.getByText("Resultado")).toBeVisible();
+    expect(screen.getByText("Correcta")).toBeVisible();
+    expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
+
+    await continueFromResult(user);
+    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(reportMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("RAG-20 the next question has its own enabled action", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockResolvedValueOnce(report201());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+
+    await continueFromResult(user);
+    await continueToWheel(user);
+    getQuestion.mockResolvedValueOnce(question({ id: 43 }));
+    await spinWheel(user);
+    await screen.findByText("¿Capital de Francia?");
+    await answer(user, "Lima");
+
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeEnabled();
+    expect(screen.queryByText("Gracias. Recibimos tu reporte.")).toBeNull();
+
+    reportMock.mockResolvedValueOnce(report201({ question_id: 43 }));
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(2);
+    expect(reportMock).toHaveBeenLastCalledWith(43, "traduccion", "", "es");
+  });
+
+  it("RAG-21 the unavailable state clears on RESET_GAME and START_GAME", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(notFound());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeDisabled();
+
+    await continueFromResult(user);
+    await continueToWheel(user);
+    getQuestion.mockRejectedValueOnce(networkError());
+    await spinWheel(user);
+    await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
+
+    await reachResult(user);
+
+    const report = screen.getByRole("button", { name: "Reportar" });
+    expect(report).toBeEnabled();
+    expect(report).not.toHaveAccessibleDescription(
+      "La pregunta ya no está disponible.",
+    );
+
+    reportMock.mockResolvedValueOnce(report201());
+    await openReportForm(user);
+    await fillReport(user);
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("RAG-22 another 4xx is editable without Reintentar", async () => {
+    const user = userEvent.setup();
+    await reachResult(user);
+    reportMock.mockRejectedValueOnce(
+      new ApiError("http", "Error en la solicitud.", {
+        status: 403,
+        detail: "forbidden",
+      }),
+    );
+    await openReportForm(user);
+    await fillReport(user, "Otro", "Falta la tilde");
+    await submitReport(user);
+
+    expect(
+      within(reportAlert()).getByText("Error en la solicitud."),
+    ).toBeVisible();
+    expect(screen.queryByText("forbidden")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Enviar reporte" }),
+    ).toBeEnabled();
+    expect((screen.getByLabelText("Otro") as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect(
+      (screen.getByLabelText("Comentario") as HTMLTextAreaElement).value,
+    ).toBe("Falta la tilde");
+
+    await user.clear(screen.getByLabelText("Comentario"));
+    await user.type(
+      screen.getByLabelText("Comentario"),
+      "Falta la tilde corregida",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    reportMock.mockResolvedValueOnce(report201({ reason: "otro" }));
+    await submitReport(user);
+    await screen.findByText("Gracias. Recibimos tu reporte.");
+    expect(reportMock).toHaveBeenCalledTimes(2);
+    expect(reportMock).toHaveBeenLastCalledWith(
+      42,
+      "otro",
+      "Falta la tilde corregida",
+      "es",
+    );
+  });
+});
+
+async function waitForReportConfirmation(): Promise<void> {
+  await screen.findByText("Gracias. Recibimos tu reporte.");
+}

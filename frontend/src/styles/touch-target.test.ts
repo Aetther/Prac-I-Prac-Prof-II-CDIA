@@ -22,4 +22,24 @@ describe("touch-target styles", () => {
       /\.touch-target\s*\{[^}]*min-width:\s*var\(--touch-target-min\);[^}]*\}/,
     );
   });
+
+  it("makes the report reason rows flex targets with a full-width textarea", () => {
+    const styles = readFileSync(
+      join(process.cwd(), "src/styles/index.css"),
+      "utf-8",
+    );
+
+    expect(styles).toMatch(
+      /\.report-form\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*\}/,
+    );
+    expect(styles).toMatch(
+      /\.report-form fieldset\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*\}/,
+    );
+    expect(styles).toMatch(
+      /\.report-form label\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*\}/,
+    );
+    expect(styles).toMatch(
+      /\.report-form textarea\s*\{[^}]*width:\s*100%;[^}]*\}/,
+    );
+  });
 });

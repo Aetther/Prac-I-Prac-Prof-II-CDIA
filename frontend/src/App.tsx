@@ -2,6 +2,8 @@ import { useReducer, useRef, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ApiError } from "./api/errors";
 import { getCategories, getGameQuestion, submitAnswer } from "./api/game";
+import { reportQuestion } from "./api/reports";
+import type { ReportReason } from "./api/types";
 import { Admin } from "./components/Admin";
 import { GameScreen } from "./components/GameScreen";
 import {
@@ -14,10 +16,12 @@ import {
   fetchUnusedQuestion,
   gameReducer,
   getApiErrorMessage,
+  getReportFailure,
   loadQuestionWithFallback,
   pickCategoryExcluding,
 } from "./game";
 import type { CategoryName, Lang, LobbyInput, WheelCategory } from "./game";
+import type { ReportSubmissionResult } from "./game/reporting";
 
 interface LoadRetryTarget {
   readonly type: "loadQuestion";
@@ -72,6 +76,16 @@ function App() {
   );
   const [request, setRequest] = useState<RequestState>({ status: "idle" });
   const inFlightRef = useRef(false);
+  const [reportingQuestionId, setReportingQuestionId] = useState<number | null>(
+    null,
+  );
+  const [unavailableQuestionId, setUnavailableQuestionId] = useState<
+    number | null
+  >(null);
+  const gameRef = useRef(game);
+  // A settled report promise needs the latest committed config synchronously.
+  // eslint-disable-next-line react-hooks/refs
+  gameRef.current = game;
 
   async function runExclusive(task: () => Promise<void>): Promise<void> {
     if (inFlightRef.current) return;
@@ -210,6 +224,7 @@ function App() {
   const handleStart = (input: LobbyInput) => {
     const config = createLobbyConfig(input);
     if (config === null) return;
+    setUnavailableQuestionId(null);
     void runExclusive(async () => {
       dispatch({ type: "START_GAME", config });
       await loadCategories();
@@ -246,6 +261,64 @@ function App() {
   const handleAnswerContinue = () => {
     if (game.phase !== "Result" || game.lastAnswer === null) return;
     dispatch({ type: "CONTINUE_AFTER_ANSWER" });
+  };
+
+  const handleReport = async (
+    reason: ReportReason,
+    comment: string,
+  ): Promise<ReportSubmissionResult> => {
+    const question = game.currentQuestion;
+    const config = game.config;
+    if (
+      game.phase !== "Result" ||
+      question === null ||
+      config === null ||
+      game.reportedQuestionIds.includes(question.id) ||
+      unavailableQuestionId === question.id ||
+      reportingQuestionId !== null
+    ) {
+      return {
+        ok: false,
+        message: "No se pudo enviar el reporte.",
+        retryable: false,
+        unavailable: false,
+      };
+    }
+
+    const questionId = question.id;
+    const matchId = game.matchId;
+    setReportingQuestionId(questionId);
+    try {
+      await reportQuestion(questionId, reason, comment, config.lang);
+      if (gameRef.current.config === config) {
+        dispatch({ type: "QUESTION_REPORTED", questionId, matchId });
+      }
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        console.error("No se pudo reportar la pregunta", {
+          questionId,
+          kind: error.kind,
+          status: error.status,
+        });
+        const failure = getReportFailure(error);
+        if (failure.unavailable) {
+          setUnavailableQuestionId(questionId);
+        }
+        return failure;
+      }
+      console.error("No se pudo reportar la pregunta", { questionId });
+      return {
+        ok: false,
+        message: "Ocurrió un error inesperado.",
+        retryable: false,
+        unavailable: false,
+      };
+    } finally {
+      setReportingQuestionId((current) =>
+        current === questionId ? null : current,
+      );
+    }
   };
 
   const handleTurnContinue = () => {
@@ -301,6 +374,7 @@ function App() {
     dispatch({ type: "RESET_GAME" });
     setCategories(null);
     setRequest({ status: "idle" });
+    setUnavailableQuestionId(null);
   };
 
   return (
@@ -322,6 +396,9 @@ function App() {
               onChooseCategory={handleChooseCategory}
               onRetry={handleRetry}
               onBackToLobby={handleBackToLobby}
+              reportingQuestionId={reportingQuestionId}
+              unavailableQuestionId={unavailableQuestionId}
+              onReport={handleReport}
             />
           }
         />
