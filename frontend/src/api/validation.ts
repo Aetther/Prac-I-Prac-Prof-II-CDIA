@@ -1,24 +1,40 @@
 import { ApiError } from "./errors";
 import { isReportReason } from "./reportReasons";
 import type {
+  AdminReport,
   Category,
   GameQuestion,
   ReportQuestionResult,
+  ReportStats,
   ReportStatus,
   SubmitAnswerResult,
 } from "./types";
 
-const REPORT_STATUSES: readonly ReportStatus[] = [
+export const REPORT_STATUSES: readonly ReportStatus[] = [
   "pendiente",
   "resuelto",
   "descartado",
 ];
 
-function isReportStatus(value: unknown): value is ReportStatus {
+export function isReportStatus(value: unknown): value is ReportStatus {
   return (
     typeof value === "string" &&
     (REPORT_STATUSES as readonly string[]).includes(value)
   );
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function invalid(detail: string): ApiError {
+  return new ApiError("validation", "Respuesta inválida del servidor.", {
+    detail,
+  });
 }
 
 export function validateCategories(data: unknown): Category[] {
@@ -163,4 +179,102 @@ export function validateReportQuestionResult(
     });
   }
   return data as ReportQuestionResult;
+}
+
+export function validateReportStats(data: unknown): ReportStats {
+  if (!isPlainObject(data)) {
+    throw invalid("estadísticas inválidas");
+  }
+  if (!isCount(data.pendiente)) {
+    throw invalid("contador de pendientes inválido");
+  }
+  if (!isCount(data.resuelto)) {
+    throw invalid("contador de resueltos inválido");
+  }
+  if (!isCount(data.descartado)) {
+    throw invalid("contador de descartados inválido");
+  }
+  if (!isPlainObject(data.pending_by_reason)) {
+    throw invalid("desglose por motivo inválido");
+  }
+  for (const value of Object.values(data.pending_by_reason)) {
+    if (!isCount(value)) {
+      throw invalid("contador por motivo inválido");
+    }
+  }
+  return data as unknown as ReportStats;
+}
+
+export function validateAdminReport(data: unknown): AdminReport {
+  if (!isPlainObject(data)) {
+    throw invalid("reporte inválido");
+  }
+  if (
+    typeof data.id !== "number" ||
+    !Number.isInteger(data.id) ||
+    data.id <= 0
+  ) {
+    throw invalid("id de reporte inválido");
+  }
+  if (
+    typeof data.question_id !== "number" ||
+    !Number.isInteger(data.question_id) ||
+    data.question_id <= 0
+  ) {
+    throw invalid("question_id inválido");
+  }
+  if (!isReportReason(data.reason)) {
+    throw invalid("motivo de reporte inválido");
+  }
+  if (data.comment !== null && typeof data.comment !== "string") {
+    throw invalid("comentario de reporte inválido");
+  }
+  if (data.lang !== "es" && data.lang !== "en") {
+    throw invalid("idioma del reporte inválido");
+  }
+  if (!isReportStatus(data.status)) {
+    throw invalid("estado de reporte inválido");
+  }
+  if (typeof data.created_at !== "string" || data.created_at === "") {
+    throw invalid("fecha de creación inválida");
+  }
+  if (
+    data.resolved_at !== null &&
+    (typeof data.resolved_at !== "string" || data.resolved_at === "")
+  ) {
+    throw invalid("fecha de resolución inválida");
+  }
+  if (!isPlainObject(data.question)) {
+    throw invalid("pregunta del reporte inválida");
+  }
+  const question = data.question;
+  if (typeof question.question !== "string" || question.question === "") {
+    throw invalid("texto de pregunta inválido");
+  }
+  if (typeof question.answer !== "string" || question.answer === "") {
+    throw invalid("respuesta de la pregunta inválida");
+  }
+  if (
+    question.question_es !== null &&
+    typeof question.question_es !== "string"
+  ) {
+    throw invalid("texto de pregunta en español inválido");
+  }
+  if (question.answer_es !== null && typeof question.answer_es !== "string") {
+    throw invalid("respuesta en español inválida");
+  }
+  if (typeof question.is_translated !== "boolean") {
+    throw invalid("indicador de traducción inválido");
+  }
+  if (typeof question.is_active !== "boolean") {
+    throw invalid("indicador de publicación inválido");
+  }
+  return data as unknown as AdminReport;
+}
+
+export function validateAdminReportList(data: unknown): AdminReport[] {
+  if (!Array.isArray(data)) {
+    throw invalid("lista de reportes inválida");
+  }
+  return data.map((item) => validateAdminReport(item));
 }

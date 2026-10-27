@@ -656,9 +656,18 @@ En la pantalla de resultado, **Reportar** abre un formulario debajo de la respue
 
 En una partida no se repiten preguntas. Si no quedan preguntas de la categoría que salió, se usa otra categoría al azar, y la pantalla de la pregunta muestra la que realmente se usó; si ya no quedan en ninguna de las 6, aparece un aviso y **Reintentar** vuelve a la ruleta. Si la API no responde, aparece "¿Está corriendo la API?" con los botones **Reintentar** y **Volver al lobby**.
 
+### Vista de administración
+
+En `http://localhost:5173/admin`, separada del juego y sin sonido, para revisar lo que reportan los jugadores:
+
+- **Entrada con la API key** (la de `API_KEY` en el `.env`), en un campo de contraseña. El frontend la verifica con `GET /reports/stats` antes de dejar entrar. La clave **vive solo en la memoria de la página**: no se guarda en el navegador (ni `localStorage`, ni cookies, ni la URL) y no aparece en los registros. Al recargar la página, o con el botón **Salir**, hay que volver a ingresarla; si la API la rechaza en cualquier momento (`401`), se vuelve a pedir. Si el servidor no tiene `API_KEY` configurada (`503`), se avisa.
+- **Resumen**: cuántos reportes hay pendientes, resueltos y descartados, y los pendientes por motivo.
+- **Lista de reportes**, del más nuevo al más viejo, de a 20 por página: motivo, comentario, idioma, fecha (en hora argentina) y estado. Se puede filtrar por estado (pendientes por defecto) y por número de pregunta, y **abrir la pregunta** para ver el texto y la respuesta en inglés y en español.
+- **Cambiar el estado** de un reporte: resuelto (se corrigió la pregunta), descartado (no había error) o de vuelta a pendiente. Después de cada cambio se actualizan la lista y el resumen.
+
 ### Estado actual
 
-El frontend se construye en 10 etapas. Están terminadas las seis primeras:
+El frontend se construye en 10 etapas. Están terminadas las siete primeras:
 
 | Etapa | Estado |
 |---|---|
@@ -668,7 +677,8 @@ El frontend se construye en 10 etapas. Están terminadas las seis primeras:
 | Temporizador y pantalla de resultado | ✅ |
 | Modo "juntar las 6 categorías" | ✅ |
 | Reportar una pregunta | ✅ |
-| Vista de administración (`/admin`): reportes y edición de preguntas | Pendiente (dos etapas) |
+| Vista de administración (`/admin`): acceso y reportes | ✅ |
+| Vista de administración: editar, ocultar e historial de preguntas | Pendiente |
 | Estilos finales y prueba en celular | Pendiente |
 | Sonido y música | Pendiente |
 
@@ -680,7 +690,7 @@ El frontend se construye en 10 etapas. Están terminadas las seis primeras:
 - **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que va a usar el sonido. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
 - **El temporizador** guarda la hora en que se termina el tiempo y la compara con el reloj, en vez de contar segundos: así no se atrasa ni se congela si el navegador pone la pestaña en segundo plano (algo común en el celular). Cuando el tiempo se acaba, igual se le pregunta a la API (`POST /game/answer` con la respuesta "(sin respuesta)"), solo para mostrar la respuesta correcta: el turno cuenta siempre como incorrecto. Si el jugador elige una opción justo cuando se acaba el tiempo, se manda una sola respuesta, la que llegó primero.
 - **La respuesta correcta la decide siempre la API** (`POST /game/answer`): el frontend nunca la conoce antes de que el jugador elija.
-- **Solo usa los endpoints públicos del juego** (`/categories`, una vez por partida para los nombres de la ruleta, `/game/question`, `/game/answer` y `/reports` para reportar). Nunca los de administración, que muestran las respuestas.
+- **El juego solo usa los endpoints públicos** (`/categories`, una vez por partida para los nombres de la ruleta, `/game/question`, `/game/answer` y `/reports` para reportar). Nunca los de administración, que muestran las respuestas: esos los usa solo la vista `/admin`, con la API key.
 
 La dirección de la API sale de `VITE_API_URL` (por defecto `http://localhost:8000`; ver `frontend/.env.example`). La API ya tiene CORS habilitado para `http://localhost:5173` (ver [CORS](#cors)).
 
@@ -1161,7 +1171,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **597 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **745 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), la vista de administración (la clave, los filtros, la paginación y los cambios de estado), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
 - **Cobertura exigida: 100% de líneas y de ramas** en `src/game` y `src/api`.
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
@@ -1283,7 +1293,7 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
-- El frontend todavía no tiene la vista de administración ni el sonido (ver [Estado actual](#estado-actual)).
+- El frontend todavía no permite editar ni ocultar preguntas desde la vista de administración, ni tiene sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 

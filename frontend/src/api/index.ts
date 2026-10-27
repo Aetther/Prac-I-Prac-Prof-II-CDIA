@@ -6,3 +6,5 @@ export * from "./client";
 export * from "./game";
 export * from "./reportReasons";
 export * from "./reports";
+export * from "./admin";
+export * from "./adminFailures";
