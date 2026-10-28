@@ -10,5 +10,6 @@ export { GameScreen } from "./GameScreen";
 export { Admin } from "./Admin";
 export { AdminKeyGate } from "./AdminKeyGate";
 export { AdminPanel } from "./AdminPanel";
+export { AdminQuestionEditor } from "./AdminQuestionEditor";
 export { AdminReportRow } from "./AdminReportRow";
 export { ReportForm } from "./ReportForm";

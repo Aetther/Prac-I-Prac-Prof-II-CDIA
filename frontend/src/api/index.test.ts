@@ -28,6 +28,11 @@ describe("api index", () => {
     expect(api.ADMIN_STATUS_LABELS.pendiente).toBe("Pendiente");
     expect(api.ADMIN_STATUS_FILTER_OPTIONS).toHaveLength(4);
     expect(api.ADMIN_REPORT_LANG_LABELS.es).toBe("Español");
+    expect(api.getQuestion).toBeDefined();
+    expect(api.updateQuestion).toBeDefined();
+    expect(api.hideQuestion).toBeDefined();
+    expect(api.getQuestionEdits).toBeDefined();
+    expect(api.getQuestionEditFailure).toBeDefined();
     expect(api.REPORT_STATUSES).toEqual([
       "pendiente",
       "resuelto",

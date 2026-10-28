@@ -11,7 +11,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      include: ["src/game/**/*", "src/api/**/*"],
+      include: [
+        "src/game/**/*",
+        "src/api/**/*",
+        "src/components/questionEditorForm.ts",
+      ],
       exclude: [
         "**/*.test.ts",
         "**/*.test.tsx",

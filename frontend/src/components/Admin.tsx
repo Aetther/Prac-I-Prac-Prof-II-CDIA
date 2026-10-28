@@ -8,10 +8,20 @@ import {
 import {
   ADMIN_EXPIRED_KEY_MESSAGE,
   getAdminFailure,
+  getQuestionEditFailure,
 } from "../api/adminFailures";
 import type { AdminFailure } from "../api/adminFailures";
 import { ApiError } from "../api/errors";
+import {
+  getQuestion,
+  getQuestionEdits,
+  hideQuestion,
+  updateQuestion,
+} from "../api/questionEditing";
 import type {
+  AdminQuestion,
+  AdminQuestionEdit,
+  AdminQuestionPatch,
   AdminReport,
   AdminReportStatusFilter,
   ReportStatus,
@@ -20,13 +30,26 @@ import type {
 import { AdminKeyGate } from "./AdminKeyGate";
 import { AdminPanel } from "./AdminPanel";
 import type { AppliedFilters } from "./AdminPanel";
+import { AdminQuestionEditor } from "./AdminQuestionEditor";
+import { changedFieldLabels } from "./questionEditorForm";
 
 type Phase = "locked" | "verifying" | "unlocked";
 
 type RetryTarget =
   | { type: "list" }
   | { type: "stats" }
-  | { type: "status"; reportId: number; status: ReportStatus };
+  | { type: "status"; reportId: number; status: ReportStatus }
+  | { type: "editorOpen"; questionId: number };
+
+type EditorRetry =
+  | { type: "save"; questionId: number; patch: AdminQuestionPatch }
+  | { type: "hide"; questionId: number }
+  | { type: "restore"; questionId: number };
+
+type EditorState =
+  | { phase: "closed" }
+  | { phase: "loading"; questionId: number }
+  | { phase: "ready"; questionId: number; question: AdminQuestion };
 
 interface PageParams {
   status: AdminReportStatusFilter;
@@ -37,6 +60,10 @@ interface PageParams {
 const ENTRY_INVALID_KEY_MESSAGE = "La clave no es válida.";
 const UNEXPECTED_ERROR_MESSAGE = "Ocurrió un error inesperado.";
 const STATUS_UPDATED_MESSAGE = "Estado actualizado.";
+const EDITOR_NO_CHANGES_MESSAGE = "No hay cambios para guardar.";
+const EDITOR_NOTHING_SAVED_MESSAGE = "No se guardó ningún cambio.";
+const EDITOR_HIDDEN_MESSAGE = "Pregunta oculta.";
+const EDITOR_RESTORED_MESSAGE = "Pregunta visible de nuevo.";
 
 export function Admin() {
   const [phase, setPhase] = useState<Phase>("locked");
@@ -58,11 +85,27 @@ export function Admin() {
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(
     new Set<number>(),
   );
+  const [editor, setEditor] = useState<EditorState>({ phase: "closed" });
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [editorFailure, setEditorFailure] = useState<AdminFailure | null>(null);
+  const [editorRetry, setEditorRetry] = useState<EditorRetry | null>(null);
+  const [editorStatus, setEditorStatus] = useState<string | null>(null);
+  const [showReminder, setShowReminder] = useState(false);
+  const [edits, setEdits] = useState<readonly AdminQuestionEdit[] | null>(null);
+  const [editsLoading, setEditsLoading] = useState(false);
+  const [editsFailure, setEditsFailure] = useState<AdminFailure | null>(null);
 
   const sessionRef = useRef(0);
   const listRef = useRef(0);
   const statsRef = useRef(0);
   const patchingRef = useRef<number | null>(null);
+  const editorRef = useRef(0);
+  const editsRef = useRef(0);
+  const editorIdRef = useRef<number | null>(null);
+  const writeTokenRef = useRef(0);
+  const writeInFlightRef = useRef<number | null>(null);
+  const editorHeadingRef = useRef<HTMLHeadingElement>(null);
+  const historyHeadingRef = useRef<HTMLHeadingElement>(null);
   const filtersRef = useRef<AppliedFilters>({
     status: "pendiente",
     questionId: null,
@@ -77,6 +120,21 @@ export function Admin() {
       headingRef.current?.focus();
     }
   }, [phase]);
+
+  function closeEditor() {
+    editorRef.current += 1;
+    editorIdRef.current = null;
+    writeInFlightRef.current = null;
+    setEditorBusy(false);
+    setEditor({ phase: "closed" });
+    setEditorFailure(null);
+    setEditorRetry(null);
+    setEditorStatus(null);
+    setShowReminder(false);
+    setEdits(null);
+    setEditsLoading(false);
+    setEditsFailure(null);
+  }
 
   function resetSession() {
     sessionRef.current += 1;
@@ -95,6 +153,7 @@ export function Admin() {
     setRetry(null);
     setStatusMessage(null);
     setExpanded(new Set<number>());
+    closeEditor();
   }
 
   function forceLock(session: number) {
@@ -362,6 +421,9 @@ export function Admin() {
     } else if (retry.type === "stats") {
       setRetry(null);
       void loadStats(apiKey);
+    } else if (retry.type === "editorOpen") {
+      setRetry(null);
+      handleOpenEditor(retry.questionId);
     } else {
       setRetry(null);
       void handleChangeStatus(retry.reportId, retry.status);
@@ -380,6 +442,373 @@ export function Admin() {
     });
   }
 
+  function isEditorStale(
+    session: number,
+    generation: number,
+    questionId: number,
+  ): boolean {
+    return (
+      sessionRef.current !== session ||
+      editorRef.current !== generation ||
+      editorIdRef.current !== questionId
+    );
+  }
+
+  async function loadEdits(
+    generation: number,
+    questionId: number,
+  ): Promise<boolean> {
+    if (apiKey === null) return false;
+    const session = sessionRef.current;
+    const editsGeneration = (editsRef.current += 1);
+    setEditsLoading(true);
+    setEditsFailure(null);
+    try {
+      const entries = await getQuestionEdits(apiKey, questionId);
+      if (
+        isEditorStale(session, generation, questionId) ||
+        editsRef.current !== editsGeneration
+      ) {
+        return false;
+      }
+      setEdits(entries);
+      setEditsFailure(null);
+      setEditsLoading(false);
+      return true;
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : null;
+      if (
+        apiError !== null &&
+        apiError.kind === "http" &&
+        apiError.status === 401
+      ) {
+        forceLock(session);
+        return false;
+      }
+      if (
+        isEditorStale(session, generation, questionId) ||
+        editsRef.current !== editsGeneration
+      ) {
+        return false;
+      }
+      if (apiError === null) {
+        setEditsFailure({
+          kind: "error",
+          message: UNEXPECTED_ERROR_MESSAGE,
+          retryable: false,
+        });
+        setEdits(null);
+        setEditsLoading(false);
+        return false;
+      }
+      console.error("No se pudo cargar el historial de la pregunta", {
+        questionId,
+        kind: apiError.kind,
+        status: apiError.status,
+      });
+      setEditsFailure(getQuestionEditFailure(apiError));
+      setEdits(null);
+      setEditsLoading(false);
+      return false;
+    }
+  }
+
+  async function loadQuestion(generation: number, questionId: number) {
+    if (apiKey === null) return;
+    const session = sessionRef.current;
+    try {
+      const loaded = await getQuestion(apiKey, questionId);
+      if (isEditorStale(session, generation, questionId)) return;
+      setEditor({ phase: "ready", questionId, question: loaded });
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : null;
+      if (
+        apiError !== null &&
+        apiError.kind === "http" &&
+        apiError.status === 401
+      ) {
+        forceLock(session);
+        return;
+      }
+      if (isEditorStale(session, generation, questionId)) return;
+      if (apiError === null) {
+        closeEditor();
+        setFailure({
+          kind: "error",
+          message: UNEXPECTED_ERROR_MESSAGE,
+          retryable: false,
+        });
+        setRetry(null);
+        return;
+      }
+      console.error("No se pudo abrir la pregunta", {
+        questionId,
+        kind: apiError.kind,
+        status: apiError.status,
+      });
+      const mapped = getQuestionEditFailure(apiError);
+      closeEditor();
+      setFailure(mapped);
+      setRetry(mapped.retryable ? { type: "editorOpen", questionId } : null);
+    }
+  }
+
+  function handleOpenEditor(questionId: number) {
+    if (apiKey === null) return;
+    if (
+      (editor.phase === "loading" || editor.phase === "ready") &&
+      editor.questionId === questionId
+    ) {
+      if (editor.phase === "ready") {
+        editorHeadingRef.current?.focus();
+      }
+      return;
+    }
+    const generation = (editorRef.current += 1);
+    editorIdRef.current = questionId;
+    writeInFlightRef.current = null;
+    setEditorBusy(false);
+    setEditor({ phase: "loading", questionId });
+    setEditorFailure(null);
+    setEditorRetry(null);
+    setEditorStatus(null);
+    setShowReminder(false);
+    setEdits(null);
+    setEditsFailure(null);
+    void loadQuestion(generation, questionId);
+    void loadEdits(generation, questionId);
+  }
+
+  function handleCloseEditor() {
+    closeEditor();
+    headingRef.current?.focus();
+  }
+
+  function refreshAfterWrite(
+    key: string,
+    generation: number,
+    questionId: number,
+  ) {
+    void loadEdits(generation, questionId);
+    void loadPage(
+      key,
+      {
+        status: filtersRef.current.status,
+        questionId: filtersRef.current.questionId,
+        skip: skipRef.current,
+      },
+      { clear: false },
+    );
+  }
+
+  function failEditorWrite(
+    error: unknown,
+    session: number,
+    generation: number,
+    questionId: number,
+    retry: EditorRetry,
+    logMessage: string,
+  ) {
+    const apiError = error instanceof ApiError ? error : null;
+    if (
+      apiError !== null &&
+      apiError.kind === "http" &&
+      apiError.status === 401
+    ) {
+      forceLock(session);
+      return;
+    }
+    if (isEditorStale(session, generation, questionId)) return;
+    if (apiError === null) {
+      setEditorFailure({
+        kind: "error",
+        message: UNEXPECTED_ERROR_MESSAGE,
+        retryable: false,
+      });
+      setEditorRetry(null);
+      return;
+    }
+    console.error(logMessage, {
+      questionId,
+      kind: apiError.kind,
+      status: apiError.status,
+    });
+    const mapped = getQuestionEditFailure(apiError);
+    if (apiError.kind === "http" && apiError.status === 404) {
+      closeEditor();
+      setFailure(mapped);
+      setRetry(null);
+      headingRef.current?.focus();
+      return;
+    }
+    setEditorFailure(mapped);
+    setEditorRetry(mapped.retryable ? retry : null);
+  }
+
+  async function handleSave(patch: AdminQuestionPatch | null) {
+    if (apiKey === null || editor.phase !== "ready") return;
+    if (writeInFlightRef.current !== null) return;
+    const { questionId } = editor;
+    setEditorFailure(null);
+    setEditorRetry(null);
+    setShowReminder(false);
+    if (patch === null) {
+      setEditorStatus(EDITOR_NO_CHANGES_MESSAGE);
+      return;
+    }
+    const session = sessionRef.current;
+    const generation = editorRef.current;
+    const token = (writeTokenRef.current += 1);
+    writeInFlightRef.current = token;
+    setEditorBusy(true);
+    setEditorStatus(null);
+    try {
+      const result = await updateQuestion(apiKey, questionId, patch);
+      if (isEditorStale(session, generation, questionId)) return;
+      setEditor({ phase: "ready", questionId, question: result.question });
+      if (result.changed_fields.length === 0) {
+        setEditorStatus(EDITOR_NOTHING_SAVED_MESSAGE);
+        setShowReminder(false);
+      } else {
+        setEditorStatus(
+          `Campos guardados: ${changedFieldLabels(result.changed_fields)}.`,
+        );
+        setShowReminder(true);
+      }
+      refreshAfterWrite(apiKey, generation, questionId);
+    } catch (error) {
+      failEditorWrite(
+        error,
+        session,
+        generation,
+        questionId,
+        {
+          type: "save",
+          questionId,
+          patch,
+        },
+        "No se pudo guardar la pregunta",
+      );
+    } finally {
+      if (writeInFlightRef.current === token) {
+        writeInFlightRef.current = null;
+        setEditorBusy(false);
+      }
+    }
+  }
+
+  async function handleHide() {
+    if (apiKey === null || editor.phase !== "ready") return;
+    if (writeInFlightRef.current !== null) return;
+    const { questionId, question } = editor;
+    setEditorFailure(null);
+    setEditorRetry(null);
+    setShowReminder(false);
+    const session = sessionRef.current;
+    const generation = editorRef.current;
+    const token = (writeTokenRef.current += 1);
+    writeInFlightRef.current = token;
+    setEditorBusy(true);
+    setEditorStatus(null);
+    try {
+      await hideQuestion(apiKey, questionId);
+      if (isEditorStale(session, generation, questionId)) return;
+      setEditor({
+        phase: "ready",
+        questionId,
+        question: { ...question, is_active: false },
+      });
+      setEditorStatus(EDITOR_HIDDEN_MESSAGE);
+      setShowReminder(true);
+      editorHeadingRef.current?.focus();
+      refreshAfterWrite(apiKey, generation, questionId);
+    } catch (error) {
+      failEditorWrite(
+        error,
+        session,
+        generation,
+        questionId,
+        {
+          type: "hide",
+          questionId,
+        },
+        "No se pudo ocultar la pregunta",
+      );
+    } finally {
+      if (writeInFlightRef.current === token) {
+        writeInFlightRef.current = null;
+        setEditorBusy(false);
+      }
+    }
+  }
+
+  async function handleRestore() {
+    if (apiKey === null || editor.phase !== "ready") return;
+    if (writeInFlightRef.current !== null) return;
+    const { questionId } = editor;
+    setEditorFailure(null);
+    setEditorRetry(null);
+    setShowReminder(false);
+    const session = sessionRef.current;
+    const generation = editorRef.current;
+    const token = (writeTokenRef.current += 1);
+    writeInFlightRef.current = token;
+    setEditorBusy(true);
+    setEditorStatus(null);
+    try {
+      const result = await updateQuestion(apiKey, questionId, {
+        is_active: true,
+      });
+      if (isEditorStale(session, generation, questionId)) return;
+      setEditor({ phase: "ready", questionId, question: result.question });
+      setEditorStatus(EDITOR_RESTORED_MESSAGE);
+      setShowReminder(true);
+      editorHeadingRef.current?.focus();
+      refreshAfterWrite(apiKey, generation, questionId);
+    } catch (error) {
+      failEditorWrite(
+        error,
+        session,
+        generation,
+        questionId,
+        {
+          type: "restore",
+          questionId,
+        },
+        "No se pudo volver a mostrar la pregunta",
+      );
+    } finally {
+      if (writeInFlightRef.current === token) {
+        writeInFlightRef.current = null;
+        setEditorBusy(false);
+      }
+    }
+  }
+
+  function handleRetryEdits() {
+    if (apiKey === null || editor.phase !== "ready") return;
+    setEditsFailure(null);
+    void loadEdits(editorRef.current, editor.questionId).then((applied) => {
+      if (applied) {
+        historyHeadingRef.current?.focus();
+      }
+    });
+  }
+
+  function handleEditorRetry() {
+    if (editorRetry === null) return;
+    const retry = editorRetry;
+    setEditorFailure(null);
+    setEditorRetry(null);
+    if (retry.type === "save") {
+      void handleSave(retry.patch);
+    } else if (retry.type === "hide") {
+      void handleHide();
+    } else {
+      void handleRestore();
+    }
+  }
+
   return (
     <section className="admin">
       <h1>Administración</h1>
@@ -390,26 +819,52 @@ export function Admin() {
           onSubmit={(value) => void handleEnterKey(value)}
         />
       ) : (
-        <AdminPanel
-          stats={stats}
-          reports={reports}
-          filters={filters}
-          skip={skip}
-          listLoading={listLoading}
-          busy={busy}
-          failure={failure}
-          statusMessage={statusMessage}
-          expandedIds={expanded}
-          headingRef={headingRef}
-          onApplyFilters={handleApplyFilters}
-          onPage={handlePage}
-          onChangeStatus={(reportId, status) =>
-            void handleChangeStatus(reportId, status)
-          }
-          onRetry={handleRetry}
-          onToggleQuestion={handleToggleQuestion}
-          onSignOut={handleSignOut}
-        />
+        <>
+          <AdminPanel
+            stats={stats}
+            reports={reports}
+            filters={filters}
+            skip={skip}
+            listLoading={listLoading}
+            busy={busy}
+            failure={failure}
+            statusMessage={statusMessage}
+            expandedIds={expanded}
+            headingRef={headingRef}
+            onApplyFilters={handleApplyFilters}
+            onPage={handlePage}
+            onChangeStatus={(reportId, status) =>
+              void handleChangeStatus(reportId, status)
+            }
+            onRetry={handleRetry}
+            onToggleQuestion={handleToggleQuestion}
+            onEditQuestion={handleOpenEditor}
+            onSignOut={handleSignOut}
+          />
+          {editor.phase !== "closed" ? (
+            <AdminQuestionEditor
+              key={editor.questionId}
+              questionId={editor.questionId}
+              state={editor.phase}
+              question={editor.phase === "ready" ? editor.question : null}
+              edits={edits}
+              editsLoading={editsLoading}
+              editsFailure={editsFailure}
+              busy={editorBusy}
+              failure={editorFailure}
+              statusMessage={editorStatus}
+              showReminder={showReminder}
+              headingRef={editorHeadingRef}
+              historyHeadingRef={historyHeadingRef}
+              onSave={(patch) => void handleSave(patch)}
+              onHide={() => void handleHide()}
+              onRestore={() => void handleRestore()}
+              onClose={handleCloseEditor}
+              onRetry={handleEditorRetry}
+              onRetryEdits={handleRetryEdits}
+            />
+          ) : null}
+        </>
       )}
     </section>
   );

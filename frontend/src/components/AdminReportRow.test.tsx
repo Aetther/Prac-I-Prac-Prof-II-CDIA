@@ -114,6 +114,7 @@ function renderRow({
 }: RowOptions = {}) {
   const onToggleQuestion = vi.fn();
   const onChangeStatus = vi.fn();
+  const onEditQuestion = vi.fn();
   const view = render(
     <ul>
       <AdminReportRow
@@ -122,10 +123,11 @@ function renderRow({
         busy={busy}
         onToggleQuestion={onToggleQuestion}
         onChangeStatus={onChangeStatus}
+        onEditQuestion={onEditQuestion}
       />
     </ul>,
   );
-  return { ...view, onToggleQuestion, onChangeStatus };
+  return { ...view, onToggleQuestion, onChangeStatus, onEditQuestion };
 }
 
 function renderRows(rows: readonly ReactElement[]) {
@@ -253,6 +255,7 @@ describe("AdminReportRow", () => {
         busy={false}
         onToggleQuestion={vi.fn()}
         onChangeStatus={vi.fn()}
+        onEditQuestion={vi.fn()}
       />,
       <AdminReportRow
         key="8"
@@ -261,6 +264,7 @@ describe("AdminReportRow", () => {
         busy={false}
         onToggleQuestion={vi.fn()}
         onChangeStatus={vi.fn()}
+        onEditQuestion={vi.fn()}
       />,
     ]);
 
@@ -275,6 +279,7 @@ describe("AdminReportRow", () => {
           busy={false}
           onToggleQuestion={vi.fn()}
           onChangeStatus={vi.fn()}
+          onEditQuestion={vi.fn()}
         />
         <AdminReportRow
           report={F_RES}
@@ -282,6 +287,7 @@ describe("AdminReportRow", () => {
           busy={false}
           onToggleQuestion={vi.fn()}
           onChangeStatus={vi.fn()}
+          onEditQuestion={vi.fn()}
         />
       </ul>,
     );
@@ -395,6 +401,7 @@ describe("AdminReportRow", () => {
           busy={false}
           onToggleQuestion={vi.fn()}
           onChangeStatus={onChangeStatus}
+          onEditQuestion={vi.fn()}
         />
       </ul>,
     );
@@ -428,6 +435,7 @@ describe("AdminReportRow", () => {
           busy={false}
           onToggleQuestion={onToggleQuestion}
           onChangeStatus={onChangeStatus}
+          onEditQuestion={vi.fn()}
         />
       </ul>,
     );
@@ -449,5 +457,77 @@ describe("AdminReportRow", () => {
     ]) {
       expect(screen.getByRole("button", { name })).toHaveClass("touch-target");
     }
+  });
+
+  it("QROW-01 the open region offers the editor entry point with its aria-label and touch-target", () => {
+    renderRow({ expanded: true, report: F_PEN });
+
+    const region = screen.getByRole("region", { name: "Pregunta 42" });
+    const button = within(region).getByRole("button", {
+      name: "Editar pregunta 42",
+    });
+    expect(button).toHaveTextContent("Editar pregunta");
+    expect(button).toHaveClass("touch-target");
+    expect(within(region).getByText("Capital of Peru?")).toBeVisible();
+    expect(within(region).getByText("Traducida")).toBeVisible();
+    expect(within(region).getByText("¿Capital del Perú?")).toBeVisible();
+  });
+
+  it("QROW-02 clicking the editor entry point calls onEditQuestion once with the question id", async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { onEditQuestion, onToggleQuestion } = renderRow({
+      expanded: true,
+      report: F_PEN,
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Editar pregunta 42" }),
+    );
+
+    expect(onEditQuestion).toHaveBeenCalledTimes(1);
+    expect(onEditQuestion).toHaveBeenCalledWith(42);
+    expect(onToggleQuestion).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("QROW-03 a closed region renders no Editar pregunta button and makes no request", async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { onToggleQuestion } = renderRow({ expanded: false });
+
+    expect(
+      screen.queryByRole("button", { name: "Editar pregunta 42" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Pregunta 42" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Abrir la pregunta 42" }),
+    );
+    expect(onToggleQuestion).toHaveBeenCalledWith(7);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("QROW-04 the entry button is disabled while the panel is busy", async () => {
+    const user = userEvent.setup();
+    const busyView = renderRow({ expanded: true, report: F_PEN, busy: true });
+
+    const disabled = screen.getByRole("button", {
+      name: "Editar pregunta 42",
+    });
+    expect(disabled).toBeDisabled();
+    await user.click(disabled);
+    expect(busyView.onEditQuestion).not.toHaveBeenCalled();
+    busyView.unmount();
+
+    const { onEditQuestion } = renderRow({ expanded: true, report: F_PEN });
+    const enabled = screen.getByRole("button", { name: "Editar pregunta 42" });
+    expect(enabled).toBeEnabled();
+    await user.click(enabled);
+    expect(onEditQuestion).toHaveBeenCalledTimes(1);
   });
 });

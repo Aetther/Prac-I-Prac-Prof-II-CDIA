@@ -3,10 +3,14 @@ import { ApiError } from "./errors";
 import {
   isReportStatus,
   REPORT_STATUSES,
+  validateAdminQuestion,
+  validateAdminQuestionEdits,
+  validateAdminQuestionUpdate,
   validateAdminReport,
   validateAdminReportList,
   validateCategories,
   validateGameQuestion,
+  validateHiddenQuestion,
   validateReportQuestionResult,
   validateReportStats,
   validateSubmitAnswer,
@@ -626,5 +630,362 @@ describe("admin report validation", () => {
     expect(REPORT_STATUSES).toEqual(["pendiente", "resuelto", "descartado"]);
     expect(isReportStatus("resuelto")).toBe(true);
     expect(isReportStatus("pending")).toBe(false);
+  });
+});
+
+const F_Q42 = {
+  id: 42,
+  question: "Capital of Peru?",
+  answer: "Lima",
+  wrong_1: "Quito",
+  wrong_2: "Bogotá",
+  wrong_3: "Santiago",
+  category: "geografia",
+  source: "ia",
+  question_es: "¿Capital del Perú?",
+  answer_es: "Lima",
+  wrong_1_es: "Quito",
+  wrong_2_es: "Bogotá",
+  wrong_3_es: "Santiago",
+  is_translated: true,
+  translation_model: "gpt-4.1-mini",
+  is_active: true,
+};
+
+const F_Q43 = {
+  ...F_Q42,
+  id: 43,
+  question: "Capital of Ecuador?",
+  answer: "Quito",
+  wrong_1: "Guayaquil",
+  wrong_2: "Cuenca",
+  wrong_3: "Loja",
+  question_es: null,
+  answer_es: null,
+  wrong_1_es: null,
+  wrong_2_es: null,
+  wrong_3_es: null,
+  is_translated: false,
+  translation_model: null,
+  is_active: false,
+};
+
+const F_Q44 = {
+  ...F_Q42,
+  id: 44,
+  question_es: "",
+  answer_es: "",
+  wrong_1_es: "",
+  wrong_2_es: "",
+  wrong_3_es: "",
+  is_translated: false,
+  translation_model: null,
+};
+
+function questionRejection(input: unknown, detail: string): Promise<void> {
+  return expect(
+    Promise.resolve().then(() => validateAdminQuestion(input)),
+  ).rejects.toMatchObject({ ...serverError, detail });
+}
+
+function updateRejection(input: unknown, detail: string): Promise<void> {
+  return expect(
+    Promise.resolve().then(() => validateAdminQuestionUpdate(input)),
+  ).rejects.toMatchObject({ ...serverError, detail });
+}
+
+function hiddenRejection(input: unknown, detail: string): Promise<void> {
+  return expect(
+    Promise.resolve().then(() => validateHiddenQuestion(input)),
+  ).rejects.toMatchObject({ ...serverError, detail });
+}
+
+function editsRejection(input: unknown, detail: string): Promise<void> {
+  return expect(
+    Promise.resolve().then(() => validateAdminQuestionEdits(input)),
+  ).rejects.toMatchObject({ ...serverError, detail });
+}
+
+describe("admin question validation", () => {
+  it("QVAL-01 validateAdminQuestion rejects a non-object or array body", async () => {
+    for (const input of [null, [], "x", 42, undefined]) {
+      await questionRejection(input, "pregunta inválida");
+    }
+  });
+
+  it("QVAL-02 validateAdminQuestion rejects an invalid id", async () => {
+    for (const id of [0, -1, 1.5, "42", undefined]) {
+      await questionRejection({ ...F_Q42, id }, "id de pregunta inválido");
+    }
+  });
+
+  it("QVAL-03 validateAdminQuestion rejects an empty or non-string question and answer", async () => {
+    for (const question of ["", null, 7]) {
+      await questionRejection(
+        { ...F_Q42, question },
+        "texto de pregunta inválido",
+      );
+    }
+    for (const answer of ["", null, 7]) {
+      await questionRejection(
+        { ...F_Q42, answer },
+        "respuesta de la pregunta inválida",
+      );
+    }
+  });
+
+  it("QVAL-04 validateAdminQuestion rejects an empty or non-string wrong_1, wrong_2 and wrong_3", async () => {
+    await questionRejection(
+      { ...F_Q42, wrong_1: "" },
+      "primera opción incorrecta inválida",
+    );
+    await questionRejection(
+      { ...F_Q42, wrong_2: null },
+      "segunda opción incorrecta inválida",
+    );
+    await questionRejection(
+      { ...F_Q42, wrong_3: 7 },
+      "tercera opción incorrecta inválida",
+    );
+    expect(validateAdminQuestion(F_Q42)).toEqual(F_Q42);
+  });
+
+  it("QVAL-05 validateAdminQuestion rejects a non-string category, source and translation_model", async () => {
+    await questionRejection(
+      { ...F_Q42, category: 7 },
+      "categoría de la pregunta inválida",
+    );
+    await questionRejection(
+      { ...F_Q42, source: {} },
+      "origen de la pregunta inválido",
+    );
+    await questionRejection(
+      { ...F_Q42, translation_model: true },
+      "modelo de traducción inválido",
+    );
+    for (const value of [null, ""]) {
+      expect(
+        validateAdminQuestion({
+          ...F_Q42,
+          category: value,
+          source: value,
+          translation_model: value,
+        }),
+      ).toMatchObject({
+        category: value,
+        source: value,
+        translation_model: value,
+      });
+    }
+  });
+
+  it("QVAL-06 validateAdminQuestion rejects a non-string question_es and answer_es", async () => {
+    await questionRejection(
+      { ...F_Q42, question_es: 7 },
+      "texto de pregunta en español inválido",
+    );
+    await questionRejection(
+      { ...F_Q42, answer_es: [] },
+      "respuesta en español inválida",
+    );
+    await questionRejection(
+      { ...F_Q42, question_es: false },
+      "texto de pregunta en español inválido",
+    );
+    for (const value of [null, ""]) {
+      expect(
+        validateAdminQuestion({
+          ...F_Q42,
+          question_es: value,
+          answer_es: value,
+        }),
+      ).toMatchObject({ question_es: value, answer_es: value });
+    }
+  });
+
+  it("QVAL-07 validateAdminQuestion rejects a non-string wrong_1_es, wrong_2_es and wrong_3_es", async () => {
+    await questionRejection(
+      { ...F_Q42, wrong_1_es: 7 },
+      "primera opción incorrecta en español inválida",
+    );
+    await questionRejection(
+      { ...F_Q42, wrong_2_es: {} },
+      "segunda opción incorrecta en español inválida",
+    );
+    await questionRejection(
+      { ...F_Q42, wrong_3_es: false },
+      "tercera opción incorrecta en español inválida",
+    );
+    for (const value of [null, ""]) {
+      expect(
+        validateAdminQuestion({
+          ...F_Q42,
+          wrong_1_es: value,
+          wrong_2_es: value,
+          wrong_3_es: value,
+        }),
+      ).toMatchObject({
+        wrong_1_es: value,
+        wrong_2_es: value,
+        wrong_3_es: value,
+      });
+    }
+  });
+
+  it("QVAL-08 validateAdminQuestion rejects a non-boolean is_translated and is_active", async () => {
+    for (const isTranslated of ["true", 0, undefined]) {
+      await questionRejection(
+        { ...F_Q42, is_translated: isTranslated },
+        "indicador de traducción inválido",
+      );
+    }
+    for (const isActive of ["false", 0, undefined]) {
+      await questionRejection(
+        { ...F_Q42, is_active: isActive },
+        "indicador de publicación inválido",
+      );
+    }
+    expect(
+      validateAdminQuestion({
+        ...F_Q42,
+        is_translated: false,
+        is_active: false,
+      }),
+    ).toMatchObject({ is_translated: false, is_active: false });
+  });
+
+  it("QVAL-09 validateAdminQuestion accepts null and empty strings and returns the object as received", () => {
+    for (const input of [F_Q43, F_Q44]) {
+      const output = validateAdminQuestion(input);
+      expect(output).toEqual(input);
+      expect(output).toBe(input);
+    }
+  });
+
+  it("QVAL-10 validateAdminQuestion ignores an extra field", () => {
+    const input = { ...F_Q42, created_at: "2026-10-26T12:00:00Z" };
+    expect(validateAdminQuestion(input)).toEqual(input);
+  });
+
+  it("QVAL-11 validateAdminQuestionUpdate rejects a non-object body", async () => {
+    for (const input of [null, [], "x", 42]) {
+      await updateRejection(input, "respuesta de actualización inválida");
+    }
+  });
+
+  it("QVAL-12 validateAdminQuestionUpdate rejects a non-array or non-string-item changed_fields", async () => {
+    for (const changed_fields of ["question", null, [1], ["question", null]]) {
+      await updateRejection(
+        { changed_fields, question: F_Q42 },
+        "campos cambiados inválidos",
+      );
+    }
+  });
+
+  it("QVAL-13 validateAdminQuestionUpdate accepts changed_fields [] and an unknown name and passes the question detail through", async () => {
+    for (const changed_fields of [[], ["foo", "wrong_2"]]) {
+      const output = validateAdminQuestionUpdate({
+        changed_fields,
+        question: F_Q42,
+      });
+      expect(output.changed_fields).toEqual(changed_fields);
+      expect(output.question).toEqual(F_Q42);
+    }
+    await updateRejection(
+      {
+        changed_fields: ["wrong_1"],
+        question: { ...F_Q42, wrong_1: "" },
+      },
+      "primera opción incorrecta inválida",
+    );
+  });
+
+  it("QVAL-14 validateHiddenQuestion rejects a non-object body, an invalid id and is_active true", async () => {
+    for (const input of [null, [], "x"]) {
+      await hiddenRejection(input, "respuesta de ocultamiento inválida");
+    }
+    for (const id of [0, -1, 1.5, "42"]) {
+      await hiddenRejection(
+        { id, is_active: false },
+        "id de pregunta inválido",
+      );
+    }
+    await hiddenRejection(
+      { id: 42, is_active: true },
+      "indicador de publicación inválido",
+    );
+    await hiddenRejection(
+      { id: 42, is_active: "false" },
+      "indicador de publicación inválido",
+    );
+    expect(validateHiddenQuestion({ id: 42, is_active: false })).toEqual({
+      id: 42,
+      is_active: false,
+    });
+  });
+
+  it("QVAL-15 validateAdminQuestionEdits rejects a non-array body and a non-object item", async () => {
+    for (const input of [null, {}, "x"]) {
+      await editsRejection(input, "lista de ediciones inválida");
+    }
+    for (const item of [null, [], "x"]) {
+      await editsRejection([item], "edición inválida");
+    }
+  });
+
+  it("QVAL-16 validateAdminQuestionEdits rejects each invalid entry field", async () => {
+    const edit = {
+      id: 9,
+      field: "question",
+      old_value: "A",
+      new_value: "B",
+      edited_at: "2026-10-26T12:00:00Z",
+    };
+    await editsRejection([{ ...edit, id: 0 }], "id de edición inválido");
+    await editsRejection([{ ...edit, field: "" }], "campo de edición inválido");
+    await editsRejection(
+      [{ ...edit, old_value: 0 }],
+      "valor anterior inválido",
+    );
+    await editsRejection([{ ...edit, new_value: {} }], "valor nuevo inválido");
+    await editsRejection(
+      [{ ...edit, edited_at: "" }],
+      "fecha de edición inválida",
+    );
+  });
+
+  it("QVAL-17 validateAdminQuestionEdits accepts null, empty and raw true/false values, an unknown field and returns a new array in order", () => {
+    const input = [
+      {
+        id: 9,
+        field: "question",
+        old_value: "Capital of Peru?",
+        new_value: "Capital of Peru (country)?",
+        edited_at: "2026-10-26T12:00:00Z",
+      },
+      {
+        id: 4,
+        field: "is_active",
+        old_value: "false",
+        new_value: "true",
+        edited_at: "2026-10-26T13:00:00Z",
+      },
+      {
+        id: 7,
+        field: "foo",
+        old_value: null,
+        new_value: "",
+        edited_at: "2026-10-26T14:00:00Z",
+      },
+    ];
+    const output = validateAdminQuestionEdits(input);
+    expect(output).toEqual(input);
+    expect(output).not.toBe(input);
+    expect(output.map((entry) => entry.id)).toEqual([9, 4, 7]);
+    expect(output[1].old_value).toBe("false");
+    expect(output[1].new_value).toBe("true");
+    expect(typeof output[2].edited_at).toBe("string");
+    expect(output[2].old_value).toBeNull();
+    expect(output[2].new_value).toBe("");
   });
 });

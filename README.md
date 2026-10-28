@@ -658,16 +658,20 @@ En una partida no se repiten preguntas. Si no quedan preguntas de la categoría 
 
 ### Vista de administración
 
-En `http://localhost:5173/admin`, separada del juego y sin sonido, para revisar lo que reportan los jugadores:
+En `http://localhost:5173/admin`, separada del juego y sin sonido, para revisar lo que reportan los jugadores y corregir las preguntas:
 
 - **Entrada con la API key** (la de `API_KEY` en el `.env`), en un campo de contraseña. El frontend la verifica con `GET /reports/stats` antes de dejar entrar. La clave **vive solo en la memoria de la página**: no se guarda en el navegador (ni `localStorage`, ni cookies, ni la URL) y no aparece en los registros. Al recargar la página, o con el botón **Salir**, hay que volver a ingresarla; si la API la rechaza en cualquier momento (`401`), se vuelve a pedir. Si el servidor no tiene `API_KEY` configurada (`503`), se avisa.
 - **Resumen**: cuántos reportes hay pendientes, resueltos y descartados, y los pendientes por motivo.
 - **Lista de reportes**, del más nuevo al más viejo, de a 20 por página: motivo, comentario, idioma, fecha (en hora argentina) y estado. Se puede filtrar por estado (pendientes por defecto) y por número de pregunta, y **abrir la pregunta** para ver el texto y la respuesta en inglés y en español.
 - **Cambiar el estado** de un reporte: resuelto (se corrigió la pregunta), descartado (no había error) o de vuelta a pendiente. Después de cada cambio se actualizan la lista y el resumen.
+- **Editar una pregunta**, desde un reporte o por su número: el texto y las 4 opciones en inglés y en español, con contadores de largo. Antes de guardar se controlan las mismas reglas que la API: largos máximos, que las 4 opciones de cada idioma no estén vacías ni repetidas (sin distinguir mayúsculas) y, si la pregunta no estaba traducida, que vengan los 5 campos en español. Se manda solo lo que cambió, y la pantalla muestra qué campos se guardaron.
+- **Ocultar una pregunta** (con confirmación) para que no salga en el juego, y **volver a mostrarla**. No se borra nada.
+- **Historial de ediciones** de cada pregunta: qué campo cambió, el valor anterior, el nuevo y la fecha.
+- Después de guardar, ocultar o mostrar, aparece el recordatorio de correr `poetry run python -m app.export_admin_edits`. La corrección ya quedó en la base y el juego la usa enseguida; el comando la copia a `data/admin_edits.csv`, para que no se pierda si se reconstruye la base (ver [Guardar las correcciones del admin](#guardar-las-correcciones-del-admin)).
 
 ### Estado actual
 
-El frontend se construye en 10 etapas. Están terminadas las siete primeras:
+El frontend se construye en 10 etapas. Están terminadas las ocho primeras:
 
 | Etapa | Estado |
 |---|---|
@@ -678,7 +682,7 @@ El frontend se construye en 10 etapas. Están terminadas las siete primeras:
 | Modo "juntar las 6 categorías" | ✅ |
 | Reportar una pregunta | ✅ |
 | Vista de administración (`/admin`): acceso y reportes | ✅ |
-| Vista de administración: editar, ocultar e historial de preguntas | Pendiente |
+| Vista de administración: editar, ocultar e historial de preguntas | ✅ |
 | Estilos finales y prueba en celular | Pendiente |
 | Sonido y música | Pendiente |
 
@@ -1171,9 +1175,9 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **745 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), la vista de administración (la clave, los filtros, la paginación y los cambios de estado), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **930 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), la vista de administración (la clave, los filtros, la paginación, los cambios de estado, el editor de preguntas con sus validaciones y el historial), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
-- **Cobertura exigida: 100% de líneas y de ramas** en `src/game` y `src/api`.
+- **Cobertura exigida: 100% de líneas y de ramas** en `src/game`, `src/api` y las reglas del editor de preguntas (`questionEditorForm.ts`).
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
 
 ## Seguridad
@@ -1293,7 +1297,7 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
-- El frontend todavía no permite editar ni ocultar preguntas desde la vista de administración, ni tiene sonido (ver [Estado actual](#estado-actual)).
+- El frontend todavía no tiene los estilos finales ni sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 

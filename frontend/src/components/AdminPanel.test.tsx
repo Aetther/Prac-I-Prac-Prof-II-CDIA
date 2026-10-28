@@ -81,6 +81,7 @@ interface Spies {
   onChangeStatus: (reportId: number, status: ReportStatus) => void;
   onRetry: () => void;
   onToggleQuestion: (reportId: number) => void;
+  onEditQuestion: (questionId: number) => void;
   onSignOut: () => void;
 }
 
@@ -91,6 +92,7 @@ function makeSpies(): Spies {
     onChangeStatus: vi.fn(),
     onRetry: vi.fn(),
     onToggleQuestion: vi.fn(),
+    onEditQuestion: vi.fn(),
     onSignOut: vi.fn(),
   };
 }
@@ -475,5 +477,113 @@ describe("AdminPanel", () => {
       "role",
       "status",
     );
+  });
+
+  it("QPANEL-01 the Pregunta form exposes the label, hint and Abrir editor button", () => {
+    renderPanel();
+
+    const form = screen.getByRole("form", { name: "Abrir editor de pregunta" });
+    expect(form).toBeVisible();
+    const input = within(form).getByLabelText("Pregunta");
+    expect(input).toHaveAttribute("type", "text");
+    expect(input).toHaveAttribute("inputMode", "numeric");
+    expect((input as HTMLInputElement).value).toBe("");
+    const hintId = input.getAttribute("aria-describedby");
+    expect(document.getElementById(String(hintId))).toHaveTextContent(
+      "Número de pregunta. Solo números enteros.",
+    );
+    expect(
+      within(form).getByRole("button", { name: "Abrir editor" }),
+    ).toHaveAttribute("type", "submit");
+
+    const filters = screen.getByRole("form", { name: "Filtros de reportes" });
+    const listHeading = screen.getByRole("heading", {
+      name: "Lista de reportes",
+    });
+    expect(
+      filters.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      form.compareDocumentPosition(listHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("QPANEL-02 an invalid question number keeps the draft, shows the exact alert and fires no callback", async () => {
+    const user = userEvent.setup();
+    const { onEditQuestion } = renderPanel();
+    const input = screen.getByLabelText("Pregunta");
+
+    for (const value of ["abc", "0", "-1", "1.5"]) {
+      await user.clear(input);
+      await user.type(input, value);
+      await user.click(screen.getByRole("button", { name: "Abrir editor" }));
+
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "El id de la pregunta tiene que ser un número entero mayor que 0.",
+      );
+      expect((input as HTMLInputElement).value).toBe(value);
+    }
+    expect(onEditQuestion).not.toHaveBeenCalled();
+  });
+
+  it("QPANEL-03 a valid number calls onEditQuestion once with 42", async () => {
+    const user = userEvent.setup();
+    const { onEditQuestion } = renderPanel();
+
+    await user.type(screen.getByLabelText("Pregunta"), "42");
+    await user.click(screen.getByRole("button", { name: "Abrir editor" }));
+
+    expect(onEditQuestion).toHaveBeenCalledTimes(1);
+    expect(onEditQuestion).toHaveBeenCalledWith(42);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect((screen.getByLabelText("Pregunta") as HTMLInputElement).value).toBe(
+      "42",
+    );
+  });
+
+  it("QPANEL-04 the report filter is unchanged by the open-editor form", async () => {
+    const user = userEvent.setup();
+    const { onApplyFilters, onEditQuestion } = renderPanel();
+
+    await user.type(screen.getByLabelText("Id de la pregunta"), "42");
+    await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+    expect(onApplyFilters).toHaveBeenCalledTimes(1);
+    expect(onApplyFilters).toHaveBeenCalledWith("pendiente", 42);
+
+    const editorInput = screen.getByLabelText("Pregunta");
+    await user.type(editorInput, "99");
+    await user.clear(editorInput);
+    expect(onApplyFilters).toHaveBeenCalledTimes(1);
+    expect(onEditQuestion).not.toHaveBeenCalled();
+
+    await user.type(editorInput, "43");
+    await user.click(screen.getByRole("button", { name: "Abrir editor" }));
+    expect(onEditQuestion).toHaveBeenCalledTimes(1);
+    expect(onEditQuestion).toHaveBeenCalledWith(43);
+    expect(onApplyFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it("QPANEL-05 every new control carries touch-target", () => {
+    renderPanel();
+
+    expect(screen.getByLabelText("Pregunta")).toHaveClass("touch-target");
+    expect(screen.getByRole("button", { name: "Abrir editor" })).toHaveClass(
+      "touch-target",
+    );
+  });
+
+  it("QPANEL-06 Abrir editor is disabled while busy", async () => {
+    const user = userEvent.setup();
+    const { onEditQuestion, rerenderPanel } = renderPanel({ busy: true });
+
+    const disabled = screen.getByRole("button", { name: "Abrir editor" });
+    expect(disabled).toBeDisabled();
+    await user.type(screen.getByLabelText("Pregunta"), "42");
+    await user.click(disabled);
+    expect(onEditQuestion).not.toHaveBeenCalled();
+
+    rerenderPanel({ busy: false });
+    expect(screen.getByRole("button", { name: "Abrir editor" })).toBeEnabled();
   });
 });

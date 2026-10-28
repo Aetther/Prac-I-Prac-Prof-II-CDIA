@@ -357,3 +357,106 @@ body {
   color: var(--color-success);
   font-weight: 700;
 }
+
+.admin-editor,
+.admin-editor-open,
+.admin-question-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.admin-editor {
+  gap: var(--spacing-3);
+}
+
+.admin-editor form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.admin-editor-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.admin-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.admin-editor-field input,
+.admin-editor-field textarea {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.admin-editor-field textarea {
+  min-height: var(--touch-target-min);
+  resize: vertical;
+}
+
+.admin-editor-counter {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.admin-question-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--spacing-1) var(--spacing-2);
+  margin: 0;
+}
+
+.admin-question-facts dt {
+  font-weight: 700;
+}
+
+.admin-question-facts dd {
+  margin: 0;
+}
+
+.admin-editor-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+}
+
+.admin-export-reminder {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background);
+  font-weight: 700;
+}
+
+.admin-question-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-left: var(--spacing-4);
+}
+
+.admin-question-history-list li p {
+  margin: 0;
+}

@@ -3,6 +3,7 @@ import {
   ADMIN_EXPIRED_KEY_MESSAGE,
   ADMIN_MISSING_KEY_MESSAGE,
   getAdminFailure,
+  getQuestionEditFailure,
 } from "./adminFailures";
 import { ApiError } from "./errors";
 
@@ -162,5 +163,185 @@ describe("getAdminFailure", () => {
     expect(ADMIN_MISSING_KEY_MESSAGE).toBe(
       "La API no tiene la clave de administración configurada.",
     );
+  });
+});
+
+describe("getQuestionEditFailure", () => {
+  it("QERR-01 maps network and timeout to the retryable API question", () => {
+    for (const kind of ["network", "timeout"] as const) {
+      expect(
+        getQuestionEditFailure(new ApiError(kind, "Sin conexión.")),
+      ).toEqual({
+        kind: "error",
+        message: "¿Está corriendo la API?",
+        retryable: true,
+      });
+    }
+  });
+
+  it("QERR-02 maps 401 to unauthorized with the expired-key message and no retry", () => {
+    const failure = getQuestionEditFailure(
+      new ApiError("http", "Error en la solicitud.", { status: 401 }),
+    );
+    expect(failure).toEqual({
+      kind: "unauthorized",
+      message: ADMIN_EXPIRED_KEY_MESSAGE,
+      retryable: false,
+    });
+    expect("detail" in failure).toBe(false);
+  });
+
+  it("QERR-03 maps 503 to the missing-key message and retryable", () => {
+    expect(
+      getQuestionEditFailure(
+        new ApiError("http", "Error del servidor.", { status: 503 }),
+      ),
+    ).toEqual({
+      kind: "error",
+      message: ADMIN_MISSING_KEY_MESSAGE,
+      retryable: true,
+    });
+  });
+
+  it("QERR-04 maps 404 to the question-gone copy without retry", () => {
+    const failure = getQuestionEditFailure(
+      new ApiError("http", "Recurso no encontrado.", { status: 404 }),
+    );
+    expect(failure).toEqual({
+      kind: "error",
+      message: "La pregunta ya no existe.",
+      retryable: false,
+    });
+    expect("detail" in failure).toBe(false);
+  });
+
+  it("QERR-05 maps 422 with and without detail", () => {
+    expect(
+      getQuestionEditFailure(
+        new ApiError("http", "Los datos enviados no son válidos.", {
+          status: 422,
+          detail: "las opciones deben ser distintas",
+        }),
+      ),
+    ).toEqual({
+      kind: "error",
+      message: "El cambio no es válido.",
+      detail: "las opciones deben ser distintas",
+      retryable: false,
+    });
+
+    const withoutDetail = getQuestionEditFailure(
+      new ApiError("http", "Los datos enviados no son válidos.", {
+        status: 422,
+      }),
+    );
+    expect(withoutDetail).toEqual({
+      kind: "error",
+      message: "El cambio no es válido.",
+      retryable: false,
+    });
+    expect("detail" in withoutDetail).toBe(false);
+  });
+
+  it("QERR-06 maps 5xx to its message with no detail and retryable", () => {
+    const failure = getQuestionEditFailure(
+      new ApiError("http", "Error del servidor.", {
+        status: 500,
+        detail: "boom",
+      }),
+    );
+    expect(failure).toEqual({
+      kind: "error",
+      message: "Error del servidor.",
+      retryable: true,
+    });
+    expect("detail" in failure).toBe(false);
+  });
+
+  it("QERR-07 maps another 4xx to its message without retry", () => {
+    const failure = getQuestionEditFailure(
+      new ApiError("http", "Error en la solicitud.", {
+        status: 403,
+        detail: "forbidden",
+      }),
+    );
+    expect(failure).toEqual({
+      kind: "error",
+      message: "Error en la solicitud.",
+      retryable: false,
+    });
+    expect("detail" in failure).toBe(false);
+  });
+
+  it("QERR-08 passes a validation error's message and detail through", () => {
+    expect(
+      getQuestionEditFailure(
+        new ApiError("validation", "Respuesta inválida del servidor.", {
+          detail: "primera opción incorrecta inválida",
+        }),
+      ),
+    ).toEqual({
+      kind: "error",
+      message: "Respuesta inválida del servidor.",
+      detail: "primera opción incorrecta inválida",
+      retryable: false,
+    });
+
+    const withoutDetail = getQuestionEditFailure(
+      new ApiError("validation", "Respuesta inválida del servidor."),
+    );
+    expect(withoutDetail).toEqual({
+      kind: "error",
+      message: "Respuesta inválida del servidor.",
+      retryable: false,
+    });
+    expect("detail" in withoutDetail).toBe(false);
+  });
+
+  it("QERR-09 the question mapper's 404 and 422 copy differs from getAdminFailure for the same ApiError", () => {
+    const notFound = new ApiError("http", "Recurso no encontrado.", {
+      status: 404,
+    });
+    expect(getQuestionEditFailure(notFound).message).toBe(
+      "La pregunta ya no existe.",
+    );
+    expect(getAdminFailure(notFound).message).toBe("El reporte ya no existe.");
+
+    const invalid = new ApiError("http", "Los datos enviados no son válidos.", {
+      status: 422,
+    });
+    expect(getQuestionEditFailure(invalid).message).toBe(
+      "El cambio no es válido.",
+    );
+    expect(getAdminFailure(invalid).message).toBe(
+      "El cambio de estado no es válido.",
+    );
+
+    for (const error of [
+      new ApiError("network", "Sin conexión."),
+      new ApiError("http", "Error en la solicitud.", { status: 401 }),
+      new ApiError("http", "Error del servidor.", { status: 503 }),
+    ]) {
+      expect(getQuestionEditFailure(error)).toEqual(getAdminFailure(error));
+    }
+  });
+
+  it("QERR-10 the question mapper reuses the two exact constants", () => {
+    expect(ADMIN_EXPIRED_KEY_MESSAGE).toBe(
+      "La clave dejó de ser válida. Volvé a ingresar la clave.",
+    );
+    expect(ADMIN_MISSING_KEY_MESSAGE).toBe(
+      "La API no tiene la clave de administración configurada.",
+    );
+    expect(
+      getQuestionEditFailure(
+        new ApiError("http", "Error en la solicitud.", { status: 401 }),
+      ).message,
+    ).toBe(ADMIN_EXPIRED_KEY_MESSAGE);
+    expect(
+      getQuestionEditFailure(
+        new ApiError("http", "Error del servidor.", { status: 503 }),
+      ).message,
+    ).toBe(ADMIN_MISSING_KEY_MESSAGE);
   });
 });

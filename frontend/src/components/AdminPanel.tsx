@@ -39,6 +39,7 @@ interface AdminPanelProps {
   onChangeStatus: (reportId: number, status: ReportStatus) => void;
   onRetry: () => void;
   onToggleQuestion: (reportId: number) => void;
+  onEditQuestion: (questionId: number) => void;
   onSignOut: () => void;
 }
 
@@ -71,6 +72,7 @@ export function AdminPanel({
   onChangeStatus,
   onRetry,
   onToggleQuestion,
+  onEditQuestion,
   onSignOut,
 }: AdminPanelProps) {
   const [draftStatus, setDraftStatus] = useState<AdminReportStatusFilter>(
@@ -81,10 +83,14 @@ export function AdminPanel({
   );
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(filters);
   const [idError, setIdError] = useState<string | null>(null);
+  const [editorQuestionId, setEditorQuestionId] = useState("");
+  const [editorError, setEditorError] = useState<string | null>(null);
 
   const statusId = useId();
   const questionIdFieldId = useId();
   const hintId = useId();
+  const editorFieldId = useId();
+  const editorHintId = useId();
 
   if (
     appliedFilters.status !== filters.status ||
@@ -106,6 +112,17 @@ export function AdminPanel({
     }
     setIdError(null);
     onApplyFilters(draftStatus, parsed.value);
+  };
+
+  const handleOpenEditor = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsed = parseQuestionId(editorQuestionId);
+    if (!parsed.ok || parsed.value === null) {
+      setEditorError(ID_ERROR);
+      return;
+    }
+    setEditorError(null);
+    onEditQuestion(parsed.value);
   };
 
   const knownReasons = REPORT_REASONS.filter((reason) =>
@@ -194,6 +211,28 @@ export function AdminPanel({
         </button>
       </form>
 
+      <form
+        className="admin-editor-open"
+        aria-label="Abrir editor de pregunta"
+        onSubmit={handleOpenEditor}
+      >
+        <label htmlFor={editorFieldId}>Pregunta</label>
+        <input
+          id={editorFieldId}
+          className="touch-target"
+          type="text"
+          inputMode="numeric"
+          value={editorQuestionId}
+          aria-describedby={editorHintId}
+          onChange={(event) => setEditorQuestionId(event.target.value)}
+        />
+        <p id={editorHintId}>Número de pregunta. Solo números enteros.</p>
+        {editorError !== null ? <p role="alert">{editorError}</p> : null}
+        <button type="submit" className="touch-target" disabled={busy}>
+          Abrir editor
+        </button>
+      </form>
+
       <section className="admin-list">
         <h3>Lista de reportes</h3>
         {listLoading && reports.length === 0 ? (
@@ -212,6 +251,7 @@ export function AdminPanel({
                 busy={busy}
                 onToggleQuestion={onToggleQuestion}
                 onChangeStatus={onChangeStatus}
+                onEditQuestion={onEditQuestion}
               />
             ))}
           </ul>

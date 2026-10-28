@@ -10,6 +10,7 @@ interface AdminReportRowProps {
   busy: boolean;
   onToggleQuestion: (reportId: number) => void;
   onChangeStatus: (reportId: number, status: ReportStatus) => void;
+  onEditQuestion: (questionId: number) => void;
 }
 
 const ACTION_LABELS: Record<ReportStatus, string> = {
@@ -34,6 +35,7 @@ export function AdminReportRow({
   busy,
   onToggleQuestion,
   onChangeStatus,
+  onEditQuestion,
 }: AdminReportRowProps) {
   const regionId = useId();
   const question = report.question;
@@ -105,6 +107,15 @@ export function AdminReportRow({
           <p>{spanishText(question.question_es)}</p>
           <h4>Respuesta en español</h4>
           <p>{spanishText(question.answer_es)}</p>
+          <button
+            type="button"
+            className="touch-target"
+            aria-label={`Editar pregunta ${report.question_id}`}
+            disabled={busy}
+            onClick={() => onEditQuestion(report.question_id)}
+          >
+            Editar pregunta
+          </button>
         </section>
       ) : null}
     </li>

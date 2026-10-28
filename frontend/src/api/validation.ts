@@ -1,6 +1,9 @@
 import { ApiError } from "./errors";
 import { isReportReason } from "./reportReasons";
 import type {
+  AdminQuestion,
+  AdminQuestionEdit,
+  AdminQuestionUpdateResult,
   AdminReport,
   Category,
   GameQuestion,
@@ -277,4 +280,137 @@ export function validateAdminReportList(data: unknown): AdminReport[] {
     throw invalid("lista de reportes inválida");
   }
   return data.map((item) => validateAdminReport(item));
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+export function validateAdminQuestion(data: unknown): AdminQuestion {
+  if (!isPlainObject(data)) {
+    throw invalid("pregunta inválida");
+  }
+  if (
+    typeof data.id !== "number" ||
+    !Number.isInteger(data.id) ||
+    data.id <= 0
+  ) {
+    throw invalid("id de pregunta inválido");
+  }
+  if (typeof data.question !== "string" || data.question === "") {
+    throw invalid("texto de pregunta inválido");
+  }
+  if (typeof data.answer !== "string" || data.answer === "") {
+    throw invalid("respuesta de la pregunta inválida");
+  }
+  if (typeof data.wrong_1 !== "string" || data.wrong_1 === "") {
+    throw invalid("primera opción incorrecta inválida");
+  }
+  if (typeof data.wrong_2 !== "string" || data.wrong_2 === "") {
+    throw invalid("segunda opción incorrecta inválida");
+  }
+  if (typeof data.wrong_3 !== "string" || data.wrong_3 === "") {
+    throw invalid("tercera opción incorrecta inválida");
+  }
+  if (!isNullableString(data.category)) {
+    throw invalid("categoría de la pregunta inválida");
+  }
+  if (!isNullableString(data.source)) {
+    throw invalid("origen de la pregunta inválido");
+  }
+  if (!isNullableString(data.question_es)) {
+    throw invalid("texto de pregunta en español inválido");
+  }
+  if (!isNullableString(data.answer_es)) {
+    throw invalid("respuesta en español inválida");
+  }
+  if (!isNullableString(data.wrong_1_es)) {
+    throw invalid("primera opción incorrecta en español inválida");
+  }
+  if (!isNullableString(data.wrong_2_es)) {
+    throw invalid("segunda opción incorrecta en español inválida");
+  }
+  if (!isNullableString(data.wrong_3_es)) {
+    throw invalid("tercera opción incorrecta en español inválida");
+  }
+  if (typeof data.is_translated !== "boolean") {
+    throw invalid("indicador de traducción inválido");
+  }
+  if (!isNullableString(data.translation_model)) {
+    throw invalid("modelo de traducción inválido");
+  }
+  if (typeof data.is_active !== "boolean") {
+    throw invalid("indicador de publicación inválido");
+  }
+  return data as unknown as AdminQuestion;
+}
+
+export function validateAdminQuestionUpdate(
+  data: unknown,
+): AdminQuestionUpdateResult {
+  if (!isPlainObject(data)) {
+    throw invalid("respuesta de actualización inválida");
+  }
+  if (
+    !Array.isArray(data.changed_fields) ||
+    !data.changed_fields.every((field) => typeof field === "string")
+  ) {
+    throw invalid("campos cambiados inválidos");
+  }
+  const question = validateAdminQuestion(data.question);
+  return {
+    changed_fields: data.changed_fields as string[],
+    question,
+  };
+}
+
+export function validateHiddenQuestion(data: unknown): {
+  id: number;
+  is_active: false;
+} {
+  if (!isPlainObject(data)) {
+    throw invalid("respuesta de ocultamiento inválida");
+  }
+  if (
+    typeof data.id !== "number" ||
+    !Number.isInteger(data.id) ||
+    data.id <= 0
+  ) {
+    throw invalid("id de pregunta inválido");
+  }
+  if (data.is_active !== false) {
+    throw invalid("indicador de publicación inválido");
+  }
+  return { id: data.id, is_active: false };
+}
+
+export function validateAdminQuestionEdits(data: unknown): AdminQuestionEdit[] {
+  if (!Array.isArray(data)) {
+    throw invalid("lista de ediciones inválida");
+  }
+  return data.map((item) => {
+    if (!isPlainObject(item)) {
+      throw invalid("edición inválida");
+    }
+    if (
+      typeof item.id !== "number" ||
+      !Number.isInteger(item.id) ||
+      item.id <= 0
+    ) {
+      throw invalid("id de edición inválido");
+    }
+    if (typeof item.field !== "string" || item.field === "") {
+      throw invalid("campo de edición inválido");
+    }
+    if (!isNullableString(item.old_value)) {
+      throw invalid("valor anterior inválido");
+    }
+    if (!isNullableString(item.new_value)) {
+      throw invalid("valor nuevo inválido");
+    }
+    if (typeof item.edited_at !== "string" || item.edited_at === "") {
+      throw invalid("fecha de edición inválida");
+    }
+    return item as unknown as AdminQuestionEdit;
+  });
 }

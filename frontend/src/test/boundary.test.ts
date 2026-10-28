@@ -43,7 +43,9 @@ describe("fetch boundary", () => {
       "Admin.tsx",
       "AdminKeyGate.tsx",
       "AdminPanel.tsx",
+      "AdminQuestionEditor.tsx",
       "AdminReportRow.tsx",
+      "questionEditorForm.ts",
     ]) {
       expect(allFiles).toContain(
         normalize(join(process.cwd(), "src", "components", name)),
@@ -71,7 +73,9 @@ describe("fetch boundary", () => {
     for (const name of [
       "ReportForm.tsx",
       "AdminPanel.tsx",
+      "AdminQuestionEditor.tsx",
       "AdminReportRow.tsx",
+      "questionEditorForm.ts",
     ]) {
       expect(components).toContain(normalize(join(srcDir, "components", name)));
     }
@@ -98,10 +102,17 @@ describe("fetch boundary", () => {
       join(srcDir, "components", "ReportForm.tsx"),
       join(srcDir, "components", "AdminKeyGate.tsx"),
       join(srcDir, "components", "AdminPanel.tsx"),
+      join(srcDir, "components", "AdminQuestionEditor.tsx"),
       join(srcDir, "components", "AdminReportRow.tsx"),
       join(srcDir, "components", "Admin.tsx"),
+      join(srcDir, "components", "questionEditorForm.ts"),
+      join(srcDir, "api", "questionEditing.ts"),
     ];
     expect(modules).toContain(join(srcDir, "components", "ReportForm.tsx"));
+    expect(modules).toContain(
+      join(srcDir, "components", "questionEditorForm.ts"),
+    );
+    expect(modules).toContain(join(srcDir, "api", "questionEditing.ts"));
 
     for (const file of modules) {
       const content = readFileSync(file, "utf-8");
@@ -125,7 +136,9 @@ describe("fetch boundary", () => {
       join(srcDir, "components", "Admin.tsx"),
       join(srcDir, "components", "AdminKeyGate.tsx"),
       join(srcDir, "components", "AdminPanel.tsx"),
+      join(srcDir, "components", "AdminQuestionEditor.tsx"),
       join(srcDir, "components", "AdminReportRow.tsx"),
+      join(srcDir, "components", "questionEditorForm.ts"),
       join(srcDir, "components", "adminDateFormat.ts"),
       join(srcDir, "api", "adminFailures.ts"),
     ];
@@ -155,6 +168,13 @@ describe("fetch boundary", () => {
 
     const adminClient = readFileSync(join(srcDir, "api", "admin.ts"), "utf-8");
     expect(adminClient).toContain("X-API-Key");
+
+    const questionClient = readFileSync(
+      join(srcDir, "api", "questionEditing.ts"),
+      "utf-8",
+    );
+    expect(questionClient.length).toBeGreaterThan(0);
+    expect(questionClient).toContain("X-API-Key");
   });
 
   it("F4 an ../audio import resolves to src/audio and is rejected", () => {

@@ -13,7 +13,10 @@ export interface AdminFailure {
   readonly retryable: boolean;
 }
 
-export function getAdminFailure(error: ApiError): AdminFailure {
+function mapSharedFailure(
+  error: ApiError,
+  specific: (error: ApiError) => AdminFailure | null,
+): AdminFailure {
   if (error.kind === "network" || error.kind === "timeout") {
     return {
       kind: "error",
@@ -37,27 +40,16 @@ export function getAdminFailure(error: ApiError): AdminFailure {
         retryable: true,
       };
     }
-    if (error.status === 404) {
-      return {
-        kind: "error",
-        message: "El reporte ya no existe.",
-        retryable: false,
-      };
-    }
-    if (error.status === 422) {
-      return {
-        kind: "error",
-        message: "El cambio de estado no es válido.",
-        ...(error.detail !== undefined ? { detail: error.detail } : {}),
-        retryable: false,
-      };
-    }
     if (error.status !== undefined && error.status >= 500) {
       return {
         kind: "error",
         message: error.message,
         retryable: true,
       };
+    }
+    const specificFailure = specific(error);
+    if (specificFailure !== null) {
+      return specificFailure;
     }
     return {
       kind: "error",
@@ -72,4 +64,46 @@ export function getAdminFailure(error: ApiError): AdminFailure {
     ...(error.detail !== undefined ? { detail: error.detail } : {}),
     retryable: false,
   };
+}
+
+export function getAdminFailure(error: ApiError): AdminFailure {
+  return mapSharedFailure(error, (candidate) => {
+    if (candidate.status === 404) {
+      return {
+        kind: "error",
+        message: "El reporte ya no existe.",
+        retryable: false,
+      };
+    }
+    if (candidate.status === 422) {
+      return {
+        kind: "error",
+        message: "El cambio de estado no es válido.",
+        ...(candidate.detail !== undefined ? { detail: candidate.detail } : {}),
+        retryable: false,
+      };
+    }
+    return null;
+  });
+}
+
+export function getQuestionEditFailure(error: ApiError): AdminFailure {
+  return mapSharedFailure(error, (candidate) => {
+    if (candidate.status === 404) {
+      return {
+        kind: "error",
+        message: "La pregunta ya no existe.",
+        retryable: false,
+      };
+    }
+    if (candidate.status === 422) {
+      return {
+        kind: "error",
+        message: "El cambio no es válido.",
+        ...(candidate.detail !== undefined ? { detail: candidate.detail } : {}),
+        retryable: false,
+      };
+    }
+    return null;
+  });
 }
