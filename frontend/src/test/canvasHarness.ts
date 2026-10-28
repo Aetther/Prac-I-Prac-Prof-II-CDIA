@@ -12,6 +12,9 @@ export interface RecordedText {
   readonly text: string;
   readonly style: string;
   readonly font: string;
+  readonly x: number;
+  readonly y: number;
+  readonly textAlign: CanvasTextAlign;
 }
 
 export interface RecordedPoint {
@@ -32,6 +35,7 @@ export interface CanvasHarness {
   readonly scale: ReturnType<typeof vi.fn>;
   readonly clearRect: ReturnType<typeof vi.fn>;
   readonly translate: ReturnType<typeof vi.fn>;
+  readonly measureText: ReturnType<typeof vi.fn>;
 }
 
 export function installCanvasHarness(): CanvasHarness {
@@ -45,6 +49,7 @@ export function installCanvasHarness(): CanvasHarness {
   let fillStyle = "";
   let strokeStyle = "";
   let font = "";
+  let textAlign: CanvasTextAlign = "left";
 
   const setTransform = vi.fn(
     (a: number, b: number, c: number, d: number, e: number, f: number) => {
@@ -54,6 +59,9 @@ export function installCanvasHarness(): CanvasHarness {
   const scale = vi.fn();
   const clearRect = vi.fn();
   const translate = vi.fn();
+  const measureText = vi.fn((text: string) => ({
+    width: text.length * 7,
+  }));
 
   const ctx = {
     beginPath: vi.fn(),
@@ -80,12 +88,18 @@ export function installCanvasHarness(): CanvasHarness {
     translate,
     rotate: vi.fn(),
     clearRect,
-    fillText: vi.fn((text: string) => {
-      texts.push({ text, style: fillStyle, font });
+    fillText: vi.fn((text: string, x: number, y: number) => {
+      texts.push({ text, style: fillStyle, font, x, y, textAlign });
     }),
+    measureText,
     setTransform,
     scale,
-    textAlign: "left" as CanvasTextAlign,
+    get textAlign() {
+      return textAlign;
+    },
+    set textAlign(value: CanvasTextAlign) {
+      textAlign = value;
+    },
     textBaseline: "alphabetic" as CanvasTextBaseline,
     get fillStyle() {
       return fillStyle;
@@ -125,5 +139,6 @@ export function installCanvasHarness(): CanvasHarness {
     scale,
     clearRect,
     translate,
+    measureText,
   };
 }

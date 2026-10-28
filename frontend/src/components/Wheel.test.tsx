@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
+import { CATEGORY_EMOJI, findCategoryEmoji } from "../game/category";
 import type { WheelCategory } from "../game/category";
 import type { Player } from "../game/types";
 import {
@@ -114,6 +115,7 @@ describe("Wheel", () => {
   it("renders the heading, scoreboard, canvas role and the exact label description", () => {
     renderWheel();
 
+    expect(screen.getByText("¡Turno de Ana!")).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "Girá la ruleta" }),
     ).toBeVisible();
@@ -135,7 +137,101 @@ describe("Wheel", () => {
     expect(screen.getAllByText("Turno")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Girar" })).toHaveClass(
       "touch-target",
+      "wheel-spin",
     );
+  });
+
+  it('COPY-01 the Wheel shows "¡Turno de Ana!" and the "¡Geografía!" result and never "Salió:"', async () => {
+    const { onChooseCategory } = renderWheel();
+
+    expect(screen.getByText("¡Turno de Ana!")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Girá la ruleta" }),
+    ).toBeVisible();
+
+    await spin();
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("¡Geografía!");
+    expect(status.closest("section")?.textContent).not.toContain("Salió:");
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(onChooseCategory).toHaveBeenCalledWith("geografia");
+  });
+
+  it('COPY-05 the round "Girar" control keeps the accessible name "Girar" and the wheel-spin class', async () => {
+    renderWheel();
+
+    const button = screen.getByRole("button", { name: "Girar" });
+    expect(button).toHaveClass("wheel-spin", "touch-target");
+    expect(button.textContent).toBe("Girar");
+    expect(button).toBeEnabled();
+
+    startSpin();
+    await drive([0]);
+    expect(screen.getByRole("button", { name: "Girar" })).toBeDisabled();
+  });
+
+  it("EMOJI-02 the canvas draws each emoji beside its label, paints no hub and keeps the description emoji-free", () => {
+    renderWheel();
+
+    const labels = SIX_WHEEL_CATEGORIES.map((category) => category.label);
+    const emojis = SIX_WHEEL_CATEGORIES.map((category) =>
+      findCategoryEmoji(category.name),
+    );
+    const labelTexts = canvas.texts.filter((text) =>
+      labels.includes(text.text),
+    );
+    const emojiTexts = canvas.texts.filter((text) =>
+      emojis.includes(text.text),
+    );
+
+    expect(labelTexts).toHaveLength(6);
+    expect(emojiTexts).toHaveLength(6);
+    expect(canvas.measureText).toHaveBeenCalled();
+    for (let index = 0; index < 6; index += 1) {
+      const label = labelTexts[index];
+      const emoji = emojiTexts[index];
+      const labelWidth = label.text.length * 7;
+      const emojiWidth = emoji.text.length * 7;
+      const labelLeft = label.x - labelWidth;
+      const emojiLeft = emoji.x - emojiWidth;
+      expect(emoji.x).not.toBe(label.x);
+      expect(emoji.textAlign).toBe("right");
+      expect(label.textAlign).toBe("right");
+      expect(emojiLeft + emojiWidth).toBeLessThanOrEqual(labelLeft - 12);
+      expect(emoji.style).toBe(label.style);
+    }
+    for (const text of canvas.texts) {
+      const hasLabel = labels.some((label) => text.text.includes(label));
+      const hasEmoji = emojis.some((emoji) => text.text.includes(emoji));
+      expect(hasLabel && hasEmoji).toBe(false);
+    }
+    expect(
+      [...new Set(canvas.arcs.map((arc) => arc.r))].sort((a, b) => b - a),
+    ).toEqual([148, 142]);
+    expect(
+      screen.getByRole("img", { name: "Ruleta de categorías" }),
+    ).toHaveAccessibleDescription(
+      "Geografía, Historia, Ciencia, Arte, Entretenimiento, Deportes.",
+    );
+    expect(canvas.fillsAtFill).toContain("sentinel-pointer");
+  });
+
+  it('EMOJI-03 the wheel result banner shows the aria-hidden emoji and the exact "¡Geografía!" text', async () => {
+    renderWheel();
+
+    await spin();
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveClass("wheel-result");
+    expect(status).toHaveAttribute("data-category", "geografia");
+    const emoji = within(status).getByText("🌎");
+    expect(emoji).toHaveAttribute("aria-hidden", "true");
+    const label = within(status).getByText("¡Geografía!");
+    expect(label).not.toBe(emoji);
+    expect(status.textContent).toBe("🌎¡Geografía!");
+    expect(document.body.textContent).not.toContain("Salió: Geografía");
   });
 
   it("draws the six sectors with the token colours in declared order", () => {
@@ -150,7 +246,7 @@ describe("Wheel", () => {
     expect(canvas.fillsAtFill.length).toBeGreaterThanOrEqual(6);
   });
 
-  it("draws every API label with the label token colour", () => {
+  it("draws every API label and its emoji with the label token colour", () => {
     const labels = [
       "Etiqueta 1",
       "Etiqueta 2",
@@ -165,21 +261,32 @@ describe("Wheel", () => {
 
     renderWheel({ categories });
 
-    const drawnLabels = canvas.texts.slice(0, 6);
+    const drawnLabels = canvas.texts.filter((text) =>
+      labels.includes(text.text),
+    );
+    const emojis = SIX_WHEEL_CATEGORIES.map(
+      (category) => CATEGORY_EMOJI[category.name],
+    );
+    const drawnEmojis = canvas.texts.filter((text) =>
+      emojis.includes(text.text),
+    );
+
     expect(drawnLabels.map((text) => text.text)).toEqual(labels);
-    for (const text of drawnLabels) {
+    expect(drawnEmojis.map((text) => text.text)).toEqual(emojis);
+    for (const text of [...drawnLabels, ...drawnEmojis]) {
       expect(text.style).toBe("sentinel-label");
       expect(text.font).toContain("sentinel-font");
     }
   });
 
-  it("paints the pointer, hub, stroke and label with their wheel tokens", () => {
+  it("paints the pointer, rim, stroke and labels with their wheel tokens and no hub", () => {
     renderWheel();
 
-    expect(canvas.fillsAtFill).toContain("sentinel-hub");
     expect(canvas.fillsAtFill).toContain("sentinel-pointer");
     expect(canvas.fillsAtFill).toContain("sentinel-rim");
     expect(canvas.strokesAtStroke).toContain("sentinel-stroke");
+    expect(canvas.fillsAtFill).not.toContain("sentinel-hub");
+    expect(canvas.arcs.some((arc) => arc.r === 24)).toBe(false);
     expect(canvas.texts.length).toBeGreaterThanOrEqual(6);
     for (const text of canvas.texts) {
       expect(text.style).toBe("sentinel-label");
@@ -188,7 +295,6 @@ describe("Wheel", () => {
       "sentinel-pointer",
       "sentinel-rim",
       "sentinel-label",
-      "sentinel-hub",
       "sentinel-stroke",
     ]) {
       expect(SECTOR_SENTINELS).not.toContain(role);
@@ -275,7 +381,7 @@ describe("Wheel", () => {
     expect(screen.getByRole("button", { name: "Girar" })).toBeDisabled();
 
     await drive([4000]);
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
     expect(screen.queryByRole("button", { name: "Girar" })).toBeNull();
   });
 
@@ -285,12 +391,12 @@ describe("Wheel", () => {
     startSpin();
     await drive([0, 3999]);
 
-    expect(screen.queryByText(/Salió:/)).toBeNull();
+    expect(screen.queryByText(/¡Geografía!/)).toBeNull();
     expect(screen.getByRole("button", { name: "Girar" })).toBeDisabled();
 
     await drive([4000]);
 
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
     const plan = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0);
     const rotation = drawnRotation();
     expect(sectorArcs()).toHaveLength(6);
@@ -320,7 +426,7 @@ describe("Wheel", () => {
     expect(queue.pending()).toBe(0);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(onSectorCross).toHaveBeenCalledTimes(24);
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
   });
 
   it("matches the last tick to the shown result and the confirmed category", async () => {
@@ -330,7 +436,7 @@ describe("Wheel", () => {
 
     const lastTick = onSectorCross.mock.calls.at(-1)?.[0];
     expect(lastTick).toEqual({ sectorIndex: 0, category: "geografia" });
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
     expect(onChooseCategory).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
@@ -339,13 +445,13 @@ describe("Wheel", () => {
     expect(onChooseCategory).toHaveBeenCalledWith("geografia");
   });
 
-  it("shows Salió in a status region and waits for Continuar", async () => {
+  it("shows ¡Geografía! in a status region and waits for Continuar", async () => {
     const { onChooseCategory } = renderWheel();
 
     await spin();
 
     const status = screen.getByRole("status");
-    expect(status.textContent).toBe("Salió: Geografía");
+    expect(status).toHaveTextContent("¡Geografía!");
     expect(status).toHaveClass("wheel-status", "wheel-status-result");
     const continuar = screen.getByRole("button", { name: "Continuar" });
     expect(continuar).toHaveClass("touch-target");
@@ -372,7 +478,7 @@ describe("Wheel", () => {
     await drive();
 
     expect(onSectorCross).toHaveBeenCalledTimes(24);
-    expect(screen.getAllByText(/Salió:/)).toHaveLength(1);
+    expect(screen.getAllByText(/¡Geografía!/)).toHaveLength(1);
   });
 
   it("survives a null 2D context and still reaches the result", async () => {
@@ -383,7 +489,7 @@ describe("Wheel", () => {
 
     await spin();
 
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
     expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
     expect(onSectorCross).toHaveBeenCalledTimes(24);
   });
@@ -403,7 +509,7 @@ describe("Wheel", () => {
 
     await spin();
 
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
     expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
   });
 
@@ -440,12 +546,12 @@ describe("Wheel", () => {
     startSpin();
     await drive([0, 5999]);
 
-    expect(screen.queryByText(/Salió:/)).toBeNull();
+    expect(screen.queryByText(/¡Geografía!/)).toBeNull();
     expect(screen.getByRole("button", { name: "Girar" })).toBeDisabled();
 
     await drive([6000]);
 
-    expect(screen.getByRole("status").textContent).toBe("Salió: Deportes");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Deportes!");
     expect(screen.queryByRole("button", { name: "Girar" })).toBeNull();
   });
 
@@ -453,13 +559,14 @@ describe("Wheel", () => {
     renderWheel();
 
     expect(screen.getByRole("button", { name: "Girar" })).toHaveClass(
+      "button-primary",
       "touch-target",
     );
 
     await spin();
 
     const continuar = screen.getByRole("button", { name: "Continuar" });
-    expect(continuar).toHaveClass("touch-target");
+    expect(continuar).toHaveClass("button-primary", "touch-target");
     expect(continuar).toBeVisible();
   });
 
@@ -591,5 +698,121 @@ describe("Wheel", () => {
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(container.textContent).not.toMatch(/puntos/i);
     expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
+  });
+
+  it("WUI-24 the Wheel is a game-layout with the scoreboard rail before the canvas in game-main", () => {
+    renderWheel();
+
+    const heading = screen.getByRole("heading", { name: "Girá la ruleta" });
+    const section = heading.closest("section");
+    expect(section).not.toBeNull();
+    expect(section).toHaveClass("wheel", "game-layout");
+
+    const rails = section!.querySelectorAll<HTMLElement>(".scoreboard-rail");
+    const mains = section!.querySelectorAll<HTMLElement>(".game-main");
+    expect(rails).toHaveLength(1);
+    expect(mains).toHaveLength(1);
+    const rail = rails[0];
+    const main = mains[0];
+
+    expect(rail.parentElement).toBe(section);
+    expect(main.parentElement).toBe(section);
+    expect(
+      rail.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const canvas = screen.getByRole("img", {
+      name: "Ruleta de categorías",
+    });
+    expect(main).toContainElement(canvas);
+    expect(main).toContainElement(heading);
+    expect(main).toContainElement(
+      screen.getByRole("button", { name: "Girar" }),
+    );
+
+    // Positive control: containment is checked in both directions.
+    expect(rail).not.toContainElement(canvas);
+    expect(main).not.toContainElement(rail);
+  });
+
+  it("WUI-25 a reduced-motion spin ends at 1200 ms, shows Geografía and emits six sector ticks", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    const { onSectorCross } = renderWheel();
+
+    startSpin();
+    await drive([0, 1199]);
+
+    expect(screen.queryByText(/¡Geografía!/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Girar" })).toBeDisabled();
+
+    await drive([1200]);
+
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
+    expect(onSectorCross).toHaveBeenCalledTimes(6);
+    const payloads = onSectorCross.mock.calls.map(([tick]) => tick);
+    expect(payloads).toEqual([
+      { sectorIndex: 5, category: "deportes" },
+      { sectorIndex: 4, category: "entretenimiento" },
+      { sectorIndex: 3, category: "arte" },
+      { sectorIndex: 2, category: "ciencia" },
+      { sectorIndex: 1, category: "historia" },
+      { sectorIndex: 0, category: "geografia" },
+    ]);
+    expect(payloads.at(-1)).toEqual({
+      sectorIndex: 0,
+      category: "geografia",
+    });
+  });
+
+  it("WUI-26 the wheel reads prefers-reduced-motion when the spin starts, not at mount", async () => {
+    const matchMedia = vi.fn(() => ({ matches: false }));
+    vi.stubGlobal("matchMedia", matchMedia);
+    const first = renderWheel();
+
+    expect(matchMedia).toHaveBeenCalledTimes(0);
+
+    startSpin();
+
+    expect(matchMedia).toHaveBeenCalledTimes(1);
+    expect(matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+
+    first.unmount();
+    queue.frames.length = 0;
+    matchMedia.mockReturnValue({ matches: true });
+    renderWheel();
+
+    startSpin();
+    await drive([0, 1199]);
+    expect(screen.queryByText(/¡Geografía!/)).toBeNull();
+    await drive([1200]);
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
+  });
+
+  it("WUI-27 a missing matchMedia falls back to the default 4000 ms plan", async () => {
+    const cases: ReadonlyArray<() => void> = [
+      () => {
+        vi.stubGlobal("matchMedia", undefined);
+      },
+      () => {
+        vi.stubGlobal("matchMedia", () => undefined);
+      },
+    ];
+
+    for (const stub of cases) {
+      stub();
+      const view = renderWheel();
+      const { onSectorCross } = view;
+
+      await spin();
+
+      expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
+      expect(onSectorCross).toHaveBeenCalledTimes(24);
+
+      view.unmount();
+      queue.frames.length = 0;
+    }
   });
 });

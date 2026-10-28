@@ -52,12 +52,16 @@ export function AdminKeyGate({
           aria-describedby={hintId}
           onChange={(event) => setValue(event.target.value)}
         />
-        <p id={hintId}>
+        <p id={hintId} className="help-text">
           Se guarda solo en la memoria de esta pestaña. Si recargás la página,
           tenés que volver a ingresarla.
         </p>
         {error !== null ? <p role="alert">{error}</p> : null}
-        <button type="submit" className="touch-target" disabled={disabled}>
+        <button
+          type="submit"
+          className="button-primary touch-target"
+          disabled={disabled}
+        >
           {verifying ? "Verificando..." : "Ingresar"}
         </button>
       </form>

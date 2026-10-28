@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CATEGORY_NAMES } from "./category";
 import {
   INITIAL_WHEEL_ROTATION,
@@ -7,6 +7,8 @@ import {
   MAX_SPIN_DURATION_MS,
   MIN_FULL_TURNS,
   MIN_SPIN_DURATION_MS,
+  REDUCED_MOTION_DURATION_MS,
+  REDUCED_MOTION_FULL_TURNS,
   TARGET_MARGIN_RATIO,
   WHEEL_SLICE_ANGLE,
   clamp01,
@@ -272,5 +274,149 @@ describe("sector crossings", () => {
       expect(index).toBeGreaterThanOrEqual(0);
       expect(index).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe("reduced-motion spin plan", () => {
+  it("WG-01 the default plan reports ease-out and moves 0.875 of the distance at half time", () => {
+    const plan = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0);
+    const progress =
+      (rotationAtElapsed(plan, 2000) - plan.startRotation) /
+      (plan.endRotation - plan.startRotation);
+
+    expect(plan.easing).toBe("ease-out");
+    expect(plan.durationMs).toBe(4000);
+    expect(plan.fullTurns).toBe(4);
+    expect(progress).toBeCloseTo(0.875, 10);
+  });
+
+  it("WG-02 the reduced-motion plan lasts exactly 1200 ms and turns one full turn plus the offset", () => {
+    const plan = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0, {
+      reducedMotion: true,
+    });
+
+    expect(plan.durationMs).toBe(REDUCED_MOTION_DURATION_MS);
+    expect(plan.durationMs).toBe(1200);
+    expect(plan.fullTurns).toBe(REDUCED_MOTION_FULL_TURNS);
+    expect(plan.fullTurns).toBe(1);
+    expect(plan.easing).toBe("linear");
+    expect(plan.endRotation - plan.startRotation).toBeCloseTo(
+      2 * Math.PI + 0.35 * WHEEL_SLICE_ANGLE,
+      10,
+    );
+    expect(sectorIndexAtRotation(plan.endRotation)).toBe(0);
+    expect(sectorCategoryAtRotation(plan.endRotation)).toBe("geografia");
+  });
+
+  it("WG-03 the reduced plan keeps the default plan's sector and in-sector offset", () => {
+    const values = [0.2, 0.4, 0.6, 0.8];
+    const defaultPlan = planFor(1.234, values);
+    let index = 0;
+    const reducedPlan = createSpinPlan(1.234, () => values[index++], {
+      reducedMotion: true,
+    });
+
+    expect(reducedPlan.targetSectorIndex).toBe(defaultPlan.targetSectorIndex);
+    expect(pointerOffset(reducedPlan.endRotation)).toBeCloseTo(
+      pointerOffset(defaultPlan.endRotation),
+      10,
+    );
+
+    const frozenDefault = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0);
+    const frozenReduced = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0, {
+      reducedMotion: true,
+    });
+    expect(frozenReduced.targetSectorIndex).toBe(0);
+    expect(pointerOffset(frozenReduced.endRotation)).toBeCloseTo(0.15, 10);
+    expect(frozenReduced.targetSectorIndex).toBe(
+      frozenDefault.targetSectorIndex,
+    );
+    expect(pointerOffset(frozenReduced.endRotation)).toBeCloseTo(
+      pointerOffset(frozenDefault.endRotation),
+      10,
+    );
+  });
+
+  it("WG-04 the linear plan is exactly half the rotation at half time and reaches the end", () => {
+    const plan = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0, {
+      reducedMotion: true,
+    });
+    const distance = plan.endRotation - plan.startRotation;
+
+    expect(rotationAtElapsed(plan, 600) - plan.startRotation).toBeCloseTo(
+      distance / 2,
+      10,
+    );
+    expect(rotationAtElapsed(plan, 1200)).toBe(plan.endRotation);
+    expect(rotationAtElapsed(plan, 1201)).toBe(plan.endRotation);
+  });
+
+  it("WG-05 the reduced plan consumes the same four draws in the same order", () => {
+    const values = [0.2, 0.4, 0.6, 0.8];
+    const draws: number[] = [];
+    const plan = createSpinPlan(
+      0,
+      () => {
+        const value = values[draws.length];
+        draws.push(value);
+        return value;
+      },
+      { reducedMotion: true },
+    );
+
+    expect(draws).toEqual(values);
+    expect(plan.durationMs).toBe(1200);
+    expect(plan.fullTurns).toBe(1);
+    expect(plan.easing).toBe("linear");
+
+    const defaultPlan = planFor(0, values);
+    expect(defaultPlan.durationMs).toBe(4400);
+    expect(defaultPlan.fullTurns).toBe(5);
+    expect(plan.targetSectorIndex).toBe(defaultPlan.targetSectorIndex);
+    expect(pointerOffset(plan.endRotation)).toBeCloseTo(
+      pointerOffset(defaultPlan.endRotation),
+      10,
+    );
+  });
+
+  it("WG-06 createSpinPlan defaults the random source and the options object", () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const defaults = createSpinPlan(INITIAL_WHEEL_ROTATION);
+      expect(random).toHaveBeenCalled();
+      expect(defaults.durationMs).toBe(4000);
+      expect(defaults.fullTurns).toBe(4);
+      expect(defaults.targetSectorIndex).toBe(0);
+
+      const emptyOptions = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0, {});
+      expect(emptyOptions).toEqual(defaults);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it("WG-07 an explicit reducedMotion false keeps the default plan", () => {
+    const explicit = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0, {
+      reducedMotion: false,
+    });
+    const defaults = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0);
+
+    expect(explicit.durationMs).toBe(4000);
+    expect(explicit.fullTurns).toBe(4);
+    expect(explicit.easing).toBe("ease-out");
+    expect(explicit).toEqual(defaults);
+  });
+
+  it("WG-08 one reduced-motion turn crosses the six boundaries and ends on Geografía", () => {
+    const plan = createSpinPlan(INITIAL_WHEEL_ROTATION, () => 0, {
+      reducedMotion: true,
+    });
+    const crossed = sectorIndicesCrossed(plan.startRotation, plan.endRotation);
+
+    expect(crossed).toEqual([5, 4, 3, 2, 1, 0]);
+    expect(crossed).toHaveLength(6);
+    expect(crossed[0]).toBe(5);
+    expect(crossed[crossed.length - 1]).toBe(0);
+    expect(sectorCategoryAtRotation(plan.endRotation)).toBe("geografia");
   });
 });

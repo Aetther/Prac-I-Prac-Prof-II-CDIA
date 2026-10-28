@@ -204,7 +204,9 @@ export function AdminPanel({
           aria-describedby={hintId}
           onChange={(event) => setDraftQuestionId(event.target.value)}
         />
-        <p id={hintId}>Opcional. Solo números enteros.</p>
+        <p id={hintId} className="help-text">
+          Opcional. Solo números enteros.
+        </p>
         {idError !== null ? <p role="alert">{idError}</p> : null}
         <button type="submit" className="touch-target">
           Aplicar filtros
@@ -226,7 +228,9 @@ export function AdminPanel({
           aria-describedby={editorHintId}
           onChange={(event) => setEditorQuestionId(event.target.value)}
         />
-        <p id={editorHintId}>Número de pregunta. Solo números enteros.</p>
+        <p id={editorHintId} className="help-text">
+          Número de pregunta. Solo números enteros.
+        </p>
         {editorError !== null ? <p role="alert">{editorError}</p> : null}
         <button type="submit" className="touch-target" disabled={busy}>
           Abrir editor

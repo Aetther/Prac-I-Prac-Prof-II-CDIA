@@ -1,4 +1,4 @@
-import { findCategoryLabel } from "../game/category";
+import { findCategoryEmoji, findCategoryLabel } from "../game/category";
 import type { WheelCategory } from "../game/category";
 import type { CategoryName } from "../game/types";
 
@@ -36,7 +36,12 @@ export function CategoryChips({
           data-category={name}
           style={{ backgroundColor: CATEGORY_COLOR_TOKENS[name] }}
         >
-          {findCategoryLabel(categories, name)}
+          <span className="category-chip-emoji" aria-hidden="true">
+            {findCategoryEmoji(name)}
+          </span>
+          <span className="category-chip-label">
+            {findCategoryLabel(categories, name)}
+          </span>
         </li>
       ))}
     </ul>

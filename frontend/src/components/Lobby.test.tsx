@@ -24,7 +24,7 @@ describe("Lobby", () => {
     expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
       "5",
     );
-    expect(screen.getByRole("button", { name: "Comenzar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "JUGAR" })).toBeDisabled();
   });
 
   it("selecting six categories hides Rondas, keeps Tiempo and restores the held value", async () => {
@@ -62,12 +62,12 @@ describe("Lobby", () => {
     ).toBe("10");
   });
 
-  it("keeps Comenzar disabled while either name is blank", async () => {
+  it("keeps JUGAR disabled while either name is blank", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
     render(<Lobby onStart={onStart} />);
 
-    const start = screen.getByRole("button", { name: "Comenzar" });
+    const start = screen.getByRole("button", { name: "JUGAR" });
     await user.click(start);
     expect(start).toBeDisabled();
     expect(onStart).not.toHaveBeenCalled();
@@ -83,7 +83,7 @@ describe("Lobby", () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it("enables Comenzar when both names contain text", async () => {
+  it("enables JUGAR when both names contain text", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
     render(<Lobby onStart={onStart} />);
@@ -91,13 +91,13 @@ describe("Lobby", () => {
     await user.type(screen.getByLabelText("Jugador 1"), "Ana");
     await user.type(screen.getByLabelText("Jugador 2"), "Beto");
 
-    const start = screen.getByRole("button", { name: "Comenzar" });
+    const start = screen.getByRole("button", { name: "JUGAR" });
     expect(start).toBeEnabled();
     await user.click(start);
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
-  it("emits the raw lobby input on Comenzar with the rounds mode", async () => {
+  it("emits the raw lobby input on JUGAR with the rounds mode", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
     render(<Lobby onStart={onStart} />);
@@ -113,7 +113,7 @@ describe("Lobby", () => {
       "30",
     );
     await user.selectOptions(screen.getByLabelText("Rondas"), "3");
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledWith({
@@ -144,7 +144,7 @@ describe("Lobby", () => {
       screen.getByLabelText("Modo de juego"),
       "six-categories",
     );
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledWith({
@@ -173,7 +173,7 @@ describe("Lobby", () => {
       screen.getByRole("combobox", { name: "Modo de juego" }),
     ).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Rondas" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Comenzar" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "JUGAR" })).toBeVisible();
   });
 
   it("labels only the controls it shows in six mode and gives each the touch target", async () => {
@@ -247,5 +247,60 @@ describe("Lobby", () => {
       "Juntar las 6 categorías",
     ]);
     expect(optionsFor("Rondas")).toEqual(["3 rondas", "5 rondas", "10 rondas"]);
+  });
+
+  it("LOB-01 the sign is an h1 named TRIVIA with two aria-hidden sparkles, the tagline and a decorative mini wheel", () => {
+    const { container } = render(<Lobby onStart={vi.fn()} />);
+
+    const heading = screen.getByRole("heading", { name: "TRIVIA" });
+    expect(heading.tagName).toBe("H1");
+    expect(heading).toHaveClass("lobby-sign");
+    const sparkles = heading.querySelectorAll(".lobby-sign-sparkle");
+    expect(sparkles).toHaveLength(2);
+    for (const sparkle of sparkles) {
+      expect(sparkle).toHaveAttribute("aria-hidden", "true");
+      expect(sparkle.textContent).toBe("✨");
+    }
+    expect(screen.getByText("Poné a prueba tu conocimiento")).toBeVisible();
+
+    const miniWheel = container.querySelector(".lobby-mini-wheel");
+    expect(miniWheel).not.toBeNull();
+    expect(miniWheel).toHaveAttribute("aria-hidden", "true");
+    expect(miniWheel!.tagName).not.toBe("CANVAS");
+    expect(miniWheel!.textContent).toBe("");
+    expect(container.querySelector("canvas")).toBeNull();
+  });
+
+  it('LOB-02 "JUGAR" is the only start action and it keeps the disabled-until-two-names rule', async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+    render(<Lobby onStart={onStart} />);
+
+    const start = screen.getByRole("button", { name: "JUGAR" });
+    expect(start).toBeDisabled();
+    expect(start).toHaveClass("button-primary", "touch-target");
+    expect(
+      screen.queryByRole("button", { name: "Comenzar" }),
+    ).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Jugador 1"), "Ana");
+    await user.type(screen.getByLabelText("Jugador 2"), "   ");
+    expect(start).toBeDisabled();
+
+    await user.clear(screen.getByLabelText("Jugador 2"));
+    await user.type(screen.getByLabelText("Jugador 2"), "Beto");
+    expect(start).toBeEnabled();
+    await user.click(start);
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('LOB-03 no "Comenzar" text or accessible name survives in the Lobby', () => {
+    const { container } = render(<Lobby onStart={vi.fn()} />);
+
+    expect(container.textContent).not.toContain("Comenzar");
+    expect(
+      screen.queryByRole("button", { name: /Comenzar/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "JUGAR" })).toBeVisible();
   });
 });

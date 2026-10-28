@@ -65,7 +65,6 @@ export const SENTINEL_TOKENS: Readonly<Record<string, string>> = {
   "--color-wheel-pointer": "sentinel-pointer",
   "--color-wheel-rim": "sentinel-rim",
   "--color-wheel-label": "sentinel-label",
-  "--color-wheel-hub": "sentinel-hub",
   "--color-wheel-stroke": "sentinel-stroke",
   "--font-family-sans": "sentinel-font",
 };

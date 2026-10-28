@@ -11,6 +11,7 @@ import { formatAdminTimestamp } from "./adminDateFormat";
 import {
   buildQuestionPatch,
   fieldLimit,
+  formatHistoryValue,
   QUESTION_EXPORT_REMINDER,
   QUESTION_FIELD_LABELS,
   QUESTION_HISTORY_FIELD_LABELS,
@@ -223,7 +224,11 @@ export function AdminQuestionEditor({
               <legend>Español</legend>
               {SPANISH_FIELDS.map(renderField)}
             </fieldset>
-            <button type="submit" className="touch-target" disabled={busy}>
+            <button
+              type="submit"
+              className="button-primary touch-target"
+              disabled={busy}
+            >
               {busy ? "Guardando..." : "Guardar cambios"}
             </button>
           </form>
@@ -323,8 +328,8 @@ export function AdminQuestionEditor({
                           edit.field
                         }`}
                       </p>
-                      <p>{`Antes: ${edit.old_value ?? "Sin valor"}`}</p>
-                      <p>{`Después: ${edit.new_value ?? "Sin valor"}`}</p>
+                      <p>{`Antes: ${formatHistoryValue(edit.field, edit.old_value)}`}</p>
+                      <p>{`Después: ${formatHistoryValue(edit.field, edit.new_value)}`}</p>
                       <p>
                         Fecha:{" "}
                         <time dateTime={edit.edited_at}>

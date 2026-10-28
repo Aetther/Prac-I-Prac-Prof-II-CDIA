@@ -174,9 +174,14 @@ describe("Result", () => {
     expect(statuses[0].textContent).toBe("La respuesta correcta era: Lima");
     expect(screen.getByRole("button", { name: "Continuar" })).toHaveClass(
       "touch-target",
+      "button-primary",
     );
     expect(screen.getByRole("button", { name: "Reportar" })).toHaveClass(
       "touch-target",
+      "button-secondary",
+    );
+    expect(screen.getByRole("button", { name: "Reportar" })).not.toHaveClass(
+      "button-primary",
     );
   });
 
@@ -256,9 +261,11 @@ describe("Result", () => {
     expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
     expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
     expect(screen.getByText("Geografía")).toBeVisible();
-    expect(screen.getByText("Geografía").style.backgroundColor).toBe(
-      "var(--color-category-geografia)",
+    const chip = document.querySelector<HTMLElement>(
+      '.category-chip[data-category="geografia"]',
     );
+    expect(chip).not.toBeNull();
+    expect(chip!.style.backgroundColor).toBe("var(--color-category-geografia)");
     expect(container.textContent).not.toMatch(/puntos/i);
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
@@ -513,5 +520,104 @@ describe("Result", () => {
       screen.getByRole("button", { name: "Reportar" }),
     );
     expect(screen.getByRole("button", { name: "Reportar" })).toBeDisabled();
+  });
+
+  it("RES-19 the Result is a game-layout with the scoreboard rail and the actions in game-main", () => {
+    renderResult();
+
+    const heading = screen.getByRole("heading", { name: "Resultado" });
+    const section = heading.closest("section");
+    expect(section).not.toBeNull();
+    expect(section).toHaveClass("result", "game-layout");
+
+    const rails = section!.querySelectorAll<HTMLElement>(".scoreboard-rail");
+    const mains = section!.querySelectorAll<HTMLElement>(".game-main");
+    expect(rails).toHaveLength(1);
+    expect(mains).toHaveLength(1);
+    const rail = rails[0];
+    const main = mains[0];
+
+    expect(rail.parentElement).toBe(section);
+    expect(main.parentElement).toBe(section);
+    expect(
+      rail.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    expect(main).toContainElement(heading);
+    expect(main).toContainElement(screen.getByRole("status"));
+    expect(main).toContainElement(
+      screen.getByRole("button", { name: "Continuar" }),
+    );
+    expect(main).toContainElement(
+      screen.getByRole("button", { name: "Reportar" }),
+    );
+
+    // Positive control: containment is checked in both directions.
+    expect(rail).not.toContainElement(heading);
+    expect(main).not.toContainElement(rail);
+  });
+
+  it("RES-20 the correct, wrong and timeout outcomes each show their own aria-hidden icon", () => {
+    const correct = renderResult();
+    const correctIcon = correct.container.querySelector(".result-icon");
+    expect(correctIcon).not.toBeNull();
+    expect(correctIcon?.tagName.toLowerCase()).toBe("svg");
+    expect(correctIcon).toHaveClass("result-icon-correct");
+    expect(correctIcon).toHaveAttribute("viewBox", "0 0 64 64");
+    expect(correctIcon).toHaveAttribute("aria-hidden", "true");
+    expect(correctIcon).toHaveAttribute("focusable", "false");
+    expect(correctIcon?.querySelector("path")?.getAttribute("d")).toContain(
+      "M12 34",
+    );
+    expect(screen.getByText("Correcta")).toBeVisible();
+    correct.unmount();
+
+    const wrong = renderResult({
+      lastAnswer: {
+        chosenAnswer: "Lima",
+        correct: false,
+        correctAnswer: "Buenos Aires",
+        timedOut: false,
+      },
+    });
+    const wrongIcon = wrong.container.querySelector(".result-icon");
+    expect(wrongIcon?.tagName.toLowerCase()).toBe("svg");
+    expect(wrongIcon).toHaveClass("result-icon-wrong");
+    expect(wrongIcon).toHaveAttribute("aria-hidden", "true");
+    expect(wrongIcon).toHaveAttribute("focusable", "false");
+    expect(wrongIcon?.querySelector("path")?.getAttribute("d")).toContain(
+      "M16 16",
+    );
+    expect(screen.getByText("Incorrecta")).toBeVisible();
+    wrong.unmount();
+
+    const timeout = renderResult({
+      lastAnswer: {
+        chosenAnswer: null,
+        correct: false,
+        correctAnswer: "Buenos Aires",
+        timedOut: true,
+      },
+    });
+    const timeoutIcon = timeout.container.querySelector(".result-icon");
+    expect(timeoutIcon?.tagName.toLowerCase()).toBe("svg");
+    expect(timeoutIcon).toHaveClass("result-icon-timeout");
+    expect(timeoutIcon).toHaveAttribute("aria-hidden", "true");
+    expect(timeoutIcon).toHaveAttribute("focusable", "false");
+    expect(timeoutIcon?.querySelector("circle")).not.toBeNull();
+    expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
+  });
+
+  it('RES-21 the outcome icon sits outside the "La respuesta correcta era" status region', () => {
+    const { container } = renderResult();
+
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("La respuesta correcta era: Lima");
+    const icon = container.querySelector(".result-icon");
+    expect(icon).not.toBeNull();
+    expect(status.contains(icon)).toBe(false);
+    expect(screen.getAllByText("La respuesta correcta era: Lima")).toHaveLength(
+      1,
+    );
   });
 });

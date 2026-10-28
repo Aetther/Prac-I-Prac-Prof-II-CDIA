@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Category } from "../api/types";
 import { SIX_CATEGORIES, SIX_WHEEL_CATEGORIES } from "../test/wheelFixtures";
 import {
+  CATEGORY_EMOJI,
   CATEGORY_NAMES,
   buildWheelCategories,
+  findCategoryEmoji,
   findCategoryLabel,
   isCategoryName,
   pickCategoryExcluding,
@@ -170,5 +172,31 @@ describe("wheel category labels", () => {
       { name: "entretenimiento", label: "Entretenimiento" },
       { name: "deportes", label: "Deportes" },
     ]);
+  });
+
+  it("EMOJI-01 CATEGORY_EMOJI maps the six names to their emoji and findCategoryEmoji returns each one", () => {
+    expect(CATEGORY_EMOJI).toEqual({
+      geografia: "🌎",
+      historia: "📜",
+      ciencia: "🔬",
+      arte: "🎨",
+      entretenimiento: "🎬",
+      deportes: "⚽",
+    });
+    expect(Object.isFrozen(CATEGORY_EMOJI)).toBe(true);
+    expect(Object.keys(CATEGORY_EMOJI)).toEqual([
+      "geografia",
+      "historia",
+      "ciencia",
+      "arte",
+      "entretenimiento",
+      "deportes",
+    ]);
+    for (const name of CATEGORY_NAMES) {
+      expect(findCategoryEmoji(name)).toBe(CATEGORY_EMOJI[name]);
+    }
+    expect(findCategoryEmoji("geografia")).not.toBe(
+      findCategoryEmoji("deportes"),
+    );
   });
 });

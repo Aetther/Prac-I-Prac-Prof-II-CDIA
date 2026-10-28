@@ -160,7 +160,7 @@ async function startToWheel(
   } else {
     await user.selectOptions(screen.getByLabelText("Rondas"), rounds);
   }
-  await user.click(screen.getByRole("button", { name: "Comenzar" }));
+  await user.click(screen.getByRole("button", { name: "JUGAR" }));
   await screen.findByRole("button", { name: "Girar" });
 }
 
@@ -174,7 +174,7 @@ async function spinToResult(user: UserEvent, sectorIndex = 0): Promise<void> {
   await act(async () => {
     queue.drive(FRAME_TIMESTAMPS);
   });
-  await screen.findByText(`Salió: ${SIX_CATEGORIES[sectorIndex].label}`);
+  await screen.findByText(`¡${SIX_CATEGORIES[sectorIndex].label}!`);
 }
 
 async function spinWheel(user: UserEvent, sectorIndex = 0): Promise<void> {
@@ -199,7 +199,7 @@ async function continueFromResult(user: UserEvent): Promise<void> {
 }
 
 async function continueFromSwitchTurn(user: UserEvent): Promise<void> {
-  await user.click(screen.getByRole("button", { name: "Continuar" }));
+  await user.click(screen.getByRole("button", { name: "Estoy listo" }));
 }
 
 async function continueToWheel(user: UserEvent): Promise<void> {
@@ -327,7 +327,7 @@ describe("App game flow with a mocked API", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Jugador 1"), "Ana");
-    const start = screen.getByRole("button", { name: "Comenzar" });
+    const start = screen.getByRole("button", { name: "JUGAR" });
     expect(start).toBeDisabled();
     await user.click(start);
     expect(getQuestion).not.toHaveBeenCalled();
@@ -498,7 +498,8 @@ describe("App game flow with a mocked API", () => {
 
     await continueFromResult(user);
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
     expect(getQuestion).toHaveBeenCalledTimes(1);
     expect(postAnswer).toHaveBeenCalledTimes(1);
@@ -562,7 +563,8 @@ describe("App game flow with a mocked API", () => {
     expect(screen.queryByText(/Pasale el dispositivo/)).toBeNull();
     await continueFromResult(user);
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
     expect(currentTurnRow()[0]).toHaveTextContent("Beto: 0 puntos");
     expect(screen.queryByText("Correcta")).toBeNull();
@@ -586,7 +588,8 @@ describe("App game flow with a mocked API", () => {
     await screen.findByRole("heading", { name: "Resultado" });
     await continueFromResult(user);
 
-    expect(screen.getByText("Pasale el dispositivo a Ana")).toBeVisible();
+    expect(screen.getByText("¡Turno de Ana!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 2 de 3")).toBeVisible();
   });
 
@@ -624,7 +627,7 @@ describe("App game flow with a mocked API", () => {
       expectNoTimer();
     }
 
-    expect(screen.getByText("Ganó Ana")).toBeVisible();
+    expect(screen.getByText("¡Ganó Ana!")).toBeVisible();
     expect(screen.getByText("Ana: 30 puntos")).toBeVisible();
     expect(screen.getByText("Beto: 10 puntos")).toBeVisible();
     expect(screen.queryByText("Turno")).toBeNull();
@@ -666,14 +669,14 @@ describe("App game flow with a mocked API", () => {
       await continueFromResult(user);
     }
 
-    expect(screen.getByText("Empate")).toBeVisible();
+    expect(screen.getByText("¡Empate!")).toBeVisible();
     const categoryCalls = getCategoriesMock.mock.calls.length;
     const questionCalls = getQuestion.mock.calls.length;
     const answerCalls = postAnswer.mock.calls.length;
 
     await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
 
-    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
       "",
     );
@@ -693,14 +696,14 @@ describe("App game flow with a mocked API", () => {
     expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
       "5",
     );
-    expect(screen.queryByText("Empate")).toBeNull();
+    expect(screen.queryByText("¡Empate!")).toBeNull();
     expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
     expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);
     expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
     expect(postAnswer).toHaveBeenCalledTimes(answerCalls);
   });
 
-  it("APPT-17 Continue on the final Result with equal scores shows Empate", async () => {
+  it("APPT-17 Continue on the final Result with equal scores shows ¡Empate!", async () => {
     const user = userEvent.setup();
     const correctAnswers = [true, true, false, false, false, false];
 
@@ -726,7 +729,7 @@ describe("App game flow with a mocked API", () => {
       await continueFromResult(user);
     }
 
-    expect(screen.getByText("Empate")).toBeVisible();
+    expect(screen.getByText("¡Empate!")).toBeVisible();
     expect(screen.getAllByText(/10 puntos/)).toHaveLength(2);
     expect(screen.queryByText(/Ganó/)).toBeNull();
     expectNoTimer();
@@ -1045,7 +1048,7 @@ describe("App game flow with a mocked API", () => {
 
     await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
 
-    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
       "",
     );
@@ -1071,7 +1074,7 @@ describe("App game flow with a mocked API", () => {
     const pending = deferred<Category[]>();
     getCategoriesMock.mockReturnValueOnce(pending.promise);
     await fillNames(user);
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     expect(screen.getByRole("status").textContent).toBe(
       "Cargando categorías...",
@@ -1085,7 +1088,7 @@ describe("App game flow with a mocked API", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Volver al lobby" }),
     ).toBeNull();
@@ -1162,7 +1165,7 @@ describe("App game flow with a mocked API", () => {
 
     await spinToResult(user);
 
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
     expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
     expect(getQuestion).not.toHaveBeenCalled();
 
@@ -1172,7 +1175,7 @@ describe("App game flow with a mocked API", () => {
     expect(getQuestion).toHaveBeenCalledWith("geografia", "es");
     await screen.findByText("¿Capital de Francia?");
     expect(screen.getByText("Categoría: Geografía")).toBeVisible();
-    expect(screen.queryByText("Salió: Geografía")).toBeNull();
+    expect(screen.queryByText("¡Geografía!")).toBeNull();
   });
 
   it("shows Cargando categorías... until the labels arrive", async () => {
@@ -1181,7 +1184,7 @@ describe("App game flow with a mocked API", () => {
     getCategoriesMock.mockReturnValueOnce(pending.promise);
     render(<App />);
     await fillNames(user);
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     expect(screen.getByRole("status").textContent).toBe(
       "Cargando categorías...",
@@ -1201,7 +1204,7 @@ describe("App game flow with a mocked API", () => {
     getCategoriesMock.mockRejectedValueOnce(networkError());
     render(<App />);
     await fillNames(user);
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("¿Está corriendo la API?")).toBeVisible();
@@ -1226,7 +1229,7 @@ describe("App game flow with a mocked API", () => {
     getCategoriesMock.mockResolvedValueOnce(malformed);
     render(<App />);
     await fillNames(user);
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     const alert = await screen.findByRole("alert");
     expect(
@@ -1255,14 +1258,14 @@ describe("App game flow with a mocked API", () => {
     getCategoriesMock.mockResolvedValueOnce(malformed);
     render(<App />);
     await fillNames(user);
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
     await screen.findByRole("alert");
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
     expect(getQuestion).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
 
-    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
       "",
     );
@@ -1284,7 +1287,7 @@ describe("App game flow with a mocked API", () => {
     const pending = deferred<Category[]>();
     getCategoriesMock.mockReturnValueOnce(pending.promise);
     await fillNames(user);
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     expect(screen.getByRole("status").textContent).toBe(
       "Cargando categorías...",
@@ -1306,7 +1309,8 @@ describe("App game flow with a mocked API", () => {
     await screen.findByRole("button", { name: "Continuar" });
     await continueFromResult(user);
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     await continueFromSwitchTurn(user);
 
     await screen.findByRole("button", { name: "Girar" });
@@ -1419,7 +1423,7 @@ describe("App game flow with a mocked API", () => {
       await continueFromResult(user);
     }
 
-    expect(screen.getByText("Empate")).toBeVisible();
+    expect(screen.getByText("¡Empate!")).toBeVisible();
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
     expect(getQuestion).toHaveBeenCalledTimes(6);
   });
@@ -1430,7 +1434,7 @@ describe("App game flow with a mocked API", () => {
     await startToWheel(user);
 
     await spinToResult(user);
-    expect(screen.getByRole("status").textContent).toBe("Salió: Geografía");
+    expect(screen.getByRole("status")).toHaveTextContent("¡Geografía!");
 
     vi.mocked(Math.random).mockReturnValue(0.9);
     await user.click(screen.getByRole("button", { name: "Continuar" }));
@@ -1516,6 +1520,31 @@ describe("App game flow with a mocked API", () => {
     expect(
       postAnswer.mock.calls.filter(([, value]) => value === "(sin respuesta)"),
     ).toHaveLength(0);
+  });
+
+  it("SURF-05 a failed submit clears the category surface and the retry restores it", async () => {
+    fakeClock();
+    const user = timerUser();
+    const retry = deferred<SubmitAnswerResult>();
+    getQuestion.mockResolvedValueOnce(question());
+    postAnswer.mockRejectedValueOnce(networkError());
+    postAnswer.mockReturnValueOnce(retry.promise);
+    await startMatch(user);
+    await screen.findByText("¿Capital de Francia?");
+    expect(shell()).toHaveAttribute("data-category-surface", "geografia");
+
+    await answer(user);
+    await screen.findByRole("alert");
+    expect(document.querySelector(".error-screen")).not.toBeNull();
+    expect(shell()).not.toHaveAttribute("data-category-surface");
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    await screen.findByText("¿Capital de Francia?");
+    expect(shell()).toHaveAttribute("data-category-surface", "geografia");
+
+    retry.resolve({ correct: true, correct_answer: "Lima" });
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(shell()).toHaveAttribute("data-category-surface", "geografia");
   });
 
   it("APPT-05 a timeout submits the sentinel and reaches Result", async () => {
@@ -1721,7 +1750,7 @@ describe("App game flow with a mocked API", () => {
 
     expect(getQuestion).toHaveBeenCalledTimes(20);
     expect(postAnswer).toHaveBeenCalledTimes(20);
-    expect(screen.getByText("Empate")).toBeVisible();
+    expect(screen.getByText("¡Empate!")).toBeVisible();
     expect(document.body.textContent).not.toContain(
       "Se alcanzó el límite de 20 turnos.",
     );
@@ -1824,7 +1853,8 @@ describe("App six-categories flow with a mocked API", () => {
 
     await continueFromResult(user);
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
     expectNoRoundLabel();
     expect(currentTurnRow()).toHaveLength(1);
@@ -1863,7 +1893,8 @@ describe("App six-categories flow with a mocked API", () => {
     expect(screen.getByText("Turnos: 1 de 20")).toBeVisible();
 
     await continueFromResult(user);
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
   });
 
   it("APS-05 a correct answer on an owned category requests it and adds no second chip", async () => {
@@ -1923,7 +1954,11 @@ describe("App six-categories flow with a mocked API", () => {
     expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
     const chips = within(playerRow("Ana")).getAllByRole("listitem");
     expect(chips).toHaveLength(6);
-    expect(chips.map((chip) => chip.textContent)).toEqual([
+    expect(
+      chips.map(
+        (chip) => chip.querySelector(".category-chip-label")?.textContent,
+      ),
+    ).toEqual([
       "Geografía",
       "Historia",
       "Ciencia",
@@ -1936,7 +1971,7 @@ describe("App six-categories flow with a mocked API", () => {
 
     await continueFromResult(user);
 
-    await screen.findByText("Ganó Ana");
+    await screen.findByText("¡Ganó Ana!");
     expect(screen.getByText("Juntó las 6 categorías.")).toBeVisible();
     expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
     expect(screen.getByText("Categorías: 6 de 6")).toBeVisible();
@@ -1966,14 +2001,14 @@ describe("App six-categories flow with a mocked API", () => {
       await continueFromResult(user);
     }
 
-    expect(screen.getByText("Ganó Ana")).toBeVisible();
+    expect(screen.getByText("¡Ganó Ana!")).toBeVisible();
     const categoryCalls = getCategoriesMock.mock.calls.length;
     const questionCalls = getQuestion.mock.calls.length;
     const answerCalls = postAnswer.mock.calls.length;
 
     await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
 
-    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
       "",
     );
@@ -1993,7 +2028,7 @@ describe("App six-categories flow with a mocked API", () => {
     expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
       "5",
     );
-    expect(screen.queryByText("Ganó Ana")).toBeNull();
+    expect(screen.queryByText("¡Ganó Ana!")).toBeNull();
     expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
     expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);
     expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
@@ -2045,7 +2080,8 @@ describe("App six-categories flow with a mocked API", () => {
     expectNoRoundLabel();
 
     await continueFromResult(user);
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
     expectNoRoundLabel();
 
@@ -2071,7 +2107,8 @@ describe("App six-categories flow with a mocked API", () => {
     expectNoPoints();
 
     await continueFromResult(user);
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expectNoPoints();
 
     cleanup();
@@ -2109,10 +2146,11 @@ describe("App six-categories flow with a mocked API", () => {
 
     const list = screen.getByRole("list", { name: "Categorías de Ana" });
     const chips = within(list).getAllByRole("listitem");
-    expect(chips.map((chip) => chip.textContent)).toEqual([
-      "Geografía",
-      "Ciencia",
-    ]);
+    expect(
+      chips.map(
+        (chip) => chip.querySelector(".category-chip-label")?.textContent,
+      ),
+    ).toEqual(["Geografía", "Ciencia"]);
     expect(chips[0].style.backgroundColor).toBe(
       "var(--color-category-geografia)",
     );
@@ -2374,7 +2412,8 @@ describe("App six-categories flow with a mocked API", () => {
     expect(screen.getByText("Turnos: 0 de 20")).toBeVisible();
 
     await continueFromResult(user);
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
   });
 
   it("APS-19 a served category outside the six settles the answer but adds no chip or turn", async () => {
@@ -2553,7 +2592,8 @@ describe("App reporting with the report API mocked", () => {
     expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
 
     await continueFromResult(user);
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportMock).toHaveBeenCalledTimes(1);
   });
 
@@ -2808,7 +2848,8 @@ describe("App reporting with the report API mocked", () => {
 
     await continueFromResult(user);
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportMock).not.toHaveBeenCalled();
   });
 
@@ -2822,14 +2863,16 @@ describe("App reporting with the report API mocked", () => {
     await submitReport(user);
 
     await continueFromResult(user);
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
 
     await act(async () => {
       pending.resolve(report201());
     });
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
     expect(reportMock).toHaveBeenCalledTimes(1);
   });
@@ -2943,7 +2986,8 @@ describe("App reporting with the report API mocked", () => {
     expect(screen.getByText("Ana: 10 puntos")).toBeVisible();
 
     await continueFromResult(user);
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportMock).toHaveBeenCalledTimes(1);
   });
 
@@ -3059,3 +3103,176 @@ describe("App reporting with the report API mocked", () => {
 async function waitForReportConfirmation(): Promise<void> {
   await screen.findByText("Gracias. Recibimos tu reporte.");
 }
+
+function shell(): HTMLElement {
+  const element = document.querySelector<HTMLElement>(".app-shell");
+  if (element === null) throw new Error("app shell not found");
+  return element;
+}
+
+describe("app shell and preserved copy", () => {
+  it("SURF-02 the QuestionCard and the Result carry the served category surface and the Wheel does not", async () => {
+    const user = userEvent.setup();
+    getQuestion.mockResolvedValueOnce(question());
+    await startToWheel(user);
+
+    expect(shell()).not.toHaveAttribute("data-category-surface");
+    expect(shell()).not.toHaveAttribute("data-player-surface");
+
+    await spinToResult(user);
+    expect(shell()).not.toHaveAttribute("data-category-surface");
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    await screen.findByText("¿Capital de Francia?");
+    expect(shell()).toHaveAttribute("data-category-surface", "geografia");
+    expect(shell()).not.toHaveAttribute("data-player-surface");
+
+    await answer(user);
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(shell()).toHaveAttribute("data-category-surface", "geografia");
+    expect(shell()).not.toHaveAttribute("data-player-surface");
+    expect(shell()).not.toBe(document.body);
+  });
+
+  it("SURF-03 SwitchTurn carries the next player's surface, GameOver clears both, and no DOM node is mutated", async () => {
+    const user = userEvent.setup();
+    let nextId = 1;
+    getQuestion.mockImplementation(() =>
+      Promise.resolve(question({ id: nextId++ })),
+    );
+    await startMatch(user);
+
+    await screen.findByText("¿Capital de Francia?");
+    await answer(user);
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(shell()).toHaveAttribute("data-category-surface", "geografia");
+
+    await continueFromResult(user);
+    await screen.findByRole("heading", { name: "¡Turno de Beto!" });
+    expect(shell()).toHaveAttribute("data-player-surface", "2");
+    expect(shell()).not.toHaveAttribute("data-category-surface");
+    expect(document.body.getAttribute("style")).toBeNull();
+    expect(document.documentElement.getAttribute("style")).toBeNull();
+
+    await continueFromSwitchTurn(user);
+    await screen.findByRole("button", { name: "Girar" });
+    expect(shell()).not.toHaveAttribute("data-player-surface");
+    expect(shell()).not.toHaveAttribute("data-category-surface");
+
+    for (let index = 0; index < 5; index += 1) {
+      await spinWheel(user);
+      await screen.findByText("¿Capital de Francia?");
+      await answer(user);
+      await screen.findByRole("heading", { name: "Resultado" });
+      await continueFromResult(user);
+      if (index < 4) {
+        await screen.findByRole("heading", { name: /¡Turno de/ });
+        if (index === 0) {
+          expect(
+            screen.getByRole("heading", { name: "¡Turno de Ana!" }),
+          ).toBeVisible();
+          expect(shell()).toHaveAttribute("data-player-surface", "1");
+        }
+        await continueFromSwitchTurn(user);
+        await screen.findByRole("button", { name: "Girar" });
+      }
+    }
+
+    await screen.findByRole("heading", { name: "¡Empate!" });
+    expect(shell()).not.toHaveAttribute("data-player-surface");
+    expect(shell()).not.toHaveAttribute("data-category-surface");
+  });
+
+  it("SURF-04 a 404 fallback carries the category actually served, historia, on both the question and the result", async () => {
+    const user = userEvent.setup();
+    getQuestion.mockRejectedValueOnce(notFound());
+    getQuestion.mockResolvedValueOnce(
+      question({ id: 7, category: "historia" }),
+    );
+    await startMatch(user);
+
+    await screen.findByText("Categoría: Historia");
+    expect(shell()).toHaveAttribute("data-category-surface", "historia");
+    expect(screen.getByText("📜")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByText("Categoría: Geografía")).toBeNull();
+
+    await answer(user);
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(shell()).toHaveAttribute("data-category-surface", "historia");
+  });
+
+  it("COPY-03 the preserved strings are exact single text nodes on the screens that own them", async () => {
+    const user = userEvent.setup();
+    getQuestion.mockResolvedValueOnce(question());
+    postAnswer.mockResolvedValueOnce({
+      correct: true,
+      correct_answer: "Lima",
+    });
+    render(<App />);
+    expect(screen.getByText("JUGAR")).toBeVisible();
+    await startToWheel(user);
+
+    expect(screen.getByText("Girá la ruleta")).toBeVisible();
+    expect(screen.getByText("¡Turno de Ana!")).toBeVisible();
+    expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
+    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
+
+    await spinToResult(user);
+    expect(screen.getByText("¡Geografía!")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await screen.findByText("Categoría: Geografía");
+    expect(screen.getByText("Elegí una opción")).toBeVisible();
+    for (const option of ["Lima", "Quito", "Bogotá", "Buenos Aires"]) {
+      expect(screen.getByText(option)).toBeVisible();
+    }
+
+    await answer(user, "Lima");
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(screen.getByText("Correcta")).toBeVisible();
+    expect(screen.getByText("La respuesta correcta era: Lima")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reportar" })).toBeVisible();
+
+    await continueFromResult(user);
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Estoy listo" })).toBeVisible();
+  });
+
+  it("COPY-04 the retired copy is absent from every screen", async () => {
+    const user = userEvent.setup();
+    getQuestion.mockResolvedValueOnce(question());
+    render(<App />);
+    expect(screen.getByText("JUGAR")).toBeVisible();
+    await startToWheel(user);
+
+    expect(
+      screen.queryByRole("button", { name: "Comenzar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Trivia IA" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Salió:/)).toBeNull();
+    expect(screen.getByText("¡Turno de Ana!")).toBeVisible();
+
+    await spinToResult(user);
+    expect(screen.queryByText(/Salió:/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await screen.findByText("Categoría: Geografía");
+    expect(screen.queryByText(/Pasale el dispositivo a /)).toBeNull();
+
+    await answer(user);
+    await screen.findByRole("heading", { name: "Resultado" });
+    expect(screen.queryByText(/^Ganó /)).toBeNull();
+    expect(screen.queryByText("Empate")).toBeNull();
+
+    await continueFromResult(user);
+    expect(screen.queryByText(/Pasale el dispositivo a /)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Continuar" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Estoy listo")).toBeVisible();
+  });
+});

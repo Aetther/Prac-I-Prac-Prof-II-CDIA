@@ -112,7 +112,9 @@ export function ReportForm({
         ))}
       </fieldset>
       <label htmlFor={commentId}>Comentario</label>
-      <p id={hintId}>Opcional; obligatorio para Otro.</p>
+      <p id={hintId} className="help-text">
+        Opcional; obligatorio para Otro.
+      </p>
       <textarea
         id={commentId}
         className="touch-target"

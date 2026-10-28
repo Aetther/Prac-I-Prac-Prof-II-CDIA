@@ -7,10 +7,14 @@ export const MIN_SPIN_DURATION_MS = 4000;
 export const MAX_SPIN_DURATION_MS = 6000;
 export const MIN_FULL_TURNS = 4;
 export const MAX_FULL_TURNS = 6;
+export const REDUCED_MOTION_DURATION_MS = 1200;
+export const REDUCED_MOTION_FULL_TURNS = 1;
 export const INITIAL_WHEEL_ROTATION = -WHEEL_SLICE_ANGLE / 2;
 export const TARGET_MARGIN_RATIO = 0.15;
 
 const FULL_CIRCLE = Math.PI * 2;
+
+export type SpinEasing = "ease-out" | "linear";
 
 export interface SpinPlan {
   readonly startRotation: number;
@@ -18,6 +22,7 @@ export interface SpinPlan {
   readonly durationMs: number;
   readonly fullTurns: number;
   readonly targetSectorIndex: number;
+  readonly easing: SpinEasing;
 }
 
 export interface WheelTick {
@@ -38,24 +43,30 @@ export function clamp01(value: number): number {
 export function createSpinPlan(
   startRotation: number,
   random: () => number = Math.random,
+  options: { reducedMotion?: boolean } = {},
 ): SpinPlan {
   const durationDraw = clamp01(random());
   const turnsDraw = clamp01(random());
   const sectorDraw = clamp01(random());
   const offsetDraw = clamp01(random());
 
-  const durationMs = Math.min(
-    MIN_SPIN_DURATION_MS +
-      Math.floor(
-        durationDraw * (MAX_SPIN_DURATION_MS - MIN_SPIN_DURATION_MS + 1),
-      ),
-    MAX_SPIN_DURATION_MS,
-  );
-  const fullTurns = Math.min(
-    MIN_FULL_TURNS +
-      Math.floor(turnsDraw * (MAX_FULL_TURNS - MIN_FULL_TURNS + 1)),
-    MAX_FULL_TURNS,
-  );
+  const reducedMotion = options.reducedMotion === true;
+  const durationMs = reducedMotion
+    ? REDUCED_MOTION_DURATION_MS
+    : Math.min(
+        MIN_SPIN_DURATION_MS +
+          Math.floor(
+            durationDraw * (MAX_SPIN_DURATION_MS - MIN_SPIN_DURATION_MS + 1),
+          ),
+        MAX_SPIN_DURATION_MS,
+      );
+  const fullTurns = reducedMotion
+    ? REDUCED_MOTION_FULL_TURNS
+    : Math.min(
+        MIN_FULL_TURNS +
+          Math.floor(turnsDraw * (MAX_FULL_TURNS - MIN_FULL_TURNS + 1)),
+        MAX_FULL_TURNS,
+      );
   const targetSectorIndex = Math.min(
     Math.floor(sectorDraw * WHEEL_SECTOR_COUNT),
     WHEEL_SECTOR_COUNT - 1,
@@ -73,6 +84,7 @@ export function createSpinPlan(
     durationMs,
     fullTurns,
     targetSectorIndex,
+    easing: reducedMotion ? "linear" : "ease-out",
   };
 }
 
@@ -84,10 +96,8 @@ export function rotationAtElapsed(plan: SpinPlan, elapsedMs: number): number {
   if (elapsedMs <= 0) return plan.startRotation;
   if (elapsedMs >= plan.durationMs) return plan.endRotation;
   const progress = elapsedMs / plan.durationMs;
-  return (
-    plan.startRotation +
-    (plan.endRotation - plan.startRotation) * easeOutCubic(progress)
-  );
+  const eased = plan.easing === "linear" ? progress : easeOutCubic(progress);
+  return plan.startRotation + (plan.endRotation - plan.startRotation) * eased;
 }
 
 const BOUNDARY_EPSILON = 1e-12;

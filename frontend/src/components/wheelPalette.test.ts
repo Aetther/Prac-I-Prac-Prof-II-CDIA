@@ -13,7 +13,6 @@ const TOKEN_NAMES = [
   "--color-category-deportes",
   "--color-wheel-pointer",
   "--color-wheel-label",
-  "--color-wheel-hub",
   "--color-wheel-stroke",
 ] as const;
 
@@ -50,7 +49,7 @@ function contrast(first: string, second: string): number {
 }
 
 describe("wheel palette", () => {
-  it("reads the ten wheel tokens and trims every value", () => {
+  it("reads the nine wheel tokens and trims every value", () => {
     const calls: string[] = [];
     const style = {
       getPropertyValue(name: string): string {
@@ -72,7 +71,6 @@ describe("wheel palette", () => {
       },
       pointer: "sentinel-color-wheel-pointer",
       label: "sentinel-color-wheel-label",
-      hub: "sentinel-color-wheel-hub",
       stroke: "sentinel-color-wheel-stroke",
     });
     expect(calls).toEqual([...TOKEN_NAMES]);
@@ -95,7 +93,6 @@ describe("wheel palette", () => {
       },
       pointer: "#111827",
       label: "#ffffff",
-      hub: "#f9fafb",
       stroke: "#ffffff",
     });
     expect(new Set(Object.values(palette.sector)).size).toBe(6);

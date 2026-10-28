@@ -16,6 +16,7 @@ import {
   fetchUnusedQuestion,
   gameReducer,
   getApiErrorMessage,
+  getNextTurn,
   getReportFailure,
   loadQuestionWithFallback,
   pickCategoryExcluding,
@@ -377,33 +378,52 @@ function App() {
     setUnavailableQuestionId(null);
   };
 
+  const categorySurface =
+    request.status !== "error" &&
+    (game.phase === "QuestionCard" || game.phase === "Result") &&
+    game.currentQuestion !== null
+      ? game.currentQuestion.category
+      : undefined;
+  const playerSurface =
+    game.phase === "SwitchTurn" && game.config !== null
+      ? String(getNextTurn(game).currentPlayer + 1)
+      : undefined;
+
   return (
     <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <GameScreen
-              game={game}
-              categories={categories}
-              loading={request.status === "loading"}
-              errorMessage={request.status === "error" ? request.message : null}
-              onStart={handleStart}
-              onAnswer={handleAnswer}
-              onTimeout={handleTimeout}
-              onAnswerContinue={handleAnswerContinue}
-              onTurnContinue={handleTurnContinue}
-              onChooseCategory={handleChooseCategory}
-              onRetry={handleRetry}
-              onBackToLobby={handleBackToLobby}
-              reportingQuestionId={reportingQuestionId}
-              unavailableQuestionId={unavailableQuestionId}
-              onReport={handleReport}
-            />
-          }
-        />
-        <Route path="/admin" element={<Admin />} />
-      </Routes>
+      <div
+        className="app-shell"
+        data-category-surface={categorySurface}
+        data-player-surface={playerSurface}
+      >
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <GameScreen
+                game={game}
+                categories={categories}
+                loading={request.status === "loading"}
+                errorMessage={
+                  request.status === "error" ? request.message : null
+                }
+                onStart={handleStart}
+                onAnswer={handleAnswer}
+                onTimeout={handleTimeout}
+                onAnswerContinue={handleAnswerContinue}
+                onTurnContinue={handleTurnContinue}
+                onChooseCategory={handleChooseCategory}
+                onRetry={handleRetry}
+                onBackToLobby={handleBackToLobby}
+                reportingQuestionId={reportingQuestionId}
+                unavailableQuestionId={unavailableQuestionId}
+                onReport={handleReport}
+              />
+            }
+          />
+          <Route path="/admin" element={<Admin />} />
+        </Routes>
+      </div>
     </BrowserRouter>
   );
 }

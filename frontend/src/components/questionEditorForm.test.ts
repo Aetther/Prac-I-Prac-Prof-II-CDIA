@@ -4,6 +4,7 @@ import {
   buildQuestionPatch,
   changedFieldLabels,
   fieldLimit,
+  formatHistoryValue,
   QUESTION_EXPORT_REMINDER,
   QUESTION_FIELD_LABELS,
   QUESTION_HISTORY_FIELD_LABELS,
@@ -540,5 +541,38 @@ describe("question editor form", () => {
       expect(result.patch.answer_es).toBe("Quito, Ecuador");
       expect(result.patch.question_es).toBe("¿Capital del Ecuador?");
     }
+  });
+
+  it("QFORM-32 formatHistoryValue renders is_active true as Visible", () => {
+    expect(formatHistoryValue("is_active", "true")).toBe("Visible");
+  });
+
+  it("QFORM-33 formatHistoryValue renders is_active false as Oculta", () => {
+    expect(formatHistoryValue("is_active", "false")).toBe("Oculta");
+  });
+
+  it("QFORM-34 formatHistoryValue renders null as Sin valor for any field", () => {
+    expect(formatHistoryValue("is_active", null)).toBe("Sin valor");
+    expect(formatHistoryValue("wrong_1", null)).toBe("Sin valor");
+  });
+
+  it("QFORM-35 formatHistoryValue renders an empty string as an empty value, not Sin valor", () => {
+    expect(formatHistoryValue("answer_es", "")).toBe("");
+    expect(formatHistoryValue("is_active", "")).toBe("");
+    expect(formatHistoryValue("is_active", "")).not.toBe("Oculta");
+  });
+
+  it("QFORM-36 formatHistoryValue renders an unknown is_active value raw", () => {
+    expect(formatHistoryValue("is_active", "True")).toBe("True");
+  });
+
+  it("QFORM-37 formatHistoryValue renders another field's true raw", () => {
+    expect(formatHistoryValue("question", "true")).toBe("true");
+    expect(formatHistoryValue("answer", "false")).toBe("false");
+  });
+
+  it("QFORM-38 formatHistoryValue renders an unknown field's value raw", () => {
+    expect(formatHistoryValue("foo", "false")).toBe("false");
+    expect(formatHistoryValue("foo", "bar")).toBe("bar");
   });
 });

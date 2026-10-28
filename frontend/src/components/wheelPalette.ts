@@ -4,7 +4,6 @@ export interface WheelPalette {
   readonly sector: Readonly<Record<CategoryName, string>>;
   readonly pointer: string;
   readonly label: string;
-  readonly hub: string;
   readonly stroke: string;
 }
 
@@ -24,7 +23,6 @@ export function readWheelPalette(
     },
     pointer: read("--color-wheel-pointer"),
     label: read("--color-wheel-label"),
-    hub: read("--color-wheel-hub"),
     stroke: read("--color-wheel-stroke"),
   };
 }

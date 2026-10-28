@@ -5,6 +5,7 @@ import type { MatchProgress } from "../game/progress";
 import type { ReportSubmissionResult } from "../game/reporting";
 import type { LastAnswer, Player, PlayerIndex } from "../game/types";
 import { ReportForm } from "./ReportForm";
+import { ResultIcon } from "./ResultIcon";
 import { Scoreboard } from "./Scoreboard";
 
 interface ResultProps {
@@ -27,6 +28,11 @@ interface ResultProps {
 function outcomeLabel(lastAnswer: LastAnswer): string {
   if (lastAnswer.timedOut) return "Se acabó el tiempo";
   return lastAnswer.correct ? "Correcta" : "Incorrecta";
+}
+
+function outcomeKind(lastAnswer: LastAnswer): "correct" | "wrong" | "timeout" {
+  if (lastAnswer.timedOut) return "timeout";
+  return lastAnswer.correct ? "correct" : "wrong";
 }
 
 export function Result({
@@ -107,58 +113,65 @@ export function Result({
     setFormOpen(false);
   };
 
+  const iconKind = outcomeKind(lastAnswer);
+
   return (
-    <section className="result">
+    <section className="result game-layout">
       <Scoreboard
         players={players}
         currentPlayer={currentPlayer}
         progress={progress}
         categories={categories}
       />
-      <h2>Resultado</h2>
-      <p>{question.question}</p>
-      <p className="result-outcome">{outcomeLabel(lastAnswer)}</p>
-      <p role="status">{`La respuesta correcta era: ${lastAnswer.correctAnswer}`}</p>
-      {showChosen ? <p>{`Elegiste: ${lastAnswer.chosenAnswer}`}</p> : null}
-      {reported ? (
-        <p ref={confirmationRef} role="status" tabIndex={-1}>
-          Gracias. Recibimos tu reporte.
+      <div className="game-main">
+        <h2>Resultado</h2>
+        <p className="question-text">{question.question}</p>
+        <p className="result-outcome">
+          <ResultIcon kind={iconKind} />
+          <span>{outcomeLabel(lastAnswer)}</span>
         </p>
-      ) : null}
-      <button
-        ref={reportButtonRef}
-        type="button"
-        className="touch-target"
-        disabled={reportDisabled}
-        aria-describedby={
-          reportDescription === null ? undefined : descriptionId
-        }
-        onClick={() => setFormOpen(true)}
-      >
-        Reportar
-      </button>
-      {reportDescription !== null ? (
-        <p id={descriptionId} className="visually-hidden">
-          {reportDescription}
-        </p>
-      ) : null}
-      {formOpen ? (
-        <ReportForm
-          disabled={reporting}
-          unavailable={unavailable}
-          onCancel={handleCancel}
-          onSuccess={handleSuccess}
-          onSubmit={onReport}
-        />
-      ) : null}
-      <button
-        ref={continueButtonRef}
-        type="button"
-        className="touch-target"
-        onClick={handleContinue}
-      >
-        Continuar
-      </button>
+        <p role="status">{`La respuesta correcta era: ${lastAnswer.correctAnswer}`}</p>
+        {showChosen ? <p>{`Elegiste: ${lastAnswer.chosenAnswer}`}</p> : null}
+        {reported ? (
+          <p ref={confirmationRef} role="status" tabIndex={-1}>
+            Gracias. Recibimos tu reporte.
+          </p>
+        ) : null}
+        <button
+          ref={reportButtonRef}
+          type="button"
+          className="button-secondary touch-target"
+          disabled={reportDisabled}
+          aria-describedby={
+            reportDescription === null ? undefined : descriptionId
+          }
+          onClick={() => setFormOpen(true)}
+        >
+          Reportar
+        </button>
+        {reportDescription !== null ? (
+          <p id={descriptionId} className="visually-hidden">
+            {reportDescription}
+          </p>
+        ) : null}
+        {formOpen ? (
+          <ReportForm
+            disabled={reporting}
+            unavailable={unavailable}
+            onCancel={handleCancel}
+            onSuccess={handleSuccess}
+            onSubmit={onReport}
+          />
+        ) : null}
+        <button
+          ref={continueButtonRef}
+          type="button"
+          className="button-primary result-continue touch-target"
+          onClick={handleContinue}
+        >
+          Continuar
+        </button>
+      </div>
     </section>
   );
 }

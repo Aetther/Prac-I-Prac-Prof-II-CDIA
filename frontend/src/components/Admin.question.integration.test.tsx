@@ -479,7 +479,7 @@ describe("Admin question editing through the real API client", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("QINT-08 the history renders in the response order with the Buenos Aires literals and raw is_active strings", async () => {
+  it("QINT-08 the history renders in the response order with the Buenos Aires literals and the Visible/Oculta vocabulary", async () => {
     const user = userEvent.setup();
     installFetch((url, init) => {
       if (url.endsWith("/reports/stats")) return jsonResponse(S_MIX);
@@ -499,10 +499,10 @@ describe("Admin question editing through the real API client", () => {
     expect(items[0]).toHaveTextContent("Campo: Pregunta en inglés");
     expect(items[1]).toHaveTextContent("Campo: Visibilidad");
     expect(items[2]).toHaveTextContent("Campo: foo");
-    expect(items[1]).toHaveTextContent("Antes: false");
-    expect(items[1]).toHaveTextContent("Después: true");
-    expect(items[1]).not.toHaveTextContent("Visible");
-    expect(items[1]).not.toHaveTextContent("Oculta");
+    expect(items[1]).toHaveTextContent("Antes: Oculta");
+    expect(items[1]).toHaveTextContent("Después: Visible");
+    expect(items[1]).not.toHaveTextContent("Antes: false");
+    expect(items[1]).not.toHaveTextContent("Después: true");
 
     const first = within(list).getByText("26/10/26, 9:00 a. m.");
     expect(first.tagName).toBe("TIME");

@@ -53,7 +53,7 @@ async function startToWheel(
   if (mode === "six-categories") {
     await user.selectOptions(screen.getByLabelText("Modo de juego"), mode);
   }
-  await user.click(screen.getByRole("button", { name: "Comenzar" }));
+  await user.click(screen.getByRole("button", { name: "JUGAR" }));
   await screen.findByRole("button", { name: "Girar" });
 }
 
@@ -62,7 +62,7 @@ async function spinToResult(user: User): Promise<void> {
   await act(async () => {
     queue.drive(FRAME_TIMESTAMPS);
   });
-  await screen.findByText("Salió: Geografía");
+  await screen.findByText("¡Geografía!");
 }
 
 async function spinAndConfirm(user: User): Promise<void> {
@@ -260,7 +260,8 @@ describe("App integration through the real API client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -272,7 +273,7 @@ describe("App integration through the real API client", () => {
 
     render(<App />);
     await fillNames(user);
-    await user.click(screen.getByRole("button", { name: "Comenzar" }));
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
 
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("¿Está corriendo la API?")).toBeVisible();
@@ -427,7 +428,7 @@ describe("App integration through the real API client", () => {
 
     await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
 
-    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
       "",
     );
@@ -492,7 +493,8 @@ describe("App integration through the real API client", () => {
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -1024,7 +1026,8 @@ describe("App reporting through the real API client", () => {
     expect(reportCalls()).toHaveLength(1);
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportCalls()).toHaveLength(1);
   });
 
@@ -1098,7 +1101,8 @@ describe("App reporting through the real API client", () => {
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportCalls()).toHaveLength(0);
   });
 
@@ -1116,13 +1120,15 @@ describe("App reporting through the real API client", () => {
     await submitReport(user);
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportCalls()).toHaveLength(1);
 
     await act(async () => {
       resolveReport(jsonResponse(report201(), 201));
     });
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportCalls()).toHaveLength(1);
   });
 
@@ -1136,7 +1142,8 @@ describe("App reporting through the real API client", () => {
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 5")).toBeVisible();
     expect(reportCalls()).toHaveLength(1);
   });
@@ -1236,7 +1243,8 @@ describe("App reporting through the real API client", () => {
 
       await user.click(screen.getByRole("button", { name: "Continuar" }));
 
-      expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+      expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+      expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
       expect(reportCalls()).toHaveLength(1);
     },
   );
@@ -1270,7 +1278,8 @@ describe("App reporting through the real API client", () => {
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(reportCalls()).toHaveLength(1);
   });
 

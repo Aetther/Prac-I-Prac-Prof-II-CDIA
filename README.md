@@ -86,7 +86,7 @@ flowchart LR
 | IA | transformers, PyTorch, sentence-transformers, scikit-learn, SetFit |
 | Traducción | transformers (MarianMT), sentencepiece, sacremoses |
 | Tests | pytest, httpx |
-| Frontend | React 19, Vite 8, TypeScript 6 (modo estricto), React Router 7, CSS con variables |
+| Frontend | React 19, Vite 8, TypeScript 6 (modo estricto), React Router 7, CSS con variables, fuente Baloo 2 (OFL) |
 | Tests del frontend | Vitest, React Testing Library, jsdom, cobertura con v8 |
 
 ## Estructura del proyecto
@@ -169,6 +169,7 @@ flowchart LR
 │   ├── src/game/                   # Reglas del juego en TypeScript puro (sin interfaz)
 │   ├── src/components/             # Pantallas: lobby, ruleta, pregunta, resultado, cambio de turno, fin de partida
 │   ├── src/styles/                 # Estilos y variables de diseño (tokens.css)
+│   ├── public/fonts/               # Fuente Baloo 2 (licencia OFL) incluida en el proyecto
 │   ├── package.json                # Dependencias y comandos (npm)
 │   └── .env.example                # Dirección de la API (VITE_API_URL)
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
@@ -626,12 +627,12 @@ Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celul
 
 ### Cómo se juega
 
-1. **Lobby**: los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y el **modo de juego**: por rondas (3, 5 o 10; 5 por defecto) o juntar las 6 categorías.
-2. **Ruleta**: el jugador de turno toca **Girar**. La ruleta, con las 6 categorías, da entre 4 y 6 vueltas y va frenando hasta detenerse; se muestra **"Salió: ..."** y, con **Continuar**, aparece la pregunta de esa categoría.
+1. **Lobby** (✨TRIVIA✨, "Poné a prueba tu conocimiento"): los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y el **modo de juego**: por rondas (3, 5 o 10; 5 por defecto) o juntar las 6 categorías. Se empieza con **JUGAR**.
+2. **Ruleta**: arriba dice "¡Turno de ...!", y el jugador toca **GIRAR**, en el centro de la ruleta. La ruleta, con las 6 categorías, da entre 4 y 6 vueltas y va frenando hasta detenerse; aparece un cartel con la categoría que salió (por ejemplo, "📜 ¡Historia!") y, con **Continuar**, la pregunta de esa categoría.
 3. **Pregunta**: aparece la pregunta con su categoría, sus 4 opciones y el **temporizador** (10, 20 o 30 segundos, según el lobby). En los últimos 5 segundos la barra se pone roja y aparece "Últimos 5 segundos". Si el tiempo se acaba, cuenta como respuesta incorrecta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
-4. **Resultado**: "Correcta", "Incorrecta" (con la opción elegida) o "Se acabó el tiempo", junto con la respuesta correcta, el marcador y el botón **Continuar**. Desde acá también se puede **reportar la pregunta** (ver abajo).
-5. **Cambio de turno**: una pantalla intermedia ("Pasale el dispositivo a ...") para que el otro jugador no vea la respuesta anterior.
-6. **Fin de la partida**: se muestra el ganador o el empate (ver los dos modos más abajo). **Jugar de nuevo** vuelve al lobby para empezar otra partida.
+4. **Resultado**: un ícono grande y "Correcta" (✔), "Incorrecta" (✖, con la opción elegida) o "Se acabó el tiempo" (⏱), junto con la respuesta correcta, el marcador y el botón **Continuar**. Desde acá también se puede **reportar la pregunta** (ver abajo).
+5. **Cambio de turno**: una pantalla del color del jugador siguiente ("¡Turno de ...!", "Pasale el dispositivo") con el botón **Estoy listo**, para que el otro jugador no vea la respuesta anterior.
+6. **Fin de la partida**: 🏆 "¡Ganó ...!" o "¡Empate!", con confeti, (ver los dos modos más abajo). **Jugar de nuevo** vuelve al lobby para empezar otra partida.
 
 #### Modo por rondas
 
@@ -669,9 +670,20 @@ En `http://localhost:5173/admin`, separada del juego y sin sonido, para revisar 
 - **Historial de ediciones** de cada pregunta: qué campo cambió, el valor anterior, el nuevo y la fecha.
 - Después de guardar, ocultar o mostrar, aparece el recordatorio de correr `poetry run python -m app.export_admin_edits`. La corrección ya quedó en la base y el juego la usa enseguida; el comando la copia a `data/admin_edits.csv`, para que no se pierda si se reconstruye la base (ver [Guardar las correcciones del admin](#guardar-las-correcciones-del-admin)).
 
+### Diseño
+
+Estilo de juego casual de trivia para celular, propio (no usa nombres, logos, personajes ni íconos de ningún juego existente):
+
+- **Colores**: fondo azul vivo, y en la pregunta y el resultado, el color de la categoría que salió. Cada categoría tiene su color y su emoji (🌎 Geografía, 📜 Historia, 🔬 Ciencia, 🎨 Arte, 🎬 Entretenimiento, ⚽ Deportes), y cada jugador, el suyo.
+- **Tipografía**: [Baloo 2](https://fonts.google.com/specimen/Baloo+2), incluida en `frontend/public/fonts/` con su licencia libre (SIL Open Font License, en `OFL.txt`): no se descarga de ningún servicio externo.
+- **Botones** grandes y redondeados, con una sombra que se "hunde" al tocarlos; todos los controles miden al menos 48 × 48 px.
+- **Pensado primero para el celular**; desde 1024 px de ancho, el marcador pasa a una columna al costado de la ruleta y de la pregunta.
+- **Accesible**: todas las combinaciones de texto y fondo cumplen el contraste mínimo WCAG AA (un test lo calcula desde `tokens.css`), el foco del teclado siempre se ve y los emojis son decorativos (el nombre de la categoría es el texto que lee un lector de pantalla).
+- **Movimiento reducido**: si el sistema tiene activada la opción de reducir el movimiento, no hay rebotes, temblores ni confeti, y la ruleta da un giro corto (algo más de 1 segundo) sin frenado gradual.
+
 ### Estado actual
 
-El frontend se construye en 10 etapas. Están terminadas las ocho primeras:
+El frontend se construye en 10 etapas. Están terminadas las nueve primeras:
 
 | Etapa | Estado |
 |---|---|
@@ -683,7 +695,7 @@ El frontend se construye en 10 etapas. Están terminadas las ocho primeras:
 | Reportar una pregunta | ✅ |
 | Vista de administración (`/admin`): acceso y reportes | ✅ |
 | Vista de administración: editar, ocultar e historial de preguntas | ✅ |
-| Estilos finales y prueba en celular | Pendiente |
+| Estilos finales y prueba en celular | ✅ |
 | Sonido y música | Pendiente |
 
 ### Cómo está armado
@@ -1175,7 +1187,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **930 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), la vista de administración (la clave, los filtros, la paginación, los cambios de estado, el editor de preguntas con sus validaciones y el historial), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **1031 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), la vista de administración (la clave, los filtros, la paginación, los cambios de estado, el editor de preguntas con sus validaciones y el historial), los estilos (contraste mínimo de cada combinación de colores, controles de 48 × 48 px), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
 - **Cobertura exigida: 100% de líneas y de ramas** en `src/game`, `src/api` y las reglas del editor de preguntas (`questionEditorForm.ts`).
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
@@ -1297,7 +1309,7 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
-- El frontend todavía no tiene los estilos finales ni sonido (ver [Estado actual](#estado-actual)).
+- El frontend todavía no tiene sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 

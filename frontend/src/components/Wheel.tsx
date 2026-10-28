@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { WheelCategory } from "../game/category";
+import { findCategoryEmoji, type WheelCategory } from "../game/category";
 import type { MatchProgress } from "../game/progress";
 import type { CategoryName, Player, PlayerIndex } from "../game/types";
 import {
@@ -11,13 +11,13 @@ import {
   sectorIndicesCrossed,
 } from "../game/wheel";
 import type { WheelTickHandler } from "../game/wheel";
+import { playerColorIndex } from "./playerIdentity";
 import { Scoreboard } from "./Scoreboard";
 import { readWheelPalette } from "./wheelPalette";
 
 const CANVAS_SIZE = 320;
 const MAX_DEVICE_PIXEL_RATIO = 3;
 const LABEL_FONT_SIZE = 12;
-const HUB_RADIUS = 24;
 const LABEL_INSET = 12;
 const RIM_THICKNESS = 6;
 const POINTER_HEIGHT = 26;
@@ -104,15 +104,16 @@ export function Wheel({
       context.textAlign = "right";
       context.textBaseline = "middle";
       context.fillText(category.label, SECTOR_RADIUS - LABEL_INSET, 0);
+      const labelWidth = context.measureText(category.label).width;
+      const labelLeft = SECTOR_RADIUS - LABEL_INSET - labelWidth;
+      context.textAlign = "right";
+      context.fillText(
+        findCategoryEmoji(category.name),
+        labelLeft - LABEL_INSET,
+        0,
+      );
       context.restore();
     });
-
-    context.beginPath();
-    context.arc(0, 0, HUB_RADIUS, 0, Math.PI * 2);
-    context.fillStyle = palette.hub;
-    context.fill();
-    context.strokeStyle = palette.stroke;
-    context.stroke();
 
     context.beginPath();
     context.moveTo(0, POINTER_TIP_Y);
@@ -164,7 +165,11 @@ export function Wheel({
     setStatus("spinning");
     setResult(null);
 
-    const plan = createSpinPlan(rotationRef.current);
+    const reducedMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const plan = createSpinPlan(rotationRef.current, Math.random, {
+      reducedMotion,
+    });
     startTimeRef.current = null;
 
     const step = (timestamp: number) => {
@@ -200,53 +205,66 @@ export function Wheel({
   const categoryList = categories.map((category) => category.label).join(", ");
 
   return (
-    <section className="wheel">
-      <h2>Girá la ruleta</h2>
+    <section className="wheel game-layout">
       <Scoreboard
         players={players}
         currentPlayer={currentPlayer}
         progress={progress}
         categories={categories}
       />
-      <canvas
-        ref={canvasRef}
-        width={CANVAS_SIZE}
-        height={CANVAS_SIZE}
-        className="wheel-canvas"
-        role="img"
-        aria-label="Ruleta de categorías"
-        aria-describedby="wheel-category-list"
-      />
-      <p id="wheel-category-list" className="visually-hidden">
-        {`${categoryList}.`}
-      </p>
-      {status === "spinning" ? (
-        <p className="wheel-status">Girando...</p>
-      ) : null}
-      {status !== "result" ? (
-        <button
-          type="button"
-          className="touch-target"
-          disabled={status === "spinning"}
-          onClick={handleSpin}
-        >
-          Girar
-        </button>
-      ) : null}
-      {status === "result" && result !== null ? (
-        <>
-          <p className="wheel-status wheel-status-result" role="status">
-            {`Salió: ${result.label}`}
-          </p>
-          <button
-            type="button"
-            className="touch-target"
-            onClick={() => onChooseCategory(result.name)}
-          >
-            Continuar
-          </button>
-        </>
-      ) : null}
+      <div className="game-main">
+        <p
+          className="wheel-turn"
+          data-player={playerColorIndex(currentPlayer)}
+        >{`¡Turno de ${players[currentPlayer].name}!`}</p>
+        <h2>Girá la ruleta</h2>
+        <div className="wheel-stage">
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_SIZE}
+            height={CANVAS_SIZE}
+            className="wheel-canvas"
+            role="img"
+            aria-label="Ruleta de categorías"
+            aria-describedby="wheel-category-list"
+          />
+          {status !== "result" ? (
+            <button
+              type="button"
+              className="wheel-spin button-primary touch-target"
+              disabled={status === "spinning"}
+              onClick={handleSpin}
+            >
+              Girar
+            </button>
+          ) : null}
+        </div>
+        <p id="wheel-category-list" className="visually-hidden">
+          {`${categoryList}.`}
+        </p>
+        {status === "spinning" ? (
+          <p className="wheel-status">Girando...</p>
+        ) : null}
+        {status === "result" && result !== null ? (
+          <>
+            <p
+              className="wheel-status wheel-status-result wheel-result"
+              role="status"
+              data-category={result.name}
+            >
+              <span aria-hidden="true">{findCategoryEmoji(result.name)}</span>
+              <span>{`¡${result.label}!`}</span>
+            </p>
+            <button
+              type="button"
+              className="wheel-continue button-primary touch-target"
+              onClick={() => onChooseCategory(result.name)}
+            >
+              Continuar
+            </button>
+          </>
+        ) : null}
+      </div>
     </section>
   );
 }

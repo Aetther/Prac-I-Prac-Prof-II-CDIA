@@ -18,8 +18,8 @@ describe("ErrorScreen", () => {
     );
     const retry = screen.getByRole("button", { name: "Reintentar" });
     const back = screen.getByRole("button", { name: "Volver al lobby" });
-    expect(retry).toHaveClass("touch-target");
-    expect(back).toHaveClass("touch-target");
+    expect(retry).toHaveClass("button-primary", "touch-target");
+    expect(back).toHaveClass("button-primary", "touch-target");
   });
 
   it("calls onRetry from Reintentar", async () => {

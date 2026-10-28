@@ -59,7 +59,7 @@ describe("AdminKeyGate", () => {
     await user.type(input, "c");
     expect(button).toBeEnabled();
     expect(input).toHaveClass("touch-target");
-    expect(button).toHaveClass("touch-target");
+    expect(button).toHaveClass("button-primary", "touch-target");
   });
 
   it("AUTH-03 submits the trimmed value exactly once", async () => {
@@ -127,7 +127,7 @@ describe("AdminKeyGate", () => {
     const input = screen.getByLabelText("Clave de administración");
     const button = screen.getByRole("button", { name: "Ingresar" });
     expect(input).toHaveClass("touch-target");
-    expect(button).toHaveClass("touch-target");
+    expect(button).toHaveClass("button-primary", "touch-target");
 
     await user.type(input, "clave{Enter}");
     expect(fetchSpy).not.toHaveBeenCalled();

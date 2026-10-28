@@ -361,13 +361,14 @@ describe("AdminQuestionEditor", () => {
 
     const busySave = screen.getByRole("button", { name: "Guardando..." });
     expect(busySave).toBeDisabled();
+    expect(busySave).toHaveClass("button-primary", "touch-target");
     fireEvent.click(busySave);
     expect(onSave).not.toHaveBeenCalled();
 
     rerenderEditor({ busy: false });
-    expect(
-      screen.getByRole("button", { name: "Guardar cambios" }),
-    ).toBeEnabled();
+    const save = screen.getByRole("button", { name: "Guardar cambios" });
+    expect(save).toHaveClass("button-primary", "touch-target");
+    expect(save).toBeEnabled();
   });
 
   it("QEDIT-08 an emptied question text shows its per-field message and never calls onSave", async () => {
@@ -725,7 +726,7 @@ describe("AdminQuestionEditor", () => {
     ).toBeEnabled();
   });
 
-  it("QEDIT-25 history renders in the returned order with labels, raw is_active strings and the empty-string rule", () => {
+  it("QEDIT-25 history renders in the returned order with labels, the Visible/Oculta vocabulary and the empty-string rule", () => {
     renderEditor({ edits: [...H_ORDER, ...H_NULL] });
 
     const list = screen.getByRole("list");
@@ -737,10 +738,10 @@ describe("AdminQuestionEditor", () => {
     expect(items[3]).toHaveTextContent("Campo: Opción incorrecta 1 en inglés");
     expect(items[4]).toHaveTextContent("Campo: Respuesta en español");
 
-    expect(items[1]).toHaveTextContent("Antes: false");
-    expect(items[1]).toHaveTextContent("Después: true");
-    expect(items[1]).not.toHaveTextContent("Visible");
-    expect(items[1]).not.toHaveTextContent("Oculta");
+    expect(items[1]).toHaveTextContent("Antes: Oculta");
+    expect(items[1]).toHaveTextContent("Después: Visible");
+    expect(items[1]).not.toHaveTextContent("Antes: false");
+    expect(items[1]).not.toHaveTextContent("Después: true");
     expect(items[3]).toHaveTextContent("Antes: Sin valor");
     expect(items[3]).toHaveTextContent("Después: Lima");
     expect(within(items[4]).getByText("Antes:")).toBeInTheDocument();

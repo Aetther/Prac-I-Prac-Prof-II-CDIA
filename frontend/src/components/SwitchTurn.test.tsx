@@ -36,7 +36,8 @@ describe("SwitchTurn", () => {
       />,
     );
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
 
     rerender(
@@ -50,7 +51,8 @@ describe("SwitchTurn", () => {
       />,
     );
 
-    expect(screen.getByText("Pasale el dispositivo a Ana")).toBeVisible();
+    expect(screen.getByText("¡Turno de Ana!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Ronda 2 de 3")).toBeVisible();
   });
 
@@ -73,7 +75,7 @@ describe("SwitchTurn", () => {
     expect(current[0]).toHaveTextContent("Beto: 0 puntos");
   });
 
-  it("calls onContinue from Continuar", async () => {
+  it("calls onContinue from Estoy listo", async () => {
     const user = userEvent.setup();
     const onContinue = vi.fn();
     render(
@@ -87,7 +89,7 @@ describe("SwitchTurn", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    await user.click(screen.getByRole("button", { name: "Estoy listo" }));
     expect(onContinue).toHaveBeenCalledTimes(1);
   });
 
@@ -106,7 +108,8 @@ describe("SwitchTurn", () => {
     expect(screen.queryByText("Correcta")).toBeNull();
     expect(screen.queryByText("Incorrecta")).toBeNull();
     expect(screen.queryByText(/La respuesta correcta era:/)).toBeNull();
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
   });
 
   it("SW-05 a six-mode SwitchTurn shows the next player, the limit line and no round", () => {
@@ -125,7 +128,8 @@ describe("SwitchTurn", () => {
       />,
     );
 
-    expect(screen.getByText("Pasale el dispositivo a Beto")).toBeVisible();
+    expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
     expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(container.textContent).not.toContain(
@@ -138,5 +142,73 @@ describe("SwitchTurn", () => {
     expect(current[0]).toHaveTextContent("Beto");
     expect(container.textContent).not.toMatch(/puntos/i);
     expect(screen.queryByText(/La respuesta correcta era:/)).toBeNull();
+  });
+
+  it("PLAYER-04 SwitchTurn shows the large aria-hidden initial for the next player", () => {
+    const { rerender } = render(
+      <SwitchTurn
+        nextPlayerName="Beto"
+        nextPlayerIndex={1}
+        progress={roundsProgress}
+        categories={SIX_WHEEL_CATEGORIES}
+        players={players}
+        onContinue={vi.fn()}
+      />,
+    );
+
+    const avatar = document.querySelector<HTMLElement>(".switch-turn-avatar");
+    expect(avatar).not.toBeNull();
+    expect(avatar).toHaveAttribute("aria-hidden", "true");
+    expect(avatar).toHaveAttribute("data-player", "2");
+    expect(avatar).toHaveTextContent("B");
+    expect(
+      screen.getByRole("heading", { name: "¡Turno de Beto!" }),
+    ).not.toContainElement(avatar);
+
+    rerender(
+      <SwitchTurn
+        nextPlayerName="Ana"
+        nextPlayerIndex={0}
+        progress={roundsProgress}
+        categories={SIX_WHEEL_CATEGORIES}
+        players={players}
+        onContinue={vi.fn()}
+      />,
+    );
+    expect(document.querySelector(".switch-turn-avatar")).toHaveTextContent(
+      "A",
+    );
+    expect(document.querySelector(".switch-turn-avatar")).toHaveAttribute(
+      "data-player",
+      "1",
+    );
+  });
+
+  it('SWT-01 SwitchTurn shows "¡Turno de Beto!", "Pasale el dispositivo", "Ronda 1 de 3" and "Estoy listo"', async () => {
+    const user = userEvent.setup();
+    const onContinue = vi.fn();
+    render(
+      <SwitchTurn
+        nextPlayerName="Beto"
+        nextPlayerIndex={1}
+        progress={roundsProgress}
+        categories={SIX_WHEEL_CATEGORIES}
+        players={players}
+        onContinue={onContinue}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "¡Turno de Beto!" }),
+    ).toBeVisible();
+    expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
+    expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
+    expect(
+      screen.queryByText("Pasale el dispositivo a Beto"),
+    ).not.toBeInTheDocument();
+    const ready = screen.getByRole("button", { name: "Estoy listo" });
+    expect(ready).toHaveClass("button-primary", "touch-target");
+    await user.click(ready);
+    expect(onContinue).toHaveBeenCalledTimes(1);
   });
 });

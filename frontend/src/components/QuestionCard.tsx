@@ -1,6 +1,10 @@
 import { useRef, useState } from "react";
 import type { GameQuestion } from "../api/types";
-import type { WheelCategory } from "../game/category";
+import {
+  findCategoryEmoji,
+  isCategoryName,
+  type WheelCategory,
+} from "../game/category";
 import type { MatchProgress } from "../game/progress";
 import { isUntranslated } from "../game/question";
 import type { Lang, Player, PlayerIndex } from "../game/types";
@@ -57,36 +61,48 @@ export function QuestionCard({
   };
 
   const optionsDisabled = loading || locked;
+  const categoryEmoji = isCategoryName(question.category)
+    ? findCategoryEmoji(question.category)
+    : "";
 
   return (
-    <section className="question-card">
+    <section className="question-card game-layout">
       <Scoreboard
         players={players}
         currentPlayer={currentPlayer}
         progress={progress}
         categories={categories}
       />
-      {categoryLabel !== null ? <p>{`Categoría: ${categoryLabel}`}</p> : null}
-      {isUntranslated(lang, question.lang) ? (
-        <p className="untranslated-badge">Sin traducir</p>
-      ) : null}
-      <h2>{question.question}</h2>
-      {timerActive ? <Timer seconds={seconds} onExpire={handleExpire} /> : null}
-      <p>Elegí una opción</p>
-      <div className="option-list">
-        {question.options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className="option-button touch-target"
-            disabled={optionsDisabled}
-            onClick={() => handleAnswer(option)}
-          >
-            <span className="option-text">{option}</span>
-          </button>
-        ))}
+      <div className="game-main">
+        {categoryLabel !== null ? (
+          <p className="category-banner" data-category={question.category}>
+            <span aria-hidden="true">{categoryEmoji}</span>
+            <span>{`Categoría: ${categoryLabel}`}</span>
+          </p>
+        ) : null}
+        {timerActive ? (
+          <Timer seconds={seconds} onExpire={handleExpire} />
+        ) : null}
+        {isUntranslated(lang, question.lang) ? (
+          <p className="untranslated-badge">Sin traducir</p>
+        ) : null}
+        <h2 className="question-text">{question.question}</h2>
+        <p>Elegí una opción</p>
+        <div className="option-list">
+          {question.options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="option-button touch-target"
+              disabled={optionsDisabled}
+              onClick={() => handleAnswer(option)}
+            >
+              <span className="option-text">{option}</span>
+            </button>
+          ))}
+        </div>
+        {loading ? <p role="status">Enviando respuesta...</p> : null}
       </div>
-      {loading ? <p role="status">Enviando respuesta...</p> : null}
     </section>
   );
 }

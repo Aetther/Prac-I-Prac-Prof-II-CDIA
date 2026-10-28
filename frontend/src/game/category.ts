@@ -15,6 +15,20 @@ export interface WheelCategory {
   readonly label: string;
 }
 
+export const CATEGORY_EMOJI: Readonly<Record<CategoryName, string>> =
+  Object.freeze({
+    geografia: "🌎",
+    historia: "📜",
+    ciencia: "🔬",
+    arte: "🎨",
+    entretenimiento: "🎬",
+    deportes: "⚽",
+  });
+
+export function findCategoryEmoji(name: CategoryName): string {
+  return CATEGORY_EMOJI[name];
+}
+
 function clampIndex(randomValue: number, length: number): number {
   return Math.min(Math.max(Math.floor(randomValue * length), 0), length - 1);
 }

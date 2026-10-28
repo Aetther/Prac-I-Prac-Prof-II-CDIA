@@ -20,10 +20,11 @@ describe("CategoryChips", () => {
     const list = screen.getByRole("list", { name: "Categorías de Ana" });
     const chips = within(list).getAllByRole("listitem");
     expect(chips).toHaveLength(2);
-    expect(chips.map((chip) => chip.textContent)).toEqual([
-      "Geografía",
-      "Ciencia",
-    ]);
+    expect(
+      chips.map(
+        (chip) => chip.querySelector(".category-chip-label")?.textContent,
+      ),
+    ).toEqual(["Geografía", "Ciencia"]);
     expect(chips[0].style.backgroundColor).toBe(
       "var(--color-category-geografia)",
     );
@@ -99,9 +100,38 @@ describe("CategoryChips", () => {
     const chips = within(list).getAllByRole("listitem");
     expect(chips).toHaveLength(6);
     for (const [index, chip] of chips.entries()) {
-      expect(chip.textContent?.trim()).not.toBe("");
-      expect(chip.textContent).toBe(SIX_WHEEL_CATEGORIES[index].label);
+      const label = chip.querySelector(".category-chip-label");
+      expect(label?.textContent?.trim()).not.toBe("");
+      expect(label?.textContent).toBe(SIX_WHEEL_CATEGORIES[index].label);
+      expect(chip.textContent).toContain(SIX_WHEEL_CATEGORIES[index].label);
       expect(chip).not.toHaveAttribute("aria-hidden", "true");
+    }
+  });
+
+  it("EMOJI-05 each chip carries an aria-hidden emoji and a label element with exactly the API label", () => {
+    render(
+      <CategoryChips
+        playerName="Ana"
+        categories={SIX_WHEEL_CATEGORIES}
+        owned={allNames}
+      />,
+    );
+
+    const list = screen.getByRole("list", { name: "Categorías de Ana" });
+    const chips = within(list).getAllByRole("listitem");
+    const emojis = ["🌎", "📜", "🔬", "🎨", "🎬", "⚽"];
+    for (const [index, chip] of chips.entries()) {
+      const emoji = chip.querySelector(".category-chip-emoji");
+      const label = chip.querySelector(".category-chip-label");
+      expect(emoji).toHaveAttribute("aria-hidden", "true");
+      expect(emoji).toHaveTextContent(emojis[index]);
+      expect(label).toHaveTextContent(SIX_WHEEL_CATEGORIES[index].label);
+      expect(chip.textContent).toBe(
+        emojis[index] + SIX_WHEEL_CATEGORIES[index].label,
+      );
+      expect(chip.getAttribute("style")).toContain(
+        `var(--color-category-${CATEGORY_NAMES[index]})`,
+      );
     }
   });
 

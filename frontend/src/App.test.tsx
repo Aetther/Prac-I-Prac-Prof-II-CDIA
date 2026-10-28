@@ -22,7 +22,7 @@ describe("App routes", () => {
     window.history.pushState({}, "", "/");
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "Trivia IA" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "Administración" }),
     ).not.toBeInTheDocument();

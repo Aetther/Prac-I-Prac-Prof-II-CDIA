@@ -204,3 +204,15 @@ export function changedFieldLabels(fields: readonly string[]): string {
     .map((field) => QUESTION_HISTORY_FIELD_LABELS[field] ?? field)
     .join(", ");
 }
+
+export function formatHistoryValue(
+  field: string,
+  value: string | null,
+): string {
+  if (value === null) return "Sin valor";
+  if (field === "is_active") {
+    if (value === "true") return "Visible";
+    if (value === "false") return "Oculta";
+  }
+  return value;
+}

@@ -12,10 +12,18 @@ export function ErrorScreen({
   return (
     <div className="error-screen" role="alert">
       <p>{message}</p>
-      <button type="button" className="touch-target" onClick={onRetry}>
+      <button
+        type="button"
+        className="button-primary touch-target"
+        onClick={onRetry}
+      >
         Reintentar
       </button>
-      <button type="button" className="touch-target" onClick={onBackToLobby}>
+      <button
+        type="button"
+        className="button-primary touch-target"
+        onClick={onBackToLobby}
+      >
         Volver al lobby
       </button>
     </div>
