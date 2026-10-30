@@ -211,4 +211,70 @@ describe("SwitchTurn", () => {
     await user.click(ready);
     expect(onContinue).toHaveBeenCalledTimes(1);
   });
+
+  it("The card holds the avatar, the bubble, the hint and the button", () => {
+    render(
+      <SwitchTurn
+        nextPlayerName="Beto"
+        nextPlayerIndex={1}
+        progress={roundsProgressTwo}
+        categories={SIX_WHEEL_CATEGORIES}
+        players={players}
+        onContinue={vi.fn()}
+      />,
+    );
+    const card = document.querySelector(".switch-turn");
+    expect(card).toHaveAttribute("data-player", "2");
+    const heading = screen.getByRole("heading", { name: "¡Turno de Beto!" });
+    expect(heading).toHaveClass("switch-turn-bubble");
+    expect(heading.textContent).toBe("¡Turno de Beto!");
+    const hint = screen.getByText("Pasale el dispositivo");
+    expect(hint.textContent).toBe("Pasale el dispositivo");
+    expect(hint.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    const dots = card!.querySelectorAll(".round-dot");
+    expect(dots).toHaveLength(3);
+    expect(card!.querySelectorAll(".round-dot-filled")).toHaveLength(2);
+    expect(card!.querySelector(".round-dots")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(screen.getByText("Ronda 2 de 3")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Estoy listo" })).toHaveClass(
+      "button-primary",
+    );
+  });
+
+  it("SWC-02 the versus badge and the round dots add no text, and six mode shows no dots", () => {
+    const { rerender } = render(
+      <SwitchTurn
+        nextPlayerName="Beto"
+        nextPlayerIndex={1}
+        progress={roundsProgress}
+        categories={SIX_WHEEL_CATEGORIES}
+        players={players}
+        onContinue={vi.fn()}
+      />,
+    );
+    expect(document.body.textContent).not.toContain("VS");
+    expect(
+      screen.getByRole("region", { name: "Marcador" }),
+    ).toBeInTheDocument();
+    expect(document.querySelectorAll(".round-dot-filled")).toHaveLength(1);
+    rerender(
+      <SwitchTurn
+        nextPlayerName="Beto"
+        nextPlayerIndex={1}
+        progress={{
+          mode: "six-categories",
+          ownedCategories: [[], []],
+          turnsPlayed: [1, 0],
+        }}
+        categories={SIX_WHEEL_CATEGORIES}
+        players={players}
+        onContinue={vi.fn()}
+      />,
+    );
+    expect(document.querySelector(".round-dots")).toBeNull();
+    expect(document.querySelector(".scoreboard-round")).toBeNull();
+  });
 });

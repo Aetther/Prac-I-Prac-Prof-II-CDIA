@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { WheelCategory } from "../game/category";
 import type { MatchProgress } from "../game/progress";
 import type { Player, PlayerIndex } from "../game/types";
@@ -11,6 +12,8 @@ interface ScoreboardProps {
   progress: MatchProgress;
   categories: readonly WheelCategory[];
   headingLevel?: 2 | 3;
+  /** Decoration shown next to the round line, such as the round dots. */
+  roundExtra?: ReactNode;
 }
 
 export function Scoreboard({
@@ -19,6 +22,7 @@ export function Scoreboard({
   progress,
   categories,
   headingLevel = 2,
+  roundExtra,
 }: ScoreboardProps) {
   const m = useMessages();
   const Heading = headingLevel === 3 ? "h3" : "h2";
@@ -31,7 +35,14 @@ export function Scoreboard({
     >
       <Heading>{m.scoreboard}</Heading>
       {progress.mode === "rounds" ? (
-        <p>{m.roundOf(progress.round, progress.totalRounds)}</p>
+        roundExtra === undefined ? (
+          <p>{m.roundOf(progress.round, progress.totalRounds)}</p>
+        ) : (
+          <div className="scoreboard-round">
+            <p>{m.roundOf(progress.round, progress.totalRounds)}</p>
+            {roundExtra}
+          </div>
+        )
       ) : (
         <p>{m.turnLimit}</p>
       )}

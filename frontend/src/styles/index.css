@@ -75,13 +75,13 @@ body {
 }
 
 [data-player-surface="1"] {
-  --color-page-start: var(--color-player-1-deep);
-  --color-page-end: var(--color-player-1-deep);
+  --color-page-glow: var(--color-player-1);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 [data-player-surface="2"] {
-  --color-page-start: var(--color-player-2-deep);
-  --color-page-end: var(--color-player-2-deep);
+  --color-page-glow: var(--color-player-2);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 h1,
@@ -811,6 +811,7 @@ button.button-secondary:disabled {
 }
 
 .switch-turn > button {
+  min-width: 14rem;
   border: 2px solid var(--color-on-page);
 }
 
@@ -1711,6 +1712,211 @@ button.button-secondary:disabled {
   display: none;
 }
 
+/* SwitchTurn: one card in the next player's colour. */
+.switch-turn {
+  --switch-player: var(--color-player-1);
+  --switch-on-player: var(--color-on-player-1);
+  align-items: center;
+  margin-top: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-4);
+  border: 3px solid var(--switch-player);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  text-align: center;
+  box-shadow: 0 0 28px 4px
+    color-mix(in srgb, var(--switch-player) 35%, transparent);
+}
+
+.switch-turn[data-player="2"] {
+  --switch-player: var(--color-player-2);
+  --switch-on-player: var(--color-on-player-2);
+}
+
+.switch-turn .switch-turn-avatar {
+  width: 6rem;
+  height: 6rem;
+  margin-block: var(--spacing-2);
+  box-shadow:
+    0 0 0 5px var(--color-metal-mid),
+    0 0 0 8px var(--switch-player),
+    0 0 26px 8px color-mix(in srgb, var(--switch-player) 45%, transparent);
+}
+
+.switch-turn-bubble {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  align-self: center;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-6);
+  border-radius: var(--radius-pill);
+  background-color: var(--switch-player);
+  color: var(--switch-on-player);
+  font-size: var(--font-size-2xl);
+  overflow-wrap: anywhere;
+  animation: turn-pop var(--duration-bounce) var(--easing-standard) both;
+}
+
+.switch-turn-bubble::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 3px;
+  right: 8%;
+  left: 8%;
+  height: 45%;
+  border-radius: var(--radius-pill);
+  background-image: linear-gradient(
+    to bottom,
+    var(--color-sheen-strong),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.switch-turn .switch-turn-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  color: var(--color-text);
+}
+
+.switch-turn-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+}
+
+.scoreboard-round {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+}
+
+.scoreboard-round > p {
+  margin: 0;
+}
+
+.round-dots {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.round-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 2px solid var(--color-control-border);
+  border-radius: var(--radius-pill);
+}
+
+.round-dot.round-dot-filled {
+  border-color: var(--color-action);
+  background-color: var(--color-action);
+}
+
+.switch-turn .scoreboard {
+  width: 100%;
+}
+
+.switch-turn .scoreboard > h2,
+.switch-turn .scoreboard > h3 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.switch-turn .scoreboard-list {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 3.5rem;
+}
+
+/* The badge is decoration: the alt text after the slash is empty. */
+.switch-turn .scoreboard-list::after {
+  content: "VS" / "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-pill);
+  background-image: linear-gradient(
+    135deg,
+    var(--color-sign-start),
+    var(--color-sign-end)
+  );
+  color: var(--color-on-sign);
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-heading);
+  box-shadow: var(--shadow-chunky) var(--color-spin-shadow);
+  pointer-events: none;
+}
+
+.switch-turn .scoreboard-card {
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+@media (orientation: landscape) and (max-height: 32rem) and (max-width: 63.99rem) {
+  .switch-turn {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    grid-template-areas:
+      "avatar board"
+      "bubble board"
+      "hint button";
+    align-items: center;
+    column-gap: var(--spacing-4);
+    max-width: 52rem;
+    margin-top: 0;
+    padding: var(--spacing-3);
+  }
+
+  .switch-turn .switch-turn-avatar {
+    grid-area: avatar;
+    justify-self: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: var(--font-size-2xl);
+  }
+
+  .switch-turn-bubble {
+    grid-area: bubble;
+    font-size: var(--font-size-xl);
+  }
+
+  .switch-turn .switch-turn-hint {
+    grid-area: hint;
+  }
+
+  .switch-turn .scoreboard {
+    grid-area: board;
+  }
+
+  .switch-turn > button {
+    grid-area: button;
+    justify-self: center;
+  }
+}
+
 /* Desktop: the Lobby uses the width in two columns. */
 @media (min-width: 64rem) {
   .lobby {
@@ -1861,7 +2067,7 @@ button.button-secondary:disabled {
 
 /* Phone landscape: about 914 × 340, so the content and the scoreboard sit
    side by side and the wheel follows the available height. */
-@media (orientation: landscape) and (max-height: 32rem) {
+@media (orientation: landscape) and (max-height: 32rem) and (max-width: 63.99rem) {
   .app-shell {
     padding-block: var(--spacing-2);
   }

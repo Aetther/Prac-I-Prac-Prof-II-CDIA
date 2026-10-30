@@ -575,13 +575,15 @@ describe("style guards", () => {
     }
     expect(new Set(categories).size).toBe(6);
     for (const [surface, token] of [
-      ["1", "--color-player-1-deep"],
-      ["2", "--color-player-2-deep"],
+      ["1", "--color-player-1"],
+      ["2", "--color-player-2"],
     ] as const) {
       const rule = ruleBody(INDEX_CSS, `[data-player-surface="${surface}"]`);
       expect(rule).not.toBeNull();
-      expect(rule!).toContain(`--color-page-start: var(${token})`);
-      expect(rule!).toContain(`--color-page-end: var(${token})`);
+      expect(rule!).toContain(`--color-page-glow: var(${token})`);
+      expect(rule!).toContain("--color-page-sheen: var(--color-sheen-soft)");
+      expect(rule!).not.toContain("--color-page-start");
+      expect(rule!).not.toContain("--color-page-end");
     }
   });
 
@@ -1039,10 +1041,15 @@ describe("style guards", () => {
       ruleBody(INDEX_CSS, ".audio-controls .audio-panel-toggle"),
     ).toContain("display: none");
     const landscape = css.slice(
-      css.indexOf("@media (orientation: landscape) and (max-height: 32rem)"),
+      css.indexOf(
+        "@media (orientation: landscape) and (max-height: 32rem) and (max-width: 63.99rem)",
+      ),
     );
     expect(landscape).toMatch(/width: min\(380px, calc\(100dvh - 8rem\)\)/);
     expect(landscape).toMatch(/grid-template-columns: minmax\(0, 1fr\) 15rem/);
+    expect(css).not.toMatch(
+      /@media \(orientation: landscape\) and \(max-height: 32rem\) \{/,
+    );
   });
 
   it("ADJ-07 the turn bubble carries the initial, a gloss and a pop that reduced motion stops", () => {
@@ -1084,6 +1091,52 @@ describe("style guards", () => {
     );
     const large = css.slice(css.indexOf("@media (min-width: 80rem)"));
     expect(large).toMatch(/grid-template-columns: minmax\(0, 56rem\) 22rem/);
+  });
+
+  it("The player surface is a glow on the navy page", () => {
+    const rule = ruleBody(INDEX_CSS, '[data-player-surface="2"]');
+    expect(rule).toContain("--color-page-glow: var(--color-player-2)");
+    expect(rule).toContain("--color-page-sheen: var(--color-sheen-soft)");
+    expect(rule).not.toMatch(/--color-page-(start|end)/);
+  });
+
+  it("SWC-01 the SwitchTurn card, avatar, bubble, dots and versus badge use the player colour and tokens", () => {
+    const card = cssRules(INDEX_CSS).find((rule) => {
+      const selectors = selectorsOf(rule);
+      return (
+        selectors.length === 1 &&
+        selectors[0] === ".switch-turn" &&
+        rule.body.includes("--switch-player")
+      );
+    });
+    expect(card).toBeDefined();
+    expect(card!.body).toContain("border: 3px solid var(--switch-player)");
+    expect(card!.body).toContain("background-color: var(--color-surface)");
+    expect(ruleBody(INDEX_CSS, '.switch-turn[data-player="2"]')).toContain(
+      "--switch-player: var(--color-player-2)",
+    );
+    const avatar = ruleBody(INDEX_CSS, ".switch-turn .switch-turn-avatar");
+    expect(avatar).toContain("var(--color-metal-mid)");
+    expect(avatar).toContain("var(--switch-player)");
+    const bubble = ruleBody(INDEX_CSS, ".switch-turn-bubble");
+    expect(bubble).toContain("animation: turn-pop var(--duration-bounce)");
+    expect(bubble).toContain("background-color: var(--switch-player)");
+    expect(ruleBody(INDEX_CSS, ".switch-turn-bubble::before")).toContain(
+      "var(--color-sheen-strong)",
+    );
+    expect(ruleBody(INDEX_CSS, ".round-dot.round-dot-filled")).toContain(
+      "background-color: var(--color-action)",
+    );
+    const list = ruleBody(INDEX_CSS, ".switch-turn .scoreboard-list");
+    expect(list).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
+  });
+
+  it("The versus badge is decoration only", () => {
+    const badge = ruleBody(INDEX_CSS, ".switch-turn .scoreboard-list::after");
+    expect(badge).not.toBeNull();
+    expect(badge!).toContain('content: "VS" / ""');
+    expect(badge!).toContain("pointer-events: none");
+    expect(badge!).toContain("color: var(--color-on-sign)");
   });
 
   it("GUARD-19 the outcome icon is a visible 3.5rem block centered above the text", () => {

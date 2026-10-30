@@ -22,6 +22,7 @@ const LABEL_FONT_SIZE = 14;
 const LABEL_HALO_BLUR = 6;
 const LABEL_INSET = 12;
 const RIM_THICKNESS = 6;
+const SECTOR_STROKE_WIDTH = 3;
 const POINTER_HEIGHT = 26;
 const POINTER_BASE_MARGIN = 2;
 const POINTER_TIP_INSET = 10;
@@ -98,6 +99,8 @@ export function Wheel({
       context.fillStyle = palette.sector[category.name];
       context.fill();
       context.strokeStyle = palette.stroke;
+      context.lineWidth = SECTOR_STROKE_WIDTH;
+      context.lineJoin = "round";
       context.stroke();
 
       context.save();

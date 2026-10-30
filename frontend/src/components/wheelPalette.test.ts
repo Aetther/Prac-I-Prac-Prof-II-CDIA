@@ -115,7 +115,7 @@ describe("wheel palette", () => {
       },
       pointer: "#e6e9f2",
       label: "#ffffff",
-      stroke: "#ffffff",
+      stroke: "#0b1022",
     });
     expect(new Set(Object.values(palette.sector)).size).toBe(6);
   });
