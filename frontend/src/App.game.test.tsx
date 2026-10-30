@@ -19,6 +19,13 @@ import type {
   ReportQuestionResult,
   SubmitAnswerResult,
 } from "./api/types";
+import {
+  chooseLanguage,
+  chooseMode,
+  chooseRounds,
+  chooseSeconds,
+  lobbyValue,
+} from "./test/lobbyControls";
 import { installRafQueue } from "./test/rafQueue";
 import type { RafQueue } from "./test/rafQueue";
 import { FRAME_TIMESTAMPS, SIX_CATEGORIES } from "./test/wheelFixtures";
@@ -141,27 +148,21 @@ async function startToWheel(
   } = options;
   await fillNames(user, first, second);
   if (lang) {
-    await user.selectOptions(
-      screen.getByLabelText("Idioma de las preguntas"),
-      lang,
-    );
+    await chooseLanguage(user, lang);
   }
   if (seconds) {
-    await user.selectOptions(
-      screen.getByLabelText("Tiempo por pregunta"),
-      seconds,
-    );
+    await chooseSeconds(user, seconds);
   }
   if (mode === "six-categories") {
-    await user.selectOptions(
-      screen.getByLabelText("Modo de juego"),
-      "six-categories",
-    );
+    await chooseMode(user, "six-categories");
   } else {
-    await user.selectOptions(screen.getByLabelText("Rondas"), rounds);
+    await chooseRounds(user, rounds);
   }
-  await user.click(screen.getByRole("button", { name: "JUGAR" }));
-  await screen.findByRole("button", { name: "Girar" });
+  const english = lang === "en";
+  await user.click(
+    screen.getByRole("button", { name: english ? "PLAY" : "JUGAR" }),
+  );
+  await screen.findByRole("button", { name: english ? "Spin" : "Girar" });
 }
 
 async function spinToResult(user: UserEvent, sectorIndex = 0): Promise<void> {
@@ -342,7 +343,7 @@ describe("App game flow with a mocked API", () => {
     expect(getCategoriesMock).not.toHaveBeenCalled();
   });
 
-  it("uses the trimmed names, English and 3 rounds, and stores them observably", async () => {
+  it("uses the trimmed names, English and 3 rounds, and shows the match in English", async () => {
     const user = userEvent.setup();
     getQuestion.mockResolvedValueOnce(question({ lang: "en" }));
     await startToWheel(user, {
@@ -354,14 +355,23 @@ describe("App game flow with a mocked API", () => {
     });
 
     expect(
-      screen.getByRole("heading", { name: "Girá la ruleta" }),
+      screen.getByRole("heading", { name: "Spin the wheel!" }),
     ).toBeVisible();
-    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
-    expect(screen.getByText("Beto: 0 puntos")).toBeVisible();
-    expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
+    expect(screen.getByText("Ana: 0 points")).toBeVisible();
+    expect(screen.getByText("Beto: 0 points")).toBeVisible();
+    expect(screen.getByText("Round 1 of 3")).toBeVisible();
     expect(getQuestion).not.toHaveBeenCalled();
 
-    await spinWheel(user);
+    vi.mocked(Math.random)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.5 / SIX_CATEGORIES.length)
+      .mockReturnValueOnce(0.5);
+    await user.click(screen.getByRole("button", { name: "Spin" }));
+    await act(async () => {
+      queue.drive(FRAME_TIMESTAMPS);
+    });
+    await user.click(await screen.findByRole("button", { name: "Continue" }));
 
     await screen.findByText("¿Capital de Francia?");
     expect(getQuestion).toHaveBeenCalledWith("geografia", "en");
@@ -685,19 +695,10 @@ describe("App game flow with a mocked API", () => {
     expect((screen.getByLabelText("Jugador 2") as HTMLInputElement).value).toBe(
       "",
     );
-    expect(
-      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
-        .value,
-    ).toBe("es");
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("20");
-    expect(
-      (screen.getByLabelText("Modo de juego") as HTMLSelectElement).value,
-    ).toBe("rounds");
-    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
-      "5",
-    );
+    expect(lobbyValue("language")).toBe("es");
+    expect(lobbyValue("difficulty")).toBe("20");
+    expect(lobbyValue("mode")).toBe("rounds");
+    expect(lobbyValue("rounds")).toBe("5");
     expect(screen.queryByText("¡Empate!")).toBeNull();
     expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
     expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);
@@ -1057,16 +1058,9 @@ describe("App game flow with a mocked API", () => {
     expect((screen.getByLabelText("Jugador 2") as HTMLInputElement).value).toBe(
       "",
     );
-    expect(
-      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
-        .value,
-    ).toBe("es");
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("20");
-    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
-      "5",
-    );
+    expect(lobbyValue("language")).toBe("es");
+    expect(lobbyValue("difficulty")).toBe("20");
+    expect(lobbyValue("rounds")).toBe("5");
     expect(screen.queryByText("Marcador")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(getQuestion).toHaveBeenCalledTimes(7);
@@ -1271,16 +1265,9 @@ describe("App game flow with a mocked API", () => {
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
       "",
     );
-    expect(
-      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
-        .value,
-    ).toBe("es");
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("20");
-    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
-      "5",
-    );
+    expect(lobbyValue("language")).toBe("es");
+    expect(lobbyValue("difficulty")).toBe("20");
+    expect(lobbyValue("rounds")).toBe("5");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText("Marcador")).toBeNull();
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
@@ -2017,19 +2004,10 @@ describe("App six-categories flow with a mocked API", () => {
     expect((screen.getByLabelText("Jugador 2") as HTMLInputElement).value).toBe(
       "",
     );
-    expect(
-      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
-        .value,
-    ).toBe("es");
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("20");
-    expect(
-      (screen.getByLabelText("Modo de juego") as HTMLSelectElement).value,
-    ).toBe("rounds");
-    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
-      "5",
-    );
+    expect(lobbyValue("language")).toBe("es");
+    expect(lobbyValue("difficulty")).toBe("20");
+    expect(lobbyValue("mode")).toBe("rounds");
+    expect(lobbyValue("rounds")).toBe("5");
     expect(screen.queryByText("¡Ganó Ana!")).toBeNull();
     expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
     expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);

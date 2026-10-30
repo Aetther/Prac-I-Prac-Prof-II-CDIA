@@ -177,6 +177,25 @@ describe("fetch boundary", () => {
     expect(questionClient).toContain("X-API-Key");
   });
 
+  it("Admin ignores the stored language: no admin file imports src/i18n", () => {
+    const srcDir = join(process.cwd(), "src");
+    const i18nDir = normalize(join(srcDir, "i18n"));
+    const adminFiles = readdirSync(join(srcDir, "components"))
+      .filter((name) => /^Admin.*\.tsx$/.test(name) && !name.includes(".test."))
+      .map((name) => join(srcDir, "components", name));
+    expect(adminFiles.length).toBeGreaterThanOrEqual(5);
+    for (const file of adminFiles) {
+      for (const specifier of importSpecifiers(readFileSync(file, "utf-8"))) {
+        if (!specifier.startsWith(".")) continue;
+        const resolved = normalize(resolve(dirname(file), specifier));
+        expect(
+          resolved === i18nDir || resolved.startsWith(`${i18nDir}/`),
+          `${file} imports ${specifier}`,
+        ).toBe(false);
+      }
+    }
+  });
+
   it("F4 an ../audio import resolves to src/audio and is rejected", () => {
     const component = join(process.cwd(), "src", "components", "Admin.tsx");
     const apiModule = join(process.cwd(), "src", "api", "adminFailures.ts");

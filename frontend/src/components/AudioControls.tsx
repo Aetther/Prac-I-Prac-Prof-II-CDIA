@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { SoundControls } from "../audio";
+import { useMessages } from "../i18n";
 
 export type AudioControlsSound = Pick<
   SoundControls,
@@ -41,20 +42,21 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
 
 export function AudioControls({ sound }: AudioControlsProps) {
   const volumeId = useId();
+  const m = useMessages();
   const { preferences } = sound;
 
   return (
-    <section aria-label="Sonido" className="audio-controls">
+    <section aria-label={m.sound} className="audio-controls">
       <button
         type="button"
         className="touch-target button-secondary audio-mute"
         onClick={() => sound.setMuted(!preferences.muted)}
       >
         <SpeakerIcon muted={preferences.muted} />
-        <span>{preferences.muted ? "Activar sonido" : "Silenciar sonido"}</span>
+        <span>{preferences.muted ? m.soundOn : m.soundOff}</span>
       </button>
       <div className="audio-volume">
-        <label htmlFor={volumeId}>Volumen</label>
+        <label htmlFor={volumeId}>{m.volume}</label>
         <input
           id={volumeId}
           type="range"
@@ -74,7 +76,7 @@ export function AudioControls({ sound }: AudioControlsProps) {
         aria-pressed={preferences.effects}
         onClick={() => sound.setEffects(!preferences.effects)}
       >
-        Efectos
+        {m.effects}
       </button>
       <button
         type="button"
@@ -82,7 +84,7 @@ export function AudioControls({ sound }: AudioControlsProps) {
         aria-pressed={preferences.music}
         onClick={() => sound.setMusic(!preferences.music)}
       >
-        Música
+        {m.music}
       </button>
     </section>
   );

@@ -1,9 +1,15 @@
-import { useReducer, useRef, useState } from "react";
+import { useMemo, useReducer, useRef, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ApiError } from "./api/errors";
 import { getCategories, getGameQuestion, submitAnswer } from "./api/game";
 import { reportQuestion } from "./api/reports";
 import { useSound } from "./audio";
+import {
+  I18nProvider,
+  localizeCategories,
+  translateMessage,
+  useLanguage,
+} from "./i18n";
 import type { ReportReason } from "./api/types";
 import { Admin } from "./components/Admin";
 import { GameScreen } from "./components/GameScreen";
@@ -74,6 +80,7 @@ function isQuestion404(error: unknown): boolean {
 function App() {
   const [game, dispatch] = useReducer(gameReducer, INITIAL_GAME_STATE);
   const sound = useSound();
+  const { language, setLanguage } = useLanguage();
   const [categories, setCategories] = useState<readonly WheelCategory[] | null>(
     null,
   );
@@ -381,6 +388,12 @@ function App() {
     setUnavailableQuestionId(null);
   };
 
+  const shownCategories = useMemo(
+    () =>
+      categories === null ? null : localizeCategories(categories, language),
+    [categories, language],
+  );
+
   const categorySurface =
     request.status !== "error" &&
     (game.phase === "QuestionCard" || game.phase === "Result") &&
@@ -396,6 +409,7 @@ function App() {
     <BrowserRouter>
       <div
         className="app-shell"
+        lang={language}
         data-category-surface={categorySurface}
         data-player-surface={playerSurface}
       >
@@ -403,29 +417,42 @@ function App() {
           <Route
             path="/"
             element={
-              <GameScreen
-                sound={sound}
-                game={game}
-                categories={categories}
-                loading={request.status === "loading"}
-                errorMessage={
-                  request.status === "error" ? request.message : null
-                }
-                onStart={handleStart}
-                onAnswer={handleAnswer}
-                onTimeout={handleTimeout}
-                onAnswerContinue={handleAnswerContinue}
-                onTurnContinue={handleTurnContinue}
-                onChooseCategory={handleChooseCategory}
-                onRetry={handleRetry}
-                onBackToLobby={handleBackToLobby}
-                reportingQuestionId={reportingQuestionId}
-                unavailableQuestionId={unavailableQuestionId}
-                onReport={handleReport}
-              />
+              <I18nProvider language={language}>
+                <GameScreen
+                  sound={sound}
+                  language={language}
+                  onLanguageChange={setLanguage}
+                  game={game}
+                  categories={shownCategories}
+                  loading={request.status === "loading"}
+                  errorMessage={
+                    request.status === "error"
+                      ? translateMessage(request.message, language)
+                      : null
+                  }
+                  onStart={handleStart}
+                  onAnswer={handleAnswer}
+                  onTimeout={handleTimeout}
+                  onAnswerContinue={handleAnswerContinue}
+                  onTurnContinue={handleTurnContinue}
+                  onChooseCategory={handleChooseCategory}
+                  onRetry={handleRetry}
+                  onBackToLobby={handleBackToLobby}
+                  reportingQuestionId={reportingQuestionId}
+                  unavailableQuestionId={unavailableQuestionId}
+                  onReport={handleReport}
+                />
+              </I18nProvider>
             }
           />
-          <Route path="/admin" element={<Admin />} />
+          <Route
+            path="/admin"
+            element={
+              <div lang="es">
+                <Admin />
+              </div>
+            }
+          />
         </Routes>
       </div>
     </BrowserRouter>

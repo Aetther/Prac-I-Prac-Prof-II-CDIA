@@ -3,6 +3,7 @@ import type { MatchProgress } from "../game/progress";
 import type { Player, PlayerIndex } from "../game/types";
 import { playerColorIndex, playerInitial } from "./playerIdentity";
 import { Scoreboard } from "./Scoreboard";
+import { useMessages } from "../i18n";
 
 interface SwitchTurnProps {
   nextPlayerName: string;
@@ -21,6 +22,7 @@ export function SwitchTurn({
   players,
   onContinue,
 }: SwitchTurnProps) {
+  const m = useMessages();
   return (
     <section className="switch-turn">
       <span
@@ -30,8 +32,8 @@ export function SwitchTurn({
       >
         {playerInitial(nextPlayerName)}
       </span>
-      <h2>{`¡Turno de ${nextPlayerName}!`}</h2>
-      <p className="switch-turn-hint">Pasale el dispositivo</p>
+      <h2>{m.turnOf(nextPlayerName)}</h2>
+      <p className="switch-turn-hint">{m.passDevice}</p>
       <Scoreboard
         players={players}
         currentPlayer={nextPlayerIndex}
@@ -43,7 +45,7 @@ export function SwitchTurn({
         className="button-primary touch-target"
         onClick={onContinue}
       >
-        Estoy listo
+        {m.ready}
       </button>
     </section>
   );

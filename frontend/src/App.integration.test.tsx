@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import type { GameQuestion, ReportQuestionResult } from "./api/types";
+import { chooseMode, lobbyValue } from "./test/lobbyControls";
 import { installRafQueue } from "./test/rafQueue";
 import type { RafQueue } from "./test/rafQueue";
 import { FRAME_TIMESTAMPS, SIX_CATEGORIES } from "./test/wheelFixtures";
@@ -51,7 +52,7 @@ async function startToWheel(
   render(<App />);
   await fillNames(user);
   if (mode === "six-categories") {
-    await user.selectOptions(screen.getByLabelText("Modo de juego"), mode);
+    await chooseMode(user, mode);
   }
   await user.click(screen.getByRole("button", { name: "JUGAR" }));
   await screen.findByRole("button", { name: "Girar" });
@@ -432,16 +433,9 @@ describe("App integration through the real API client", () => {
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
       "",
     );
-    expect(
-      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
-        .value,
-    ).toBe("es");
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("20");
-    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
-      "5",
-    );
+    expect(lobbyValue("language")).toBe("es");
+    expect(lobbyValue("difficulty")).toBe("20");
+    expect(lobbyValue("rounds")).toBe("5");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

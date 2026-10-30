@@ -11,6 +11,7 @@ import type { GameQuestion } from "./api/types";
 import { AUDIO_PREFERENCES_KEY, SOUND_RECIPES } from "./audio";
 import type { AudioPreferences, SoundEffect } from "./audio";
 import { FakeAudioContext, installFakeAudio } from "./test/fakeAudio";
+import { chooseRounds } from "./test/lobbyControls";
 import { installRafQueue } from "./test/rafQueue";
 import type { RafQueue } from "./test/rafQueue";
 import { FRAME_TIMESTAMPS, SIX_CATEGORIES } from "./test/wheelFixtures";
@@ -77,7 +78,7 @@ async function startToWheel(user: UserEvent): Promise<void> {
   render(<App />);
   await user.type(screen.getByLabelText("Jugador 1"), "Ana");
   await user.type(screen.getByLabelText("Jugador 2"), "Beto");
-  await user.selectOptions(screen.getByLabelText("Rondas"), "3");
+  await chooseRounds(user, "3");
   await user.click(screen.getByRole("button", { name: "JUGAR" }));
   await screen.findByRole("button", { name: "Girar" });
 }

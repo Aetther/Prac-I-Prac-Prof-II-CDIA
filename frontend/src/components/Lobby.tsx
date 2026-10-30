@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CATEGORY_NAMES } from "../game/category";
 import {
   DEFAULT_LOBBY_SETTINGS,
   isValidPlayerName,
@@ -10,15 +11,33 @@ import type {
   RoundsCount,
   SecondsPerQuestion,
 } from "../game/types";
+import { useMessages } from "../i18n";
+import { CATEGORY_COLOR_TOKENS } from "./CategoryChips";
+import { ChoiceGroup } from "./ChoiceGroup";
+import type { ChoiceOption } from "./ChoiceGroup";
+import { FlagIcon } from "./FlagIcon";
 
 interface LobbyProps {
   onStart: (input: LobbyInput) => void;
+  /** The language the Lobby opens with; Spanish when omitted. */
+  language?: Lang;
+  onLanguageChange?: (language: Lang) => void;
 }
 
-export function Lobby({ onStart }: LobbyProps) {
+const SECONDS_BY_DIFFICULTY: readonly SecondsPerQuestion[] = [30, 20, 10];
+const ROUND_COUNTS: readonly RoundsCount[] = [3, 5, 10];
+const LANGUAGE_NAMES: Readonly<Record<Lang, string>> = {
+  es: "Español",
+  en: "English",
+};
+
+export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
+  const m = useMessages();
   const [first, setFirst] = useState("");
   const [second, setSecond] = useState("");
-  const [lang, setLang] = useState<Lang>(DEFAULT_LOBBY_SETTINGS.lang);
+  const [lang, setLang] = useState<Lang>(
+    language ?? DEFAULT_LOBBY_SETTINGS.lang,
+  );
   const [seconds, setSeconds] = useState<SecondsPerQuestion>(
     DEFAULT_LOBBY_SETTINGS.secondsPerQuestion,
   );
@@ -28,6 +47,11 @@ export function Lobby({ onStart }: LobbyProps) {
   const [mode, setMode] = useState<GameMode>(DEFAULT_LOBBY_SETTINGS.mode);
 
   const canStart = isValidPlayerName(first) && isValidPlayerName(second);
+
+  const handleLanguage = (next: Lang) => {
+    setLang(next);
+    onLanguageChange?.(next);
+  };
 
   const handleStart = () => {
     if (!canStart) return;
@@ -49,6 +73,82 @@ export function Lobby({ onStart }: LobbyProps) {
     });
   };
 
+  const languageOptions: ChoiceOption<Lang>[] = (["es", "en"] as const).map(
+    (value) => ({
+      value,
+      name: LANGUAGE_NAMES[value],
+      content: (
+        <>
+          <FlagIcon language={value} />
+          <span className="choice-title">{LANGUAGE_NAMES[value]}</span>
+        </>
+      ),
+    }),
+  );
+
+  const difficultyNames = [
+    m.difficultyEasy,
+    m.difficultyMedium,
+    m.difficultyHard,
+  ];
+  const difficultyOptions: ChoiceOption<string>[] = SECONDS_BY_DIFFICULTY.map(
+    (value, index) => ({
+      value: String(value),
+      name: difficultyNames[index],
+      description: m.secondsOption(value),
+      content: <span className="choice-title">{difficultyNames[index]}</span>,
+    }),
+  );
+
+  const modeOptions: ChoiceOption<GameMode>[] = [
+    {
+      value: "rounds",
+      name: m.modeRounds,
+      description: m.modeRoundsHint,
+      content: (
+        <>
+          <span className="mode-icon" aria-hidden="true">
+            🏁
+          </span>
+          <span className="choice-title">{m.modeRounds}</span>
+        </>
+      ),
+    },
+    {
+      value: "six-categories",
+      name: m.modeSix,
+      description: m.modeSixHint,
+      content: (
+        <>
+          <span className="mode-icon" aria-hidden="true">
+            🎯
+          </span>
+          <span className="choice-title">{m.modeSix}</span>
+          <span className="mode-dots" aria-hidden="true">
+            {CATEGORY_NAMES.map((name) => (
+              <span
+                key={name}
+                className="mode-dot"
+                data-category={name}
+                style={{ backgroundColor: CATEGORY_COLOR_TOKENS[name] }}
+              />
+            ))}
+          </span>
+        </>
+      ),
+    },
+  ];
+
+  const roundOptions: ChoiceOption<string>[] = ROUND_COUNTS.map((value) => ({
+    value: String(value),
+    name: m.roundsOption(value),
+    content: (
+      <span className="round-token" data-rounds={value} aria-hidden="true">
+        {value}
+      </span>
+    ),
+  }));
+
   return (
     <main className="lobby">
       <h1 className="lobby-sign">
@@ -60,11 +160,11 @@ export function Lobby({ onStart }: LobbyProps) {
           ✨
         </span>
       </h1>
-      <p className="lobby-tagline">Poné a prueba tu conocimiento</p>
+      <p className="lobby-tagline">{m.tagline}</p>
       <div className="lobby-mini-wheel" aria-hidden="true" />
       <div className="lobby-fields">
         <div className="lobby-field">
-          <label htmlFor="lobby-player-1">Jugador 1</label>
+          <label htmlFor="lobby-player-1">{m.player1}</label>
           <input
             id="lobby-player-1"
             className="touch-target"
@@ -74,7 +174,7 @@ export function Lobby({ onStart }: LobbyProps) {
           />
         </div>
         <div className="lobby-field">
-          <label htmlFor="lobby-player-2">Jugador 2</label>
+          <label htmlFor="lobby-player-2">{m.player2}</label>
           <input
             id="lobby-player-2"
             className="touch-target"
@@ -83,61 +183,36 @@ export function Lobby({ onStart }: LobbyProps) {
             onChange={(event) => setSecond(event.target.value)}
           />
         </div>
-        <div className="lobby-field">
-          <label htmlFor="lobby-lang">Idioma de las preguntas</label>
-          <select
-            id="lobby-lang"
-            className="touch-target"
-            value={lang}
-            onChange={(event) => setLang(event.target.value as Lang)}
-          >
-            <option value="es">Español</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-        <div className="lobby-field">
-          <label htmlFor="lobby-seconds">Tiempo por pregunta</label>
-          <select
-            id="lobby-seconds"
-            className="touch-target"
-            value={String(seconds)}
-            onChange={(event) =>
-              setSeconds(Number(event.target.value) as SecondsPerQuestion)
-            }
-          >
-            <option value="10">10 segundos</option>
-            <option value="20">20 segundos</option>
-            <option value="30">30 segundos</option>
-          </select>
-        </div>
-        <div className="lobby-field">
-          <label htmlFor="lobby-mode">Modo de juego</label>
-          <select
-            id="lobby-mode"
-            className="touch-target"
-            value={mode}
-            onChange={(event) => setMode(event.target.value as GameMode)}
-          >
-            <option value="rounds">Por rondas</option>
-            <option value="six-categories">Juntar las 6 categorías</option>
-          </select>
-        </div>
+        <ChoiceGroup
+          legend={m.languageGroup}
+          className="choice-group-language"
+          value={lang}
+          options={languageOptions}
+          onChange={handleLanguage}
+        />
+        <ChoiceGroup
+          legend={m.difficultyGroup}
+          className="choice-group-difficulty"
+          value={String(seconds)}
+          options={difficultyOptions}
+          onChange={(value) => setSeconds(Number(value) as SecondsPerQuestion)}
+        />
+        <ChoiceGroup
+          legend={m.modeGroup}
+          className="choice-group-mode"
+          value={mode}
+          options={modeOptions}
+          onChange={setMode}
+        />
         {mode === "rounds" ? (
-          <div className="lobby-field">
-            <label htmlFor="lobby-rounds">Rondas</label>
-            <select
-              id="lobby-rounds"
-              className="touch-target"
-              value={String(rounds)}
-              onChange={(event) =>
-                setRounds(Number(event.target.value) as RoundsCount)
-              }
-            >
-              <option value="3">3 rondas</option>
-              <option value="5">5 rondas</option>
-              <option value="10">10 rondas</option>
-            </select>
-          </div>
+          <ChoiceGroup
+            legend={m.roundsLabel}
+            groupName={m.roundsGroup}
+            className="choice-group-rounds"
+            value={String(rounds)}
+            options={roundOptions}
+            onChange={(value) => setRounds(Number(value) as RoundsCount)}
+          />
         ) : null}
         <button
           type="button"
@@ -145,7 +220,7 @@ export function Lobby({ onStart }: LobbyProps) {
           disabled={!canStart}
           onClick={handleStart}
         >
-          JUGAR
+          {m.play}
         </button>
       </div>
     </main>

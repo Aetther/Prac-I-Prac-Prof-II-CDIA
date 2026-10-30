@@ -910,7 +910,7 @@ describe("style guards", () => {
     const result = readFileSync(join(SRC, "components", "Result.tsx"), "utf-8");
     expect(result).toContain("<ResultIcon kind={iconKind} />");
     expect(result.indexOf("<ResultIcon kind={iconKind} />")).toBeLessThan(
-      result.indexOf("<span>{outcomeLabel(lastAnswer)}</span>"),
+      result.indexOf("<span>{outcomeLabel(lastAnswer, m)}</span>"),
     );
   });
 

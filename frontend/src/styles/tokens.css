@@ -24,6 +24,11 @@
   --color-on-sign: #111827;
   --color-shine: rgb(255 255 255 / 0.55);
   --color-on-category: #ffffff;
+  /* Original simplified flags on the Lobby language buttons */
+  --color-flag-red: #c8102e;
+  --color-flag-yellow: #f6c20c;
+  --color-flag-blue: #22336b;
+  --color-flag-white: #ffffff;
 
   --color-category-geografia: #1d4ed8;
   --color-category-geografia-deep: #1e3a8a;

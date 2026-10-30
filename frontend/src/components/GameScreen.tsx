@@ -1,11 +1,12 @@
 import { useGameSounds } from "../audio";
+import { useMessages } from "../i18n";
 import type { SoundControls } from "../audio";
 import type { WheelCategory } from "../game/category";
 import type { LobbyInput } from "../game/lobby";
 import { getMatchProgress } from "../game/progress";
 import { getNextTurn } from "../game/reducer";
 import type { ReportSubmissionResult } from "../game/reporting";
-import type { CategoryName, GameState } from "../game/types";
+import type { CategoryName, GameState, Lang } from "../game/types";
 import type { ReportReason } from "../api/types";
 import type { WheelTickHandler } from "../game/wheel";
 import { AudioControls } from "./AudioControls";
@@ -39,6 +40,8 @@ interface GameScreenProps {
   ) => Promise<ReportSubmissionResult>;
   onSpinStop?: () => void;
   onUrgentSecond?: (seconds: number) => void;
+  language?: Lang;
+  onLanguageChange?: (language: Lang) => void;
 }
 
 interface GameScreenWithSoundProps extends GameScreenProps {
@@ -88,7 +91,10 @@ function GamePhase({
   onReport,
   onSpinStop,
   onUrgentSecond,
+  language,
+  onLanguageChange,
 }: GameScreenProps) {
+  const m = useMessages();
   if (errorMessage !== null) {
     return (
       <ErrorScreen
@@ -100,7 +106,13 @@ function GamePhase({
   }
 
   if (game.phase === "Lobby") {
-    return <Lobby onStart={onStart} />;
+    return (
+      <Lobby
+        onStart={onStart}
+        language={language}
+        onLanguageChange={onLanguageChange}
+      />
+    );
   }
 
   if (game.config === null) return null;
@@ -111,7 +123,7 @@ function GamePhase({
   switch (game.phase) {
     case "Wheel":
       if (categories === null) {
-        return <p role="status">Cargando categorías...</p>;
+        return <p role="status">{m.loadingCategories}</p>;
       }
       return (
         <Wheel
@@ -127,7 +139,7 @@ function GamePhase({
     case "QuestionCard": {
       const question = game.currentQuestion;
       if (question === null) {
-        return <p role="status">Cargando pregunta...</p>;
+        return <p role="status">{m.loadingQuestion}</p>;
       }
       const categoryLabel =
         categories === null

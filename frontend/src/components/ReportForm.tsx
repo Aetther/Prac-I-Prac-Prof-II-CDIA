@@ -4,8 +4,9 @@ import {
   REPORT_REASONS,
 } from "../api/reportReasons";
 import type { ReportReason } from "../api/types";
-import { getReportCommentError, REPORT_REASON_LABELS } from "../game/reporting";
+import { getReportCommentError } from "../game/reporting";
 import type { ReportFailure, ReportSubmissionResult } from "../game/reporting";
+import { translateMessage, useCurrentLanguage, useMessages } from "../i18n";
 
 interface ReportFormProps {
   disabled: boolean;
@@ -25,6 +26,8 @@ export function ReportForm({
   onSuccess,
   onSubmit,
 }: ReportFormProps) {
+  const m = useMessages();
+  const language = useCurrentLanguage();
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -87,16 +90,16 @@ export function ReportForm({
   };
 
   const submitLabel = submitting
-    ? "Enviando reporte..."
+    ? m.sendingReport
     : failure?.retryable === true
-      ? "Reintentar"
-      : "Enviar reporte";
+      ? m.retry
+      : m.sendReport;
 
   return (
     <section aria-labelledby={titleId} className="report-form">
-      <h3 id={titleId}>Reportar pregunta</h3>
+      <h3 id={titleId}>{m.reportTitle}</h3>
       <fieldset>
-        <legend>Motivo del reporte</legend>
+        <legend>{m.reportReasonLegend}</legend>
         {REPORT_REASONS.map((option, index) => (
           <label key={option} className="touch-target">
             <input
@@ -107,13 +110,13 @@ export function ReportForm({
               checked={reason === option}
               onChange={() => handleReasonChange(option)}
             />{" "}
-            {REPORT_REASON_LABELS[option]}
+            {m.reportReasons[option]}
           </label>
         ))}
       </fieldset>
-      <label htmlFor={commentId}>Comentario</label>
+      <label htmlFor={commentId}>{m.comment}</label>
       <p id={hintId} className="help-text">
-        Opcional; obligatorio para Otro.
+        {m.commentHint}
       </p>
       <textarea
         id={commentId}
@@ -138,12 +141,12 @@ export function ReportForm({
       </p>
       {commentError !== null ? (
         <p id={commentErrorId} role="alert">
-          {commentError}
+          {translateMessage(commentError, language)}
         </p>
       ) : null}
       {failure !== null ? (
         <div role="alert">
-          <p>{failure.message}</p>
+          <p>{translateMessage(failure.message, language)}</p>
           {failure.detail !== undefined ? <p>{failure.detail}</p> : null}
         </div>
       ) : null}
@@ -156,7 +159,7 @@ export function ReportForm({
         {submitLabel}
       </button>
       <button type="button" className="touch-target" onClick={onCancel}>
-        Cancelar
+        {m.cancel}
       </button>
     </section>
   );

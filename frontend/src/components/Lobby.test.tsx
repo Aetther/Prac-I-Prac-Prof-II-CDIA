@@ -1,82 +1,90 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { I18nProvider } from "../i18n";
 import { Lobby } from "./Lobby";
 
-describe("Lobby", () => {
-  it("shows the mode selector with Por rondas selected and the default values", () => {
-    render(<Lobby onStart={vi.fn()} />);
+function group(name: string): HTMLElement {
+  return screen.getByRole("group", { name });
+}
 
-    const mode = screen.getByLabelText("Modo de juego") as HTMLSelectElement;
-    expect(mode.value).toBe("rounds");
+function radioNames(name: string): string[] {
+  return within(group(name))
+    .getAllByRole("radio")
+    .map((radio) => radio.getAttribute("aria-label") ?? "");
+}
+
+function checkedName(name: string): string | null {
+  const checked = within(group(name))
+    .getAllByRole("radio")
+    .find((radio) => (radio as HTMLInputElement).checked);
+  return checked?.getAttribute("aria-label") ?? null;
+}
+
+async function fillNames(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Jugador 1"), " Ana ");
+  await user.type(screen.getByLabelText("Jugador 2"), "Beto");
+}
+
+describe("Lobby", () => {
+  it("Defaults are shown", () => {
+    render(<Lobby onStart={vi.fn()} />);
+    expect(checkedName("Idioma")).toBe("Español");
+    expect(checkedName("Dificultad")).toBe("Intermedia");
     expect(
-      within(mode)
-        .getAllByRole("option")
-        .map((option) => option.textContent),
-    ).toEqual(["Por rondas", "Juntar las 6 categorías"]);
-    expect(
-      (screen.getByLabelText("Idioma de las preguntas") as HTMLSelectElement)
-        .value,
-    ).toBe("es");
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("20");
-    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
-      "5",
-    );
+      within(group("Dificultad")).getByRole("radio", { name: "Intermedia" }),
+    ).toHaveAccessibleDescription("20 segundos");
+    expect(checkedName("Modo de juego")).toBe("Por rondas");
+    expect(checkedName("Rondas")).toBe("5 rondas");
     expect(screen.getByRole("button", { name: "JUGAR" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Comenzar" })).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
 
-  it("selecting six categories hides Rondas, keeps Tiempo and restores the held value", async () => {
+  it("Difficulty maps to the seconds per question", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+    render(<Lobby onStart={onStart} />);
+    expect(radioNames("Dificultad")).toEqual([
+      "Fácil",
+      "Intermedia",
+      "Difícil",
+    ]);
+    await fillNames(user);
+    for (const [name, seconds] of [
+      ["Difícil", 10],
+      ["Fácil", 30],
+      ["Intermedia", 20],
+    ] as const) {
+      await user.click(screen.getByRole("radio", { name }));
+      await user.click(screen.getByRole("button", { name: "JUGAR" }));
+      expect(onStart).toHaveBeenLastCalledWith(
+        expect.objectContaining({ secondsPerQuestion: seconds }),
+      );
+    }
+  });
+
+  it("Selecting six categories hides the rounds selector and keeps the time selector", async () => {
     const user = userEvent.setup();
     render(<Lobby onStart={vi.fn()} />);
-
-    await user.selectOptions(
-      screen.getByLabelText("Tiempo por pregunta"),
-      "10",
+    await user.click(
+      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
     );
-    await user.selectOptions(screen.getByLabelText("Rondas"), "3");
-    await user.type(screen.getByLabelText("Jugador 1"), "Ana");
-    await user.type(screen.getByLabelText("Jugador 2"), "Beto");
-
-    await user.selectOptions(
-      screen.getByLabelText("Modo de juego"),
-      "six-categories",
-    );
-
-    expect(screen.queryByLabelText("Rondas")).toBeNull();
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("10");
-    expect(
-      (screen.getByLabelText("Modo de juego") as HTMLSelectElement).value,
-    ).toBe("six-categories");
-
-    await user.selectOptions(screen.getByLabelText("Modo de juego"), "rounds");
-
-    expect((screen.getByLabelText("Rondas") as HTMLSelectElement).value).toBe(
-      "3",
-    );
-    expect(
-      (screen.getByLabelText("Tiempo por pregunta") as HTMLSelectElement).value,
-    ).toBe("10");
+    expect(screen.queryByRole("group", { name: "Rondas" })).toBeNull();
+    expect(checkedName("Dificultad")).toBe("Intermedia");
+    expect(checkedName("Modo de juego")).toBe("Juntar las 6 categorías");
+    expect(screen.getByRole("button", { name: "JUGAR" })).toBeDisabled();
+    await user.click(screen.getByRole("radio", { name: "Por rondas" }));
+    expect(checkedName("Rondas")).toBe("5 rondas");
   });
 
   it("keeps JUGAR disabled while either name is blank", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
     render(<Lobby onStart={onStart} />);
-
     const start = screen.getByRole("button", { name: "JUGAR" });
-    await user.click(start);
-    expect(start).toBeDisabled();
-    expect(onStart).not.toHaveBeenCalled();
-
     await user.type(screen.getByLabelText("Jugador 1"), "Ana");
     expect(start).toBeDisabled();
-    await user.click(start);
-    expect(onStart).not.toHaveBeenCalled();
-
     await user.type(screen.getByLabelText("Jugador 2"), "   ");
     expect(start).toBeDisabled();
     await user.click(start);
@@ -85,36 +93,23 @@ describe("Lobby", () => {
 
   it("enables JUGAR when both names contain text", async () => {
     const user = userEvent.setup();
-    const onStart = vi.fn();
-    render(<Lobby onStart={onStart} />);
-
+    render(<Lobby onStart={vi.fn()} />);
     await user.type(screen.getByLabelText("Jugador 1"), "Ana");
     await user.type(screen.getByLabelText("Jugador 2"), "Beto");
-
-    const start = screen.getByRole("button", { name: "JUGAR" });
-    expect(start).toBeEnabled();
-    await user.click(start);
-    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "JUGAR" })).toBeEnabled();
   });
 
   it("emits the raw lobby input on JUGAR with the rounds mode", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
-    render(<Lobby onStart={onStart} />);
-
-    await user.type(screen.getByLabelText("Jugador 1"), " Ana ");
-    await user.type(screen.getByLabelText("Jugador 2"), "Beto");
-    await user.selectOptions(
-      screen.getByLabelText("Idioma de las preguntas"),
-      "en",
-    );
-    await user.selectOptions(
-      screen.getByLabelText("Tiempo por pregunta"),
-      "30",
-    );
-    await user.selectOptions(screen.getByLabelText("Rondas"), "3");
+    const onLanguageChange = vi.fn();
+    render(<Lobby onStart={onStart} onLanguageChange={onLanguageChange} />);
+    await fillNames(user);
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    expect(onLanguageChange).toHaveBeenCalledWith("en");
+    await user.click(screen.getByRole("radio", { name: "Fácil" }));
+    await user.click(screen.getByRole("radio", { name: "3 rondas" }));
     await user.click(screen.getByRole("button", { name: "JUGAR" }));
-
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledWith({
       playerNames: [" Ana ", "Beto"],
@@ -129,124 +124,170 @@ describe("Lobby", () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
     render(<Lobby onStart={onStart} />);
-
-    await user.type(screen.getByLabelText("Jugador 1"), " Ana ");
-    await user.type(screen.getByLabelText("Jugador 2"), "Beto");
-    await user.selectOptions(
-      screen.getByLabelText("Idioma de las preguntas"),
-      "en",
-    );
-    await user.selectOptions(
-      screen.getByLabelText("Tiempo por pregunta"),
-      "30",
-    );
-    await user.selectOptions(
-      screen.getByLabelText("Modo de juego"),
-      "six-categories",
+    await fillNames(user);
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    await user.click(screen.getByRole("radio", { name: "Fácil" }));
+    await user.click(
+      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
     );
     await user.click(screen.getByRole("button", { name: "JUGAR" }));
-
-    expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledWith({
       playerNames: [" Ana ", "Beto"],
       lang: "en",
       secondsPerQuestion: 30,
       mode: "six-categories",
     });
-    const payload = onStart.mock.calls[0][0] as Record<string, unknown>;
-    expect(payload).not.toHaveProperty("rounds");
-    expect("rounds" in payload).toBe(false);
+    expect(onStart.mock.calls[0][0]).not.toHaveProperty("rounds");
   });
 
-  it("associates the six labels with their controls in rounds mode", () => {
+  it("Labels are associated with their controls", () => {
     render(<Lobby onStart={vi.fn()} />);
-
-    expect(screen.getByRole("textbox", { name: "Jugador 1" })).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Jugador 2" })).toBeVisible();
-    expect(
-      screen.getByRole("combobox", { name: "Idioma de las preguntas" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("combobox", { name: "Tiempo por pregunta" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("combobox", { name: "Modo de juego" }),
-    ).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "Rondas" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "JUGAR" })).toBeVisible();
+    expect(screen.getByLabelText("Jugador 1")).toHaveRole("textbox");
+    expect(screen.getByLabelText("Jugador 2")).toHaveRole("textbox");
+    for (const name of ["Idioma", "Dificultad", "Modo de juego", "Rondas"]) {
+      const radios = within(group(name)).getAllByRole("radio");
+      expect(radios.length).toBeGreaterThanOrEqual(2);
+      for (const radio of radios) expect(radio).toHaveAccessibleName();
+      expect(
+        radios.filter((radio) => (radio as HTMLInputElement).checked),
+      ).toHaveLength(1);
+    }
+    expect(screen.getByRole("button", { name: "JUGAR" })).toBeInTheDocument();
   });
 
-  it("labels only the controls it shows in six mode and gives each the touch target", async () => {
+  it("All Lobby controls are touch targets", () => {
+    render(<Lobby onStart={vi.fn()} />);
+    const textboxes = screen.getAllByRole("textbox");
+    const buttons = screen.getAllByRole("button");
+    const radios = screen.getAllByRole("radio");
+    expect(
+      textboxes.length + buttons.length + radios.length,
+    ).toBeGreaterThanOrEqual(13);
+    for (const control of [...textboxes, ...buttons]) {
+      expect(control).toHaveClass("touch-target");
+    }
+    for (const radio of radios) {
+      expect(radio.closest("label")).toHaveClass("touch-target");
+    }
+  });
+
+  it("The six-categories Lobby labels only the controls it shows", async () => {
     const user = userEvent.setup();
     render(<Lobby onStart={vi.fn()} />);
-
-    await user.selectOptions(
-      screen.getByLabelText("Modo de juego"),
-      "six-categories",
+    await user.click(
+      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
     );
-
-    expect(
-      screen.getByRole("combobox", { name: "Modo de juego" }),
-    ).toBeVisible();
-    expect(screen.queryByLabelText("Rondas")).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Jugador 1" })).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Jugador 2" })).toBeVisible();
-    expect(
-      screen.getByRole("combobox", { name: "Idioma de las preguntas" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("combobox", { name: "Tiempo por pregunta" }),
-    ).toBeVisible();
-
-    const controls = [
-      ...screen.getAllByRole("button"),
-      ...screen.getAllByRole("textbox"),
-      ...screen.getAllByRole("combobox"),
-    ];
-    expect(controls).toHaveLength(6);
-    for (const control of controls) {
-      expect(control).toHaveClass("touch-target");
+    for (const name of ["Idioma", "Dificultad", "Modo de juego"]) {
+      expect(group(name)).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("group", { name: "Rondas" })).toBeNull();
+    expect(screen.getByLabelText("Jugador 1")).toHaveRole("textbox");
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio.closest("label")).toHaveClass("touch-target");
     }
   });
 
-  it("gives every interactive control the touch-target class", () => {
+  it("The language buttons show a flag and a name", () => {
     render(<Lobby onStart={vi.fn()} />);
-
-    const controls = [
-      ...screen.getAllByRole("button"),
-      ...screen.getAllByRole("textbox"),
-      ...screen.getAllByRole("combobox"),
-    ];
-
-    expect(controls.length).toBeGreaterThanOrEqual(6);
-    expect(controls).toHaveLength(7);
-    for (const control of controls) {
-      expect(control).toHaveClass("touch-target");
+    expect(radioNames("Idioma")).toEqual(["Español", "English"]);
+    expect(checkedName("Idioma")).toBe("Español");
+    for (const [name, flag] of [
+      ["Español", "es"],
+      ["English", "en"],
+    ] as const) {
+      const label = screen.getByRole("radio", { name }).closest("label")!;
+      const svg = label.querySelector("svg");
+      expect(svg).toHaveAttribute("aria-hidden", "true");
+      expect(svg).toHaveAttribute("data-flag", flag);
+      expect(label).toHaveTextContent(name);
     }
+    expect(document.body.textContent).not.toMatch(/🇪🇸|🇺🇸/u);
   });
 
-  it("offers exactly the declared language, time, mode and rounds options", () => {
+  it("The choices render as buttons with their extra content", () => {
     render(<Lobby onStart={vi.fn()} />);
+    for (const [name, seconds] of [
+      ["Fácil", "30 segundos"],
+      ["Intermedia", "20 segundos"],
+      ["Difícil", "10 segundos"],
+    ] as const) {
+      expect(screen.getByRole("radio", { name })).toHaveAccessibleDescription(
+        seconds,
+      );
+    }
+    const rounds = group("Rondas");
+    expect(within(rounds).getByText("Rondas:")).toBeInTheDocument();
+    expect(
+      [...rounds.querySelectorAll(".round-token")].map(
+        (token) => token.textContent,
+      ),
+    ).toEqual(["3", "5", "10"]);
+    expect(
+      screen.getByRole("radio", { name: "Por rondas" }),
+    ).toHaveAccessibleDescription("Gana quien sume más puntos");
+    expect(
+      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
+    ).toHaveAccessibleDescription("Gana el primero en juntar las 6");
+    const dots = document.querySelectorAll<HTMLElement>(".mode-dot");
+    expect(dots).toHaveLength(6);
+    for (const dot of dots) {
+      expect(dot.style.backgroundColor).toMatch(
+        /^var\(--color-category-[a-z]+\)$/,
+      );
+    }
+    expect(document.querySelector(".mode-dots")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  });
 
-    const optionsFor = (label: string) =>
-      within(screen.getByLabelText(label))
-        .getAllByRole("option")
-        .map((option) => option.textContent);
+  it("The keyboard moves within a group", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+    render(<Lobby onStart={onStart} />);
+    await fillNames(user);
+    const medium = screen.getByRole("radio", { name: "Intermedia" });
+    medium.focus();
+    await user.keyboard("{ArrowRight}");
+    const hard = screen.getByRole("radio", { name: "Difícil" });
+    expect(hard).toBeChecked();
+    expect(hard).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
+    expect(onStart).toHaveBeenCalledWith(
+      expect.objectContaining({ secondsPerQuestion: 10 }),
+    );
+  });
 
-    expect(optionsFor("Idioma de las preguntas")).toEqual([
-      "Español",
-      "English",
-    ]);
-    expect(optionsFor("Tiempo por pregunta")).toEqual([
-      "10 segundos",
-      "20 segundos",
-      "30 segundos",
-    ]);
-    expect(optionsFor("Modo de juego")).toEqual([
-      "Por rondas",
-      "Juntar las 6 categorías",
-    ]);
-    expect(optionsFor("Rondas")).toEqual(["3 rondas", "5 rondas", "10 rondas"]);
+  it("LOB-02 the checked option carries choice-checked and the others do not", async () => {
+    const user = userEvent.setup();
+    render(<Lobby onStart={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "10 rondas" }));
+    const checked = document.querySelectorAll(
+      ".choice-group-rounds .choice-checked",
+    );
+    expect(checked).toHaveLength(1);
+    expect(checked[0]).toHaveAttribute("data-value", "10");
+  });
+
+  it("LOB-03 inside an English provider the Lobby copy is English", () => {
+    render(
+      <I18nProvider language="en">
+        <Lobby onStart={vi.fn()} language="en" />
+      </I18nProvider>,
+    );
+    expect(screen.getByLabelText("Player 1")).toHaveRole("textbox");
+    expect(screen.getByRole("button", { name: "PLAY" })).toBeDisabled();
+    for (const name of ["Language", "Difficulty", "Game mode", "Rounds"]) {
+      expect(group(name)).toBeInTheDocument();
+    }
+    expect(screen.getByRole("radio", { name: "English" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "Medium" }),
+    ).toHaveAccessibleDescription("20 seconds");
+    expect(screen.getByRole("radio", { name: "3 rounds" })).not.toBeChecked();
+    expect(
+      screen.getByText("Put your knowledge to the test"),
+    ).toBeInTheDocument();
   });
 
   it("LOB-01 the sign is an h1 named TRIVIA with two aria-hidden sparkles, the tagline and a decorative mini wheel", () => {

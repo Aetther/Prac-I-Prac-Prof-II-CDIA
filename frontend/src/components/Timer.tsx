@@ -5,6 +5,7 @@ import {
   urgentSecondToAnnounce,
 } from "../game/timer";
 import type { TimerSnapshot } from "../game/timer";
+import { useMessages } from "../i18n";
 
 interface TimerProps {
   seconds: number;
@@ -13,6 +14,7 @@ interface TimerProps {
 }
 
 export function Timer({ seconds, onExpire, onUrgentSecond }: TimerProps) {
+  const m = useMessages();
   const deadlineRef = useRef<number | null>(null);
   const expiredRef = useRef(false);
   const onExpireRef = useRef(onExpire);
@@ -62,18 +64,18 @@ export function Timer({ seconds, onExpire, onUrgentSecond }: TimerProps) {
       className={urgent ? "timer timer-urgent" : "timer"}
       data-urgent={urgent ? "true" : undefined}
     >
-      <p role="timer" aria-label="Tiempo restante">{`${remainingSeconds} s`}</p>
+      <p role="timer" aria-label={m.timeLeft}>{`${remainingSeconds} s`}</p>
       <div
         className="timer-track"
         role="progressbar"
-        aria-label="Tiempo restante"
+        aria-label={m.timeLeft}
         aria-valuemin={0}
         aria-valuemax={seconds}
         aria-valuenow={remainingSeconds}
       >
         <div className="timer-fill" style={{ width: `${progress * 100}%` }} />
       </div>
-      {urgent ? <p className="timer-urgent-text">Últimos 5 segundos</p> : null}
+      {urgent ? <p className="timer-urgent-text">{m.lastSeconds}</p> : null}
     </div>
   );
 }

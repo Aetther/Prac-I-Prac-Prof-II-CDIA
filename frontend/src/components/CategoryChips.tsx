@@ -1,6 +1,7 @@
 import { findCategoryEmoji, findCategoryLabel } from "../game/category";
 import type { WheelCategory } from "../game/category";
 import type { CategoryName } from "../game/types";
+import { useMessages } from "../i18n";
 
 // The map is static data, so exporting it next to the component is safe.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -24,11 +25,15 @@ export function CategoryChips({
   categories,
   owned,
 }: CategoryChipsProps) {
+  const m = useMessages();
   if (owned.length === 0) {
-    return <p>Sin categorías</p>;
+    return <p>{m.noCategories}</p>;
   }
   return (
-    <ul className="category-chips" aria-label={`Categorías de ${playerName}`}>
+    <ul
+      className="category-chips"
+      aria-label={m.categoriesOfPlayer(playerName)}
+    >
       {owned.map((name) => (
         <li
           key={name}

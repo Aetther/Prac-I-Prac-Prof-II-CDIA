@@ -7,6 +7,8 @@ import type { LastAnswer, Player, PlayerIndex } from "../game/types";
 import { ReportForm } from "./ReportForm";
 import { ResultIcon } from "./ResultIcon";
 import { Scoreboard } from "./Scoreboard";
+import { useMessages } from "../i18n";
+import type { Messages } from "../i18n";
 
 interface ResultProps {
   question: GameQuestion;
@@ -25,9 +27,9 @@ interface ResultProps {
   onContinue: () => void;
 }
 
-function outcomeLabel(lastAnswer: LastAnswer): string {
-  if (lastAnswer.timedOut) return "Se acabó el tiempo";
-  return lastAnswer.correct ? "Correcta" : "Incorrecta";
+function outcomeLabel(lastAnswer: LastAnswer, m: Messages): string {
+  if (lastAnswer.timedOut) return m.timeUp;
+  return lastAnswer.correct ? m.correct : m.wrong;
 }
 
 function outcomeKind(lastAnswer: LastAnswer): "correct" | "wrong" | "timeout" {
@@ -48,6 +50,7 @@ export function Result({
   onReport,
   onContinue,
 }: ResultProps) {
+  const m = useMessages();
   const descriptionId = useId();
   const continuedRef = useRef(false);
   const reportButtonRef = useRef<HTMLButtonElement>(null);
@@ -65,13 +68,13 @@ export function Result({
   const reportDisabled = reported || reporting || unavailable || formOpen;
 
   const reportDescription = reported
-    ? "Ya reportaste esta pregunta."
+    ? m.alreadyReported
     : unavailable
-      ? "La pregunta ya no está disponible."
+      ? m.questionUnavailable
       : reporting
-        ? "Enviando reporte..."
+        ? m.sendingReport
         : formOpen
-          ? "El formulario de reporte está abierto."
+          ? m.reportFormOpen
           : null;
 
   useEffect(() => {
@@ -124,17 +127,17 @@ export function Result({
         categories={categories}
       />
       <div className="game-main">
-        <h2>Resultado</h2>
+        <h2>{m.resultHeading}</h2>
         <p className="question-text">{question.question}</p>
         <p className="result-outcome">
           <ResultIcon kind={iconKind} />
-          <span>{outcomeLabel(lastAnswer)}</span>
+          <span>{outcomeLabel(lastAnswer, m)}</span>
         </p>
-        <p role="status">{`La respuesta correcta era: ${lastAnswer.correctAnswer}`}</p>
-        {showChosen ? <p>{`Elegiste: ${lastAnswer.chosenAnswer}`}</p> : null}
+        <p role="status">{m.correctAnswerWas(lastAnswer.correctAnswer)}</p>
+        {showChosen ? <p>{m.youChose(lastAnswer.chosenAnswer)}</p> : null}
         {reported ? (
           <p ref={confirmationRef} role="status" tabIndex={-1}>
-            Gracias. Recibimos tu reporte.
+            {m.reportThanks}
           </p>
         ) : null}
         <button
@@ -147,7 +150,7 @@ export function Result({
           }
           onClick={() => setFormOpen(true)}
         >
-          Reportar
+          {m.report}
         </button>
         {reportDescription !== null ? (
           <p id={descriptionId} className="visually-hidden">
@@ -169,7 +172,7 @@ export function Result({
           className="button-primary result-continue touch-target"
           onClick={handleContinue}
         >
-          Continuar
+          {m.continueAction}
         </button>
       </div>
     </section>

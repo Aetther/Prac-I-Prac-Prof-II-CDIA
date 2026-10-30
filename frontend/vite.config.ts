@@ -15,6 +15,7 @@ export default defineConfig({
         "src/game/**/*",
         "src/api/**/*",
         "src/audio/**/*",
+        "src/i18n/**/*",
         "src/components/questionEditorForm.ts",
       ],
       exclude: [
@@ -24,6 +25,8 @@ export default defineConfig({
         "src/api/types.ts",
         "src/api/index.ts",
         "src/audio/index.ts",
+        "src/i18n/index.ts",
+        "src/i18n/messages.ts",
       ],
       thresholds: {
         lines: 100,

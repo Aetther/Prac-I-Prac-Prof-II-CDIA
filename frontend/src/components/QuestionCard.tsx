@@ -10,6 +10,7 @@ import { isUntranslated } from "../game/question";
 import type { Lang, Player, PlayerIndex } from "../game/types";
 import { Scoreboard } from "./Scoreboard";
 import { Timer } from "./Timer";
+import { useMessages } from "../i18n";
 
 interface QuestionCardProps {
   question: GameQuestion;
@@ -42,6 +43,7 @@ export function QuestionCard({
   onTimeout,
   onUrgentSecond,
 }: QuestionCardProps) {
+  const m = useMessages();
   const [locked, setLocked] = useState(false);
   const lockedRef = useRef(false);
 
@@ -79,7 +81,7 @@ export function QuestionCard({
         {categoryLabel !== null ? (
           <p className="category-banner" data-category={question.category}>
             <span aria-hidden="true">{categoryEmoji}</span>
-            <span>{`Categoría: ${categoryLabel}`}</span>
+            <span>{m.categoryOf(categoryLabel)}</span>
           </p>
         ) : null}
         {timerActive ? (
@@ -90,10 +92,10 @@ export function QuestionCard({
           />
         ) : null}
         {isUntranslated(lang, question.lang) ? (
-          <p className="untranslated-badge">Sin traducir</p>
+          <p className="untranslated-badge">{m.untranslated}</p>
         ) : null}
         <h2 className="question-text">{question.question}</h2>
-        <p>Elegí una opción</p>
+        <p>{m.pickAnswer}</p>
         <div className="option-list">
           {question.options.map((option) => (
             <button
@@ -107,7 +109,7 @@ export function QuestionCard({
             </button>
           ))}
         </div>
-        {loading ? <p role="status">Enviando respuesta...</p> : null}
+        {loading ? <p role="status">{m.sendingAnswer}</p> : null}
       </div>
     </section>
   );

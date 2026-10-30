@@ -1,3 +1,5 @@
+import { useMessages } from "../i18n";
+
 interface ErrorScreenProps {
   message: string;
   onRetry: () => void;
@@ -9,6 +11,7 @@ export function ErrorScreen({
   onRetry,
   onBackToLobby,
 }: ErrorScreenProps) {
+  const m = useMessages();
   return (
     <div className="error-screen" role="alert">
       <p>{message}</p>
@@ -17,14 +20,14 @@ export function ErrorScreen({
         className="button-primary touch-target"
         onClick={onRetry}
       >
-        Reintentar
+        {m.retry}
       </button>
       <button
         type="button"
         className="button-primary touch-target"
         onClick={onBackToLobby}
       >
-        Volver al lobby
+        {m.backToLobby}
       </button>
     </div>
   );

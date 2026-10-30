@@ -14,6 +14,7 @@ import type { WheelTickHandler } from "../game/wheel";
 import { playerColorIndex } from "./playerIdentity";
 import { Scoreboard } from "./Scoreboard";
 import { readWheelPalette } from "./wheelPalette";
+import { useMessages } from "../i18n";
 
 const CANVAS_SIZE = 320;
 const MAX_DEVICE_PIXEL_RATIO = 3;
@@ -51,6 +52,7 @@ export function Wheel({
   onSectorCross,
   onSpinStop,
 }: WheelProps) {
+  const m = useMessages();
   const [status, setStatus] = useState<WheelStatus>("idle");
   const [result, setResult] = useState<WheelCategory | null>(null);
 
@@ -216,11 +218,10 @@ export function Wheel({
         categories={categories}
       />
       <div className="game-main">
-        <p
-          className="wheel-turn"
-          data-player={playerColorIndex(currentPlayer)}
-        >{`¡Turno de ${players[currentPlayer].name}!`}</p>
-        <h2>Girá la ruleta</h2>
+        <p className="wheel-turn" data-player={playerColorIndex(currentPlayer)}>
+          {m.turnOf(players[currentPlayer].name)}
+        </p>
+        <h2>{m.spinHeading}</h2>
         <div className="wheel-stage">
           <canvas
             ref={canvasRef}
@@ -228,7 +229,7 @@ export function Wheel({
             height={CANVAS_SIZE}
             className="wheel-canvas"
             role="img"
-            aria-label="Ruleta de categorías"
+            aria-label={m.wheelName}
             aria-describedby="wheel-category-list"
           />
           {status !== "result" ? (
@@ -238,7 +239,7 @@ export function Wheel({
               disabled={status === "spinning"}
               onClick={handleSpin}
             >
-              Girar
+              {m.spin}
             </button>
           ) : null}
         </div>
@@ -246,7 +247,7 @@ export function Wheel({
           {`${categoryList}.`}
         </p>
         {status === "spinning" ? (
-          <p className="wheel-status">Girando...</p>
+          <p className="wheel-status">{m.spinning}</p>
         ) : null}
         {status === "result" && result !== null ? (
           <>
@@ -256,14 +257,14 @@ export function Wheel({
               data-category={result.name}
             >
               <span aria-hidden="true">{findCategoryEmoji(result.name)}</span>
-              <span>{`¡${result.label}!`}</span>
+              <span>{m.wheelResult(result.label)}</span>
             </p>
             <button
               type="button"
               className="wheel-continue button-primary touch-target"
               onClick={() => onChooseCategory(result.name)}
             >
-              Continuar
+              {m.continueAction}
             </button>
           </>
         ) : null}

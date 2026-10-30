@@ -3,6 +3,7 @@ import type { MatchProgress } from "../game/progress";
 import type { Player, PlayerIndex } from "../game/types";
 import { CategoryChips } from "./CategoryChips";
 import { PlayerCard } from "./PlayerCard";
+import { useMessages } from "../i18n";
 
 interface ScoreboardProps {
   players: readonly [Player, Player];
@@ -19,15 +20,16 @@ export function Scoreboard({
   categories,
   headingLevel = 2,
 }: ScoreboardProps) {
+  const m = useMessages();
   const Heading = headingLevel === 3 ? "h3" : "h2";
 
   return (
-    <section className="scoreboard scoreboard-rail" aria-label="Marcador">
-      <Heading>Marcador</Heading>
+    <section className="scoreboard scoreboard-rail" aria-label={m.scoreboard}>
+      <Heading>{m.scoreboard}</Heading>
       {progress.mode === "rounds" ? (
-        <p>{`Ronda ${progress.round} de ${progress.totalRounds}`}</p>
+        <p>{m.roundOf(progress.round, progress.totalRounds)}</p>
       ) : (
-        <p>Límite: 20 turnos por jugador</p>
+        <p>{m.turnLimit}</p>
       )}
       <ul className="scoreboard-list">
         {players.map((player, index) => {
@@ -40,12 +42,18 @@ export function Scoreboard({
               current={isCurrent}
             >
               {progress.mode === "rounds" ? (
-                <span className="scoreboard-stat scoreboard-rounds-total">{`${player.name}: ${player.score} puntos`}</span>
+                <span className="scoreboard-stat scoreboard-rounds-total">
+                  {m.points(player.name, player.score)}
+                </span>
               ) : (
                 <>
                   <span>{player.name}</span>
-                  <span className="scoreboard-stat">{`Categorías: ${progress.ownedCategories[index].length} de 6`}</span>
-                  <span className="scoreboard-stat">{`Turnos: ${progress.turnsPlayed[index]} de 20`}</span>
+                  <span className="scoreboard-stat">
+                    {m.categoriesCount(progress.ownedCategories[index].length)}
+                  </span>
+                  <span className="scoreboard-stat">
+                    {m.turnsCount(progress.turnsPlayed[index])}
+                  </span>
                   <CategoryChips
                     playerName={player.name}
                     categories={categories}
@@ -54,7 +62,7 @@ export function Scoreboard({
                 </>
               )}
               {isCurrent ? (
-                <span className="scoreboard-turn">Turno</span>
+                <span className="scoreboard-turn">{m.turn}</span>
               ) : null}
             </PlayerCard>
           );

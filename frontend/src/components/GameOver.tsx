@@ -11,6 +11,8 @@ import type {
 } from "../game/types";
 import { PlayerCard } from "./PlayerCard";
 import { Scoreboard } from "./Scoreboard";
+import { useMessages } from "../i18n";
+import type { Messages } from "../i18n";
 
 const CONFETTI_COUNT = 24;
 const CONFETTI_TOKENS = [
@@ -57,10 +59,14 @@ function Confetti() {
   );
 }
 
-function winnerHeading(result: GameResult, players: readonly [Player, Player]) {
+function winnerHeading(
+  result: GameResult,
+  players: readonly [Player, Player],
+  m: Messages,
+) {
   return result.kind === "winner"
-    ? `¡Ganó ${players[result.winnerIndex].name}!`
-    : "¡Empate!";
+    ? m.winner(players[result.winnerIndex].name)
+    : m.tie;
 }
 
 export function GameOver({
@@ -71,6 +77,7 @@ export function GameOver({
   turnsPlayed,
   onPlayAgain,
 }: GameOverProps) {
+  const m = useMessages();
   if (isSixCategoriesResult(result)) {
     const progress: MatchProgress = {
       mode: "six-categories",
@@ -82,12 +89,12 @@ export function GameOver({
         <span className="game-over-trophy" aria-hidden="true">
           🏆
         </span>
-        <h2>{winnerHeading(result, players)}</h2>
+        <h2>{winnerHeading(result, players, m)}</h2>
         <Confetti />
         <p>
           {result.reason === "six-categories"
-            ? "Juntó las 6 categorías."
-            : "Se alcanzó el límite de 20 turnos."}
+            ? m.collectedSix
+            : m.turnLimitReached}
         </p>
         <Scoreboard
           players={players}
@@ -95,13 +102,13 @@ export function GameOver({
           categories={categories}
           headingLevel={3}
         />
-        <p>Fin de la partida</p>
+        <p>{m.gameOver}</p>
         <button
           type="button"
           className="button-primary touch-target"
           onClick={onPlayAgain}
         >
-          Jugar de nuevo
+          {m.playAgain}
         </button>
       </section>
     );
@@ -112,10 +119,10 @@ export function GameOver({
       <span className="game-over-trophy" aria-hidden="true">
         🏆
       </span>
-      <h2>{winnerHeading(result, players)}</h2>
+      <h2>{winnerHeading(result, players, m)}</h2>
       <Confetti />
-      <section className="scoreboard" aria-label="Marcador">
-        <h3>Marcador</h3>
+      <section className="scoreboard" aria-label={m.scoreboard}>
+        <h3>{m.scoreboard}</h3>
         <ul className="scoreboard-list">
           {players.map((player, index) => (
             <PlayerCard
@@ -124,19 +131,19 @@ export function GameOver({
               playerIndex={index as PlayerIndex}
             >
               <span className="scoreboard-stat scoreboard-rounds-total">
-                {`${player.name}: ${player.score} puntos`}
+                {m.points(player.name, player.score)}
               </span>
             </PlayerCard>
           ))}
         </ul>
       </section>
-      <p>Fin de la partida</p>
+      <p>{m.gameOver}</p>
       <button
         type="button"
         className="button-primary touch-target"
         onClick={onPlayAgain}
       >
-        Jugar de nuevo
+        {m.playAgain}
       </button>
     </section>
   );
