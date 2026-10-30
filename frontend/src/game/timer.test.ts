@@ -6,6 +6,7 @@ import {
   isTimerUrgent,
   remainingSeconds,
   timerProgress,
+  urgentSecondToAnnounce,
 } from "./timer";
 
 const NOW = Date.UTC(2026, 9, 25, 12, 0, 0);
@@ -102,5 +103,26 @@ describe("timer rules", () => {
 
   it("exposes the sentinel answer as a constant", () => {
     expect(TIMEOUT_ANSWER).toBe("(sin respuesta)");
+  });
+});
+
+describe("urgentSecondToAnnounce", () => {
+  it("TMR-20 announces each of the last five seconds as the countdown reaches it", () => {
+    expect(urgentSecondToAnnounce(6, 5)).toBe(5);
+    expect(urgentSecondToAnnounce(5, 4)).toBe(4);
+    expect(urgentSecondToAnnounce(3, 2)).toBe(2);
+    expect(urgentSecondToAnnounce(2, 1)).toBe(1);
+  });
+
+  it("TMR-21 does not announce zero, an unchanged value or a second above five", () => {
+    expect(urgentSecondToAnnounce(1, 0)).toBeNull();
+    expect(urgentSecondToAnnounce(4, 4)).toBeNull();
+    expect(urgentSecondToAnnounce(8, 7)).toBeNull();
+    expect(urgentSecondToAnnounce(7, 6)).toBeNull();
+  });
+
+  it("TMR-22 announces the second reached when the countdown jumps", () => {
+    expect(urgentSecondToAnnounce(7, 4)).toBe(4);
+    expect(urgentSecondToAnnounce(10, 5)).toBe(5);
   });
 });

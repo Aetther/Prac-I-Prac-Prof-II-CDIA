@@ -16,6 +16,19 @@ export function isTimerUrgent(remainingMs: number): boolean {
   return remainingMs <= URGENT_MS;
 }
 
+/**
+ * The whole second to announce with a clock tick when the countdown moves from
+ * `previous` to `next`, or null. Only the last seconds before zero tick, once each.
+ */
+export function urgentSecondToAnnounce(
+  previous: number,
+  next: number,
+): number | null {
+  if (next === previous) return null;
+  if (next < 1 || next > TIMER_URGENT_SECONDS) return null;
+  return next;
+}
+
 export function remainingSeconds(remainingMs: number): number {
   return Math.ceil(Math.max(0, remainingMs) / MS_PER_SECOND);
 }

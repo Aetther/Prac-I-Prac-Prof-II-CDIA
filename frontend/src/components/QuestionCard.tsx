@@ -24,6 +24,7 @@ interface QuestionCardProps {
   categoryLabel: string | null;
   onAnswer: (answer: string) => void;
   onTimeout: () => void;
+  onUrgentSecond?: (seconds: number) => void;
 }
 
 export function QuestionCard({
@@ -39,6 +40,7 @@ export function QuestionCard({
   categoryLabel,
   onAnswer,
   onTimeout,
+  onUrgentSecond,
 }: QuestionCardProps) {
   const [locked, setLocked] = useState(false);
   const lockedRef = useRef(false);
@@ -81,7 +83,11 @@ export function QuestionCard({
           </p>
         ) : null}
         {timerActive ? (
-          <Timer seconds={seconds} onExpire={handleExpire} />
+          <Timer
+            seconds={seconds}
+            onExpire={handleExpire}
+            onUrgentSecond={locked ? undefined : onUrgentSecond}
+          />
         ) : null}
         {isUntranslated(lang, question.lang) ? (
           <p className="untranslated-badge">Sin traducir</p>

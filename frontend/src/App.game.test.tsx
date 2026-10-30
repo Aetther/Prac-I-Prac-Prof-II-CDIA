@@ -316,8 +316,10 @@ describe("App game flow with a mocked API", () => {
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
     expect(getQuestion).toHaveBeenCalledTimes(1);
     expect(getQuestion).toHaveBeenCalledWith("geografia", "es");
+    const soundControls = screen.getByRole("region", { name: "Sonido" });
     const options = screen
       .getAllByRole("button")
+      .filter((button) => !soundControls.contains(button))
       .map((button) => button.textContent);
     expect(options).toEqual(["Lima", "Quito", "Bogotá", "Buenos Aires"]);
   });

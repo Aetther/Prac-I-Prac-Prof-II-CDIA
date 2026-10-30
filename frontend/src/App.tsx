@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ApiError } from "./api/errors";
 import { getCategories, getGameQuestion, submitAnswer } from "./api/game";
 import { reportQuestion } from "./api/reports";
+import { useSound } from "./audio";
 import type { ReportReason } from "./api/types";
 import { Admin } from "./components/Admin";
 import { GameScreen } from "./components/GameScreen";
@@ -72,6 +73,7 @@ function isQuestion404(error: unknown): boolean {
 
 function App() {
   const [game, dispatch] = useReducer(gameReducer, INITIAL_GAME_STATE);
+  const sound = useSound();
   const [categories, setCategories] = useState<readonly WheelCategory[] | null>(
     null,
   );
@@ -223,6 +225,7 @@ function App() {
   }
 
   const handleStart = (input: LobbyInput) => {
+    sound.unlock();
     const config = createLobbyConfig(input);
     if (config === null) return;
     setUnavailableQuestionId(null);
@@ -401,6 +404,7 @@ function App() {
             path="/"
             element={
               <GameScreen
+                sound={sound}
                 game={game}
                 categories={categories}
                 loading={request.status === "loading"}

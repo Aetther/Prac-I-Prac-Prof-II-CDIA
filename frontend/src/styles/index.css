@@ -1238,6 +1238,52 @@ button.button-secondary:disabled {
   }
 }
 
+.audio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  max-width: var(--content-max);
+  margin: 0 auto var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.audio-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-sm);
+}
+
+.audio-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.audio-volume {
+  display: flex;
+  flex: 1 1 10rem;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-weight: var(--font-weight-label);
+}
+
+.audio-volume input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--color-action-shadow);
+}
+
+.audio-controls button.audio-toggle[aria-pressed="true"] {
+  border-color: var(--color-action-shadow);
+  background-color: var(--color-action);
+  color: var(--color-on-action);
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* The preference must win over every component animation and transition. */
   *,

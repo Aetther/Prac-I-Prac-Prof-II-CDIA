@@ -1,3 +1,5 @@
+import { useGameSounds } from "../audio";
+import type { SoundControls } from "../audio";
 import type { WheelCategory } from "../game/category";
 import type { LobbyInput } from "../game/lobby";
 import { getMatchProgress } from "../game/progress";
@@ -6,6 +8,7 @@ import type { ReportSubmissionResult } from "../game/reporting";
 import type { CategoryName, GameState } from "../game/types";
 import type { ReportReason } from "../api/types";
 import type { WheelTickHandler } from "../game/wheel";
+import { AudioControls } from "./AudioControls";
 import { ErrorScreen } from "./ErrorScreen";
 import { GameOver } from "./GameOver";
 import { Lobby } from "./Lobby";
@@ -34,9 +37,39 @@ interface GameScreenProps {
     reason: ReportReason,
     comment: string,
   ) => Promise<ReportSubmissionResult>;
+  onSpinStop?: () => void;
+  onUrgentSecond?: (seconds: number) => void;
 }
 
-export function GameScreen({
+interface GameScreenWithSoundProps extends GameScreenProps {
+  sound?: SoundControls;
+}
+
+function ignore(): void {
+  // Without a sound system the game view is silent.
+}
+
+const SILENT_SOUND = { play: ignore, startMusic: ignore, stopMusic: ignore };
+
+/** The game view: the sound controls on top of every phase, plus its sounds. */
+export function GameScreen({ sound, ...props }: GameScreenWithSoundProps) {
+  const sounds = sound ?? SILENT_SOUND;
+  const { play } = sounds;
+  useGameSounds(sounds, props.game);
+  return (
+    <>
+      {sound === undefined ? null : <AudioControls sound={sound} />}
+      <GamePhase
+        {...props}
+        onSectorCross={props.onSectorCross ?? sound?.tick}
+        onSpinStop={() => play("spinStop")}
+        onUrgentSecond={() => play("clockTick")}
+      />
+    </>
+  );
+}
+
+function GamePhase({
   game,
   categories,
   loading,
@@ -53,6 +86,8 @@ export function GameScreen({
   reportingQuestionId,
   unavailableQuestionId,
   onReport,
+  onSpinStop,
+  onUrgentSecond,
 }: GameScreenProps) {
   if (errorMessage !== null) {
     return (
@@ -86,6 +121,7 @@ export function GameScreen({
           progress={progress}
           onChooseCategory={onChooseCategory}
           onSectorCross={onSectorCross}
+          onSpinStop={onSpinStop}
         />
       );
     case "QuestionCard": {
@@ -112,6 +148,7 @@ export function GameScreen({
           categoryLabel={categoryLabel}
           onAnswer={onAnswer}
           onTimeout={onTimeout}
+          onUrgentSecond={onUrgentSecond}
         />
       );
     }

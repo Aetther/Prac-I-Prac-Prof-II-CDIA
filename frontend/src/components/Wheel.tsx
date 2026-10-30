@@ -39,6 +39,7 @@ interface WheelProps {
   progress: MatchProgress;
   onChooseCategory: (category: CategoryName) => void;
   onSectorCross?: WheelTickHandler;
+  onSpinStop?: () => void;
 }
 
 export function Wheel({
@@ -48,6 +49,7 @@ export function Wheel({
   progress,
   onChooseCategory,
   onSectorCross,
+  onSpinStop,
 }: WheelProps) {
   const [status, setStatus] = useState<WheelStatus>("idle");
   const [result, setResult] = useState<WheelCategory | null>(null);
@@ -194,6 +196,7 @@ export function Wheel({
         const sectorIndex = sectorIndexAtRotation(rotation);
         setResult(categoriesRef.current[sectorIndex] ?? null);
         setStatus("result");
+        onSpinStop?.();
         return;
       }
       frameRef.current = requestAnimationFrame(step);
