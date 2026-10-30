@@ -92,9 +92,11 @@ export function GameOver({
         <h2>{winnerHeading(result, players, m)}</h2>
         <Confetti />
         <p>
-          {result.reason === "six-categories"
-            ? m.collectedSix
-            : m.turnLimitReached}
+          {result.reason === "surrender" && result.surrenderedBy !== undefined
+            ? m.surrendered(players[result.surrenderedBy].name)
+            : result.reason === "six-categories"
+              ? m.collectedSix
+              : m.turnLimitReached}
         </p>
         <Scoreboard
           players={players}
@@ -121,6 +123,9 @@ export function GameOver({
       </span>
       <h2>{winnerHeading(result, players, m)}</h2>
       <Confetti />
+      {result.kind === "winner" && result.surrenderedBy !== undefined ? (
+        <p>{m.surrendered(players[result.surrenderedBy].name)}</p>
+      ) : null}
       <section className="scoreboard" aria-label={m.scoreboard}>
         <h3>{m.scoreboard}</h3>
         <ul className="scoreboard-list">

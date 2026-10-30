@@ -86,6 +86,8 @@ function App() {
   );
   const [request, setRequest] = useState<RequestState>({ status: "idle" });
   const inFlightRef = useRef(false);
+  // Bumped when a match is abandoned, so a request that settles later is ignored.
+  const requestEpochRef = useRef(0);
   const [reportingQuestionId, setReportingQuestionId] = useState<number | null>(
     null,
   );
@@ -108,9 +110,11 @@ function App() {
   }
 
   async function loadCategories(): Promise<void> {
+    const epoch = requestEpochRef.current;
     setRequest({ status: "loading" });
     try {
       const data = await getCategories();
+      if (requestEpochRef.current !== epoch) return;
       const wheelCategories = buildWheelCategories(data);
       if (wheelCategories === null) {
         setRequest({
@@ -123,6 +127,7 @@ function App() {
       setCategories(wheelCategories);
       setRequest({ status: "idle" });
     } catch (error) {
+      if (requestEpochRef.current !== epoch) return;
       let message: string;
       if (error instanceof ApiError) {
         message = getApiErrorMessage(error);
@@ -142,6 +147,7 @@ function App() {
   }
 
   async function beginQuestion(context: BeginQuestionContext): Promise<void> {
+    const epoch = requestEpochRef.current;
     setRequest({ status: "loading" });
     const outcome = await loadQuestionWithFallback(
       (category) =>
@@ -155,6 +161,7 @@ function App() {
       isQuestion404,
       { category: context.category, attempted404: context.attempted404 },
     );
+    if (requestEpochRef.current !== epoch) return;
 
     if (outcome.kind === "loaded") {
       dispatch({ type: "QUESTION_LOADED", question: outcome.question });
@@ -200,9 +207,11 @@ function App() {
     lang: Lang,
     timedOut: boolean,
   ): Promise<void> {
+    const epoch = requestEpochRef.current;
     setRequest({ status: "loading" });
     try {
       const result = await submitAnswer(questionId, answer, lang);
+      if (requestEpochRef.current !== epoch) return;
       dispatch({
         type: "ANSWER_RECEIVED",
         chosenAnswer: timedOut ? null : answer,
@@ -212,6 +221,7 @@ function App() {
       });
       setRequest({ status: "idle" });
     } catch (error) {
+      if (requestEpochRef.current !== epoch) return;
       let message: string;
       if (error instanceof ApiError) {
         message = getApiErrorMessage(error);
@@ -381,7 +391,16 @@ function App() {
     });
   };
 
+  const handleSurrender = () => {
+    requestEpochRef.current += 1;
+    setRequest({ status: "idle" });
+    setReportingQuestionId(null);
+    setUnavailableQuestionId(null);
+    dispatch({ type: "SURRENDER" });
+  };
+
   const handleBackToLobby = () => {
+    requestEpochRef.current += 1;
     dispatch({ type: "RESET_GAME" });
     setCategories(null);
     setRequest({ status: "idle" });
@@ -441,6 +460,7 @@ function App() {
                   reportingQuestionId={reportingQuestionId}
                   unavailableQuestionId={unavailableQuestionId}
                   onReport={handleReport}
+                  onSurrender={handleSurrender}
                 />
               </I18nProvider>
             }

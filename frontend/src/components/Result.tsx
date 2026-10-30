@@ -7,6 +7,7 @@ import type { LastAnswer, Player, PlayerIndex } from "../game/types";
 import { ReportForm } from "./ReportForm";
 import { ResultIcon } from "./ResultIcon";
 import { Scoreboard } from "./Scoreboard";
+import { SurrenderControl } from "./SurrenderControl";
 import { useMessages } from "../i18n";
 import type { Messages } from "../i18n";
 
@@ -25,6 +26,7 @@ interface ResultProps {
     comment: string,
   ) => Promise<ReportSubmissionResult>;
   onContinue: () => void;
+  onSurrender?: () => void;
 }
 
 function outcomeLabel(lastAnswer: LastAnswer, m: Messages): string {
@@ -49,6 +51,7 @@ export function Result({
   unavailable,
   onReport,
   onContinue,
+  onSurrender,
 }: ResultProps) {
   const m = useMessages();
   const descriptionId = useId();
@@ -174,6 +177,13 @@ export function Result({
         >
           {m.continueAction}
         </button>
+        {onSurrender === undefined ? null : (
+          <SurrenderControl
+            playerName={players[currentPlayer].name}
+            opponentName={players[currentPlayer === 0 ? 1 : 0].name}
+            onSurrender={onSurrender}
+          />
+        )}
       </div>
     </section>
   );

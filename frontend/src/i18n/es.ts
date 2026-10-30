@@ -74,6 +74,11 @@ export const es: Messages = {
   turnLimitReached: "Se alcanzó el límite de 20 turnos.",
   gameOver: "Fin de la partida",
   playAgain: "Jugar de nuevo",
+  surrender: "Rendirse",
+  surrenderQuestion: (name, opponent) =>
+    `¿Seguro que querés rendirte, ${name}? Gana ${opponent}.`,
+  surrenderConfirm: "Sí, me rindo",
+  surrendered: (name) => `${name} se rindió.`,
   backToLobby: "Volver al lobby",
   loadingCategories: "Cargando categorías...",
   loadingQuestion: "Cargando pregunta...",

@@ -74,6 +74,11 @@ export const en: Messages = {
   turnLimitReached: "The 20-turn limit was reached.",
   gameOver: "Game over",
   playAgain: "Play again",
+  surrender: "Surrender",
+  surrenderQuestion: (name, opponent) =>
+    `Are you sure you want to surrender, ${name}? ${opponent} wins.`,
+  surrenderConfirm: "Yes, I give up",
+  surrendered: (name) => `${name} surrendered.`,
   backToLobby: "Back to lobby",
   loadingCategories: "Loading categories...",
   loadingQuestion: "Loading question...",

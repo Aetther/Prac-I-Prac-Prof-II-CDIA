@@ -13,6 +13,7 @@ import {
 import type { WheelTickHandler } from "../game/wheel";
 import { playerColorIndex, playerInitial } from "./playerIdentity";
 import { Scoreboard } from "./Scoreboard";
+import { SurrenderControl } from "./SurrenderControl";
 import { readWheelPalette } from "./wheelPalette";
 import { useMessages } from "../i18n";
 
@@ -43,6 +44,7 @@ interface WheelProps {
   onChooseCategory: (category: CategoryName) => void;
   onSectorCross?: WheelTickHandler;
   onSpinStop?: () => void;
+  onSurrender?: () => void;
 }
 
 export function Wheel({
@@ -53,6 +55,7 @@ export function Wheel({
   onChooseCategory,
   onSectorCross,
   onSpinStop,
+  onSurrender,
 }: WheelProps) {
   const m = useMessages();
   const [status, setStatus] = useState<WheelStatus>("idle");
@@ -281,6 +284,13 @@ export function Wheel({
             </button>
           </>
         ) : null}
+        {onSurrender === undefined ? null : (
+          <SurrenderControl
+            playerName={players[currentPlayer].name}
+            opponentName={players[currentPlayer === 0 ? 1 : 0].name}
+            onSurrender={onSurrender}
+          />
+        )}
       </div>
     </section>
   );

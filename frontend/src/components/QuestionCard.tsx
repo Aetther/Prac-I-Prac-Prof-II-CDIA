@@ -9,6 +9,7 @@ import type { MatchProgress } from "../game/progress";
 import { isUntranslated } from "../game/question";
 import type { Lang, Player, PlayerIndex } from "../game/types";
 import { Scoreboard } from "./Scoreboard";
+import { SurrenderControl } from "./SurrenderControl";
 import { Timer } from "./Timer";
 import { useMessages } from "../i18n";
 
@@ -29,6 +30,7 @@ interface QuestionCardProps {
   onAnswer: (answer: string) => void;
   onTimeout: () => void;
   onUrgentSecond?: (seconds: number) => void;
+  onSurrender?: () => void;
 }
 
 export function QuestionCard({
@@ -45,6 +47,7 @@ export function QuestionCard({
   onAnswer,
   onTimeout,
   onUrgentSecond,
+  onSurrender,
 }: QuestionCardProps) {
   const m = useMessages();
   const [locked, setLocked] = useState(false);
@@ -124,6 +127,13 @@ export function QuestionCard({
           ))}
         </div>
         {loading ? <p role="status">{m.sendingAnswer}</p> : null}
+        {onSurrender === undefined ? null : (
+          <SurrenderControl
+            playerName={players[currentPlayer].name}
+            opponentName={players[currentPlayer === 0 ? 1 : 0].name}
+            onSurrender={onSurrender}
+          />
+        )}
       </div>
     </section>
   );

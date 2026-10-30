@@ -78,6 +78,11 @@ export interface Messages {
   readonly turnLimitReached: string;
   readonly gameOver: string;
   readonly playAgain: string;
+  // Surrender
+  readonly surrender: string;
+  surrenderQuestion(name: string, opponent: string): string;
+  readonly surrenderConfirm: string;
+  surrendered(name: string): string;
   // Errors and loading
   readonly backToLobby: string;
   readonly loadingCategories: string;

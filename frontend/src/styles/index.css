@@ -1915,6 +1915,46 @@ button.button-secondary:disabled {
     grid-area: button;
     justify-self: center;
   }
+
+  .switch-turn > .surrender {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Surrender: a quiet button in the error colour and an inline confirmation. */
+.surrender {
+  display: flex;
+  justify-content: center;
+}
+
+button.button-secondary.surrender-button {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.surrender-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  padding: var(--spacing-3);
+  border: 2px solid var(--color-error);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-muted);
+  color: var(--color-text);
+  text-align: center;
+}
+
+.surrender-confirm > p {
+  margin: 0;
+}
+
+.surrender-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-2);
 }
 
 /* Desktop: the Lobby uses the width in two columns. */

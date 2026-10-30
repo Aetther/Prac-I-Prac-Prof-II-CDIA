@@ -2,6 +2,7 @@ import type { GameQuestion } from "../api/types";
 import { applySixCategoriesAnswer } from "./sixCategories";
 import type {
   GameAction,
+  GamePhase,
   GameResult,
   GameState,
   LastAnswer,
@@ -60,6 +61,48 @@ export function computeGameResult(
     kind: "winner",
     winnerIndex: first.score > second.score ? 0 : 1,
     scores,
+  };
+}
+
+/** The phases in which the player on turn may surrender. */
+export const SURRENDER_PHASES: readonly GamePhase[] = [
+  "Wheel",
+  "QuestionCard",
+  "Result",
+  "SwitchTurn",
+];
+
+/** The player who surrenders: the one marked "Turno" on the current screen. */
+export function getSurrenderingPlayer(state: GameState): PlayerIndex {
+  return state.phase === "SwitchTurn"
+    ? getNextTurn(state).currentPlayer
+    : state.currentPlayer;
+}
+
+/** The other player wins, whatever the points or categories. */
+export function computeSurrenderResult(
+  state: GameState,
+  loser: PlayerIndex,
+): GameResult {
+  const winnerIndex: PlayerIndex = loser === 0 ? 1 : 0;
+  if (state.config !== null && state.config.mode === "six-categories") {
+    return {
+      mode: "six-categories",
+      kind: "winner",
+      winnerIndex,
+      categories: [
+        state.ownedCategories[0].length,
+        state.ownedCategories[1].length,
+      ],
+      reason: "surrender",
+      surrenderedBy: loser,
+    };
+  }
+  return {
+    kind: "winner",
+    winnerIndex,
+    scores: [state.players[0].score, state.players[1].score],
+    surrenderedBy: loser,
   };
 }
 
@@ -253,6 +296,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     case "RESET_GAME":
       return { ...INITIAL_GAME_STATE, matchId: state.matchId + 1 };
+    case "SURRENDER":
+      if (!SURRENDER_PHASES.includes(state.phase) || state.config === null) {
+        return state;
+      }
+      return {
+        ...state,
+        phase: "GameOver",
+        currentQuestion: null,
+        lastAnswer: null,
+        result: computeSurrenderResult(state, getSurrenderingPlayer(state)),
+      };
     default:
       return state;
   }

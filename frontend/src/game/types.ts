@@ -57,6 +57,8 @@ export type RoundsGameResult =
       readonly kind: "winner";
       readonly winnerIndex: PlayerIndex;
       readonly scores: readonly [number, number];
+      /** Set when the match ended because this player surrendered. */
+      readonly surrenderedBy?: PlayerIndex;
     }
   | {
       readonly kind: "tie";
@@ -69,7 +71,9 @@ export type SixCategoriesGameResult =
       readonly kind: "winner";
       readonly winnerIndex: PlayerIndex;
       readonly categories: readonly [number, number];
-      readonly reason: "six-categories" | "turn-limit";
+      readonly reason: "six-categories" | "turn-limit" | "surrender";
+      /** Set when the match ended because this player surrendered. */
+      readonly surrenderedBy?: PlayerIndex;
     }
   | {
       readonly mode: "six-categories";
@@ -111,6 +115,7 @@ export type GameAction =
   | { readonly type: "ADVANCE_TURN" }
   | { readonly type: "RESPIN_CATEGORY" }
   | { readonly type: "RESET_GAME" }
+  | { readonly type: "SURRENDER" }
   | {
       readonly type: "QUESTION_REPORTED";
       readonly questionId: number;

@@ -3,6 +3,7 @@ import type { MatchProgress } from "../game/progress";
 import type { Player, PlayerIndex } from "../game/types";
 import { playerColorIndex, playerInitial } from "./playerIdentity";
 import { Scoreboard } from "./Scoreboard";
+import { SurrenderControl } from "./SurrenderControl";
 import { useMessages } from "../i18n";
 
 interface SwitchTurnProps {
@@ -12,6 +13,7 @@ interface SwitchTurnProps {
   categories: readonly WheelCategory[];
   players: readonly [Player, Player];
   onContinue: () => void;
+  onSurrender?: () => void;
 }
 
 function PassDeviceIcon() {
@@ -65,6 +67,7 @@ export function SwitchTurn({
   categories,
   players,
   onContinue,
+  onSurrender,
 }: SwitchTurnProps) {
   const m = useMessages();
   return (
@@ -95,6 +98,13 @@ export function SwitchTurn({
           ) : undefined
         }
       />
+      {onSurrender === undefined ? null : (
+        <SurrenderControl
+          playerName={nextPlayerName}
+          opponentName={players[nextPlayerIndex === 0 ? 1 : 0].name}
+          onSurrender={onSurrender}
+        />
+      )}
       <button
         type="button"
         className="button-primary touch-target"

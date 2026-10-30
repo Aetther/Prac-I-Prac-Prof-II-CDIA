@@ -42,6 +42,7 @@ interface GameScreenProps {
   onUrgentSecond?: (seconds: number) => void;
   language?: Lang;
   onLanguageChange?: (language: Lang) => void;
+  onSurrender?: () => void;
 }
 
 interface GameScreenWithSoundProps extends GameScreenProps {
@@ -93,6 +94,7 @@ function GamePhase({
   onUrgentSecond,
   language,
   onLanguageChange,
+  onSurrender,
 }: GameScreenProps) {
   const m = useMessages();
   if (errorMessage !== null) {
@@ -134,6 +136,7 @@ function GamePhase({
           onChooseCategory={onChooseCategory}
           onSectorCross={onSectorCross}
           onSpinStop={onSpinStop}
+          onSurrender={onSurrender}
         />
       );
     case "QuestionCard": {
@@ -161,6 +164,7 @@ function GamePhase({
           onAnswer={onAnswer}
           onTimeout={onTimeout}
           onUrgentSecond={onUrgentSecond}
+          onSurrender={onSurrender}
         />
       );
     }
@@ -179,6 +183,7 @@ function GamePhase({
           categories={wheelCategories}
           players={game.players}
           onContinue={onTurnContinue}
+          onSurrender={onSurrender}
         />
       );
     }
@@ -213,6 +218,7 @@ function GamePhase({
           unavailable={unavailableQuestionId === question.id}
           onReport={onReport}
           onContinue={onAnswerContinue}
+          onSurrender={onSurrender}
         />
       );
     }
