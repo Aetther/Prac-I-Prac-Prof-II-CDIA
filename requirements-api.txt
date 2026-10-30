@@ -1,0 +1,9 @@
+# Dependencias para publicar SOLO la API (por ejemplo, en Render).
+# La API no usa los modelos de IA (torch, transformers, etc.): esos son para
+# categorizar y traducir, y se corren en local con Poetry.
+# Versiones iguales a las de poetry.lock.
+fastapi==0.143.0
+uvicorn==0.54.0
+sqlalchemy==2.1.4
+psycopg2-binary==2.9.13
+python-dotenv==1.2.4

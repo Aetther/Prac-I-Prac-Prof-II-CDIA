@@ -19,3 +19,6 @@ models/
 
 # Checkpoints de entrenamiento de SetFit
 checkpoints/
+
+# Volcados de la base (para cargarla en la nube)
+*.dump
