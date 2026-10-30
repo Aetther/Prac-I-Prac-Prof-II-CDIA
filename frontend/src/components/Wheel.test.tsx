@@ -209,7 +209,7 @@ describe("Wheel", () => {
     }
     expect(
       [...new Set(canvas.arcs.map((arc) => arc.r))].sort((a, b) => b - a),
-    ).toEqual([148, 142]);
+    ).toEqual([178, 172]);
     expect(
       screen.getByRole("img", { name: "Ruleta de categorías" }),
     ).toHaveAccessibleDescription(
@@ -308,10 +308,10 @@ describe("Wheel", () => {
     const outerRadius = Math.max(...radii);
     const sectorRadius = Math.max(...radii.filter((r) => r !== outerRadius));
 
-    expect(outerRadius).toBe(148);
-    expect(sectorRadius).toBe(142);
+    expect(outerRadius).toBe(178);
+    expect(sectorRadius).toBe(172);
     expect(outerRadius - sectorRadius).toBe(6);
-    expect(160 - outerRadius).toBe(12);
+    expect(190 - outerRadius).toBe(12);
     expect(canvas.fillsAtFill).toContain("sentinel-rim");
     expect(canvas.fillsAtFill.indexOf("sentinel-rim")).toBeLessThan(
       canvas.fillsAtFill.indexOf("sentinel-geografia"),
@@ -333,13 +333,13 @@ describe("Wheel", () => {
     const tipY = tip!.y;
     expect(base[0].x).toBe(-16);
     expect(base[1].x).toBe(16);
-    expect(baseY).toBe(-158);
-    expect(160 + baseY).toBe(2);
+    expect(baseY).toBe(-188);
+    expect(190 + baseY).toBe(2);
     expect(tipY - baseY).toBe(26);
-    expect(baseY).toBeLessThan(-148);
-    expect(tipY).toBeGreaterThan(-148);
-    expect(tipY).toBeGreaterThan(-142);
-    expect(tipY + 142).toBe(10);
+    expect(baseY).toBeLessThan(-178);
+    expect(tipY).toBeGreaterThan(-178);
+    expect(tipY).toBeGreaterThan(-172);
+    expect(tipY + 172).toBe(10);
     expect(
       canvas.fillsAtFill.filter((fill) => fill === "sentinel-pointer"),
     ).not.toHaveLength(0);
@@ -632,16 +632,16 @@ describe("Wheel", () => {
     expect(HTMLCanvasElement.prototype.getContext).toHaveBeenCalled();
   });
 
-  it("uses a 320 × dpr backing store and scales the context", async () => {
+  it("uses a 380 × dpr backing store and scales the context", async () => {
     const dprSpy = vi.spyOn(window, "devicePixelRatio", "get");
     const cases = [
-      { dpr: 1, expected: 320, transform: [1, 0, 0, 1, 0, 0] },
-      { dpr: 2, expected: 640, transform: [2, 0, 0, 2, 0, 0] },
-      { dpr: 4, expected: 960, transform: [3, 0, 0, 3, 0, 0] },
-      { dpr: 0, expected: 320, transform: [1, 0, 0, 1, 0, 0] },
+      { dpr: 1, expected: 380, transform: [1, 0, 0, 1, 0, 0] },
+      { dpr: 2, expected: 760, transform: [2, 0, 0, 2, 0, 0] },
+      { dpr: 4, expected: 1140, transform: [3, 0, 0, 3, 0, 0] },
+      { dpr: 0, expected: 380, transform: [1, 0, 0, 1, 0, 0] },
       {
         dpr: undefined,
-        expected: 320,
+        expected: 380,
         transform: [1, 0, 0, 1, 0, 0],
       },
     ];
@@ -657,15 +657,15 @@ describe("Wheel", () => {
       expect(canvasElement.width).toBe(expected);
       expect(canvasElement.height).toBe(expected);
       expect(canvas.transforms.at(-1)).toEqual(transform);
-      expect(canvas.clearRect).toHaveBeenLastCalledWith(0, 0, 320, 320);
-      expect(canvas.translate).toHaveBeenLastCalledWith(160, 160);
+      expect(canvas.clearRect).toHaveBeenLastCalledWith(0, 0, 380, 380);
+      expect(canvas.translate).toHaveBeenLastCalledWith(190, 190);
       const maxRadius = Math.max(...canvas.arcs.map((arc) => arc.r));
-      expect(maxRadius).toBe(148);
-      expect(160 - maxRadius).toBe(12);
+      expect(maxRadius).toBe(178);
+      expect(190 - maxRadius).toBe(12);
       const sectorRadius = Math.max(
         ...canvas.arcs.map((arc) => arc.r).filter((r) => r !== maxRadius),
       );
-      expect(sectorRadius).toBe(142);
+      expect(sectorRadius).toBe(172);
 
       startSpin();
       await drive([0]);

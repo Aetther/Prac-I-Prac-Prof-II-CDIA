@@ -16,45 +16,62 @@ body {
 }
 
 .app-shell {
+  --color-page-glow: transparent;
+  --color-page-sheen: transparent;
+  color-scheme: dark;
   min-height: 100dvh;
   padding-block: var(--spacing-4);
   padding-inline: var(--page-gutter);
-  background-image: linear-gradient(
-    160deg,
-    var(--color-page-start),
-    var(--color-page-end)
-  );
+  background-image:
+    radial-gradient(
+      ellipse 120% 70% at 50% -10%,
+      color-mix(in srgb, var(--color-page-glow) 38%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(
+      115deg,
+      transparent 35%,
+      var(--color-page-sheen) 50%,
+      transparent 65%
+    ),
+    linear-gradient(160deg, var(--color-page-start), var(--color-page-end));
   color: var(--color-on-page);
 }
 
 [data-category-surface="geografia"] {
-  --color-page-start: var(--color-category-geografia);
-  --color-page-end: var(--color-category-geografia-deep);
+  --color-page-start: var(--color-category-geografia-deep);
+  --color-page-glow: var(--color-category-geografia);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 [data-category-surface="historia"] {
-  --color-page-start: var(--color-category-historia);
-  --color-page-end: var(--color-category-historia-deep);
+  --color-page-start: var(--color-category-historia-deep);
+  --color-page-glow: var(--color-category-historia);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 [data-category-surface="ciencia"] {
-  --color-page-start: var(--color-category-ciencia);
-  --color-page-end: var(--color-category-ciencia-deep);
+  --color-page-start: var(--color-category-ciencia-deep);
+  --color-page-glow: var(--color-category-ciencia);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 [data-category-surface="arte"] {
-  --color-page-start: var(--color-category-arte);
-  --color-page-end: var(--color-category-arte-deep);
+  --color-page-start: var(--color-category-arte-deep);
+  --color-page-glow: var(--color-category-arte);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 [data-category-surface="entretenimiento"] {
-  --color-page-start: var(--color-category-entretenimiento);
-  --color-page-end: var(--color-category-entretenimiento-deep);
+  --color-page-start: var(--color-category-entretenimiento-deep);
+  --color-page-glow: var(--color-category-entretenimiento);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 [data-category-surface="deportes"] {
-  --color-page-start: var(--color-category-deportes);
-  --color-page-end: var(--color-category-deportes-deep);
+  --color-page-start: var(--color-category-deportes-deep);
+  --color-page-glow: var(--color-category-deportes);
+  --color-page-sheen: var(--color-sheen-soft);
 }
 
 [data-player-surface="1"] {
@@ -289,9 +306,9 @@ button.button-primary {
 }
 
 button.button-secondary {
-  border: 2px solid var(--color-action-shadow);
+  border: 2px solid var(--color-action);
   background-color: var(--color-surface);
-  color: var(--color-action-shadow);
+  color: var(--color-action);
   box-shadow: none;
 }
 
@@ -360,7 +377,16 @@ button.button-secondary:disabled {
 }
 
 .lobby-tagline {
-  color: var(--color-on-page);
+  color: var(--color-metal-light);
+  background-image: linear-gradient(
+    100deg,
+    var(--color-metal-light) 0%,
+    var(--color-metal-mid) 40%,
+    var(--color-metal-light) 52%,
+    var(--color-metal-mid) 100%
+  );
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-label);
   text-align: center;
@@ -370,19 +396,38 @@ button.button-secondary:disabled {
   width: 7rem;
   height: 7rem;
   flex: 0 0 auto;
+  border: 5px solid transparent;
   border-radius: var(--radius-pill);
-  background-image: conic-gradient(
-    from -30deg,
-    var(--color-category-geografia) 0 60deg,
-    var(--color-category-historia) 60deg 120deg,
-    var(--color-category-ciencia) 120deg 180deg,
-    var(--color-category-arte) 180deg 240deg,
-    var(--color-category-entretenimiento) 240deg 300deg,
-    var(--color-category-deportes) 300deg 360deg
-  );
-  box-shadow:
-    0 0 0 4px var(--color-on-page),
-    var(--shadow-chunky) var(--color-action-shadow);
+  background-image:
+    radial-gradient(
+      circle at 32% 26%,
+      var(--color-sheen-strong),
+      transparent 55%
+    ),
+    conic-gradient(
+      from -30deg,
+      var(--color-category-geografia) 0 60deg,
+      var(--color-category-historia) 60deg 120deg,
+      var(--color-category-ciencia) 120deg 180deg,
+      var(--color-category-arte) 180deg 240deg,
+      var(--color-category-entretenimiento) 240deg 300deg,
+      var(--color-category-deportes) 300deg 360deg
+    ),
+    conic-gradient(
+      from 20deg,
+      var(--color-metal-light),
+      var(--color-metal-mid),
+      var(--color-metal-dark),
+      var(--color-metal-mid),
+      var(--color-metal-light),
+      var(--color-metal-mid),
+      var(--color-metal-dark),
+      var(--color-metal-mid),
+      var(--color-metal-light)
+    );
+  background-origin: border-box;
+  background-clip: padding-box, padding-box, border-box;
+  box-shadow: var(--shadow-chunky) var(--color-control-shadow);
 }
 
 .lobby-fields {
@@ -601,9 +646,15 @@ button.button-secondary:disabled {
 }
 
 .wheel-turn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  overflow: hidden;
+  animation: turn-pop var(--duration-bounce) var(--easing-standard) both;
   align-self: center;
   max-width: 100%;
-  padding: var(--spacing-2) var(--spacing-6);
+  padding: var(--spacing-2) var(--spacing-6) var(--spacing-2) var(--spacing-2);
   border-radius: var(--radius-pill);
   background-color: var(--color-player-1);
   color: var(--color-on-player-1);
@@ -618,6 +669,48 @@ button.button-secondary:disabled {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-label);
   text-align: center;
+}
+
+/* A soft gloss on the top half of the turn bubble. */
+.wheel-turn::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 8%;
+  left: 8%;
+  height: 45%;
+  border-radius: var(--radius-pill);
+  background-image: linear-gradient(
+    to bottom,
+    var(--color-sheen-strong),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.wheel-turn-initial {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xl);
+}
+
+.wheel-turn-text {
+  position: relative;
+}
+
+.wheel-turn[data-player="1"] .wheel-turn-initial {
+  background-color: var(--color-on-player-1);
+  color: var(--color-player-1);
+}
+
+.wheel-turn[data-player="2"] .wheel-turn-initial {
+  background-color: var(--color-on-player-2);
+  color: var(--color-player-2);
 }
 
 .wheel-turn[data-player="1"] {
@@ -637,11 +730,52 @@ button.button-secondary:disabled {
   width: 100%;
 }
 
+.wheel-disc {
+  position: relative;
+  width: 380px;
+  max-width: 100%;
+}
+
 .wheel-canvas {
   display: block;
-  width: 320px;
+  width: 380px;
   max-width: 100%;
   height: auto;
+}
+
+/* Metallic rim and a fixed light sheen over the spinning canvas. The insets
+   match the canvas geometry: rim radius 178 of 190, sectors 172. */
+.wheel-disc::before,
+.wheel-disc::after {
+  content: "";
+  position: absolute;
+  inset: 3.16%;
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+}
+
+.wheel-disc::before {
+  background-image: conic-gradient(
+    from 20deg,
+    var(--color-metal-light),
+    var(--color-metal-mid),
+    var(--color-metal-dark),
+    var(--color-metal-mid),
+    var(--color-metal-light),
+    var(--color-metal-mid),
+    var(--color-metal-dark),
+    var(--color-metal-mid),
+    var(--color-metal-light)
+  );
+  mask-image: radial-gradient(closest-side, transparent 96.4%, black 96.6%);
+}
+
+.wheel-disc::after {
+  background-image: radial-gradient(
+    circle at 32% 26%,
+    var(--color-sheen-strong),
+    transparent 55%
+  );
 }
 
 .wheel-spin {
@@ -655,11 +789,24 @@ button.button-secondary:disabled {
   padding: 0;
   border: 2px solid var(--color-on-page);
   border-radius: var(--radius-pill);
+  background-color: var(--color-sign-start);
+  background-image: linear-gradient(
+    135deg,
+    var(--color-sign-start),
+    var(--color-sign-end)
+  );
+  color: var(--color-on-sign);
+  box-shadow: var(--shadow-chunky) var(--color-spin-shadow);
+  --button-shadow-color: var(--color-spin-shadow);
   font-size: var(--font-size-base);
   text-transform: uppercase;
+  z-index: 1;
 }
 
 .wheel-continue {
+  align-self: center;
+  min-width: 12rem;
+  padding-inline: var(--spacing-6);
   border: 2px solid var(--color-on-page);
 }
 
@@ -744,13 +891,11 @@ button.button-secondary:disabled {
 
 .scoreboard-card-1 {
   --scoreboard-player: var(--color-player-1);
-  --scoreboard-player-deep: var(--color-player-1-deep);
   --scoreboard-on-player: var(--color-on-player-1);
 }
 
 .scoreboard-card-2 {
   --scoreboard-player: var(--color-player-2);
-  --scoreboard-player-deep: var(--color-player-2-deep);
   --scoreboard-on-player: var(--color-on-player-2);
 }
 
@@ -758,7 +903,8 @@ button.button-secondary:disabled {
   border-color: var(--scoreboard-player);
   box-shadow:
     0 0 0 2px var(--color-surface),
-    0 0 16px var(--scoreboard-player);
+    0 0 10px 1px var(--scoreboard-player),
+    0 0 28px 6px color-mix(in srgb, var(--scoreboard-player) 45%, transparent);
 }
 
 .scoreboard-avatar {
@@ -775,7 +921,7 @@ button.button-secondary:disabled {
 
 .scoreboard-turn {
   font-weight: var(--font-weight-label);
-  color: var(--scoreboard-player-deep);
+  color: var(--scoreboard-player);
 }
 
 .scoreboard-stat {
@@ -1119,6 +1265,22 @@ button.button-secondary:disabled {
   margin: 0;
 }
 
+@keyframes turn-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
 @keyframes wheel-banner-bounce {
   0% {
     transform: translateY(0) scale(0.9);
@@ -1275,7 +1437,7 @@ button.button-secondary:disabled {
 .audio-volume input[type="range"] {
   flex: 1 1 auto;
   min-width: 0;
-  accent-color: var(--color-action-shadow);
+  accent-color: var(--color-action);
 }
 
 .audio-controls button.audio-toggle[aria-pressed="true"] {
@@ -1342,7 +1504,7 @@ button.button-secondary:disabled {
 }
 
 .choice.choice-checked {
-  border-color: var(--color-action-shadow);
+  border-color: var(--color-action);
   background-color: var(--color-surface);
   box-shadow: var(--shadow-chunky) var(--color-action-shadow);
   transform: translateY(-3px);
@@ -1416,7 +1578,7 @@ button.button-secondary:disabled {
 }
 
 .choice-group-rounds .choice.choice-checked {
-  border-color: var(--color-action-shadow);
+  border-color: var(--color-action);
   background-color: transparent;
   box-shadow: none;
   transform: translateY(-3px) scale(1.08);
@@ -1445,6 +1607,322 @@ button.button-secondary:disabled {
 
 .round-token[data-rounds="10"] {
   background-color: var(--color-category-deportes);
+}
+
+/* Quiz card: the question in a glowing capsule, the answers lettered A–D. */
+.quiz-question {
+  padding: 3px;
+  border-radius: var(--radius-card);
+  background-image: linear-gradient(
+    90deg,
+    var(--color-quiz-glow-start),
+    var(--color-quiz-glow-end)
+  );
+  box-shadow: 0 0 var(--spacing-4) calc(var(--spacing-1) * -1)
+    var(--color-quiz-glow-end);
+}
+
+.quiz-question-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-3) var(--spacing-3) var(--spacing-6);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.quiz-question-inner .question-text {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.quiz-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid var(--color-quiz-glow-end);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-heading);
+  color: var(--color-text);
+}
+
+.option-list.quiz-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-3);
+}
+
+@media (min-width: 48rem) {
+  .option-list.quiz-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.quiz-option[data-option="a"] {
+  --quiz-option-color: var(--color-option-a);
+}
+
+.quiz-option[data-option="b"] {
+  --quiz-option-color: var(--color-option-b);
+}
+
+.quiz-option[data-option="c"] {
+  --quiz-option-color: var(--color-option-c);
+}
+
+.quiz-option[data-option="d"] {
+  --quiz-option-color: var(--color-option-d);
+}
+
+.question-card .option-button.quiz-option {
+  justify-content: flex-start;
+  border: 3px solid var(--quiz-option-color);
+  border-radius: var(--radius-pill);
+}
+
+.quiz-letter {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--quiz-option-color);
+  color: var(--color-on-option);
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-heading);
+}
+
+.audio-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.audio-controls .audio-panel-toggle {
+  display: none;
+}
+
+/* Desktop: the Lobby uses the width in two columns. */
+@media (min-width: 64rem) {
+  .lobby {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    grid-template-areas:
+      "sign fields"
+      "tagline fields"
+      "wheel fields";
+    grid-template-rows: auto auto 1fr;
+    align-items: center;
+    column-gap: var(--spacing-6);
+    max-width: var(--admin-max);
+  }
+
+  .lobby > .lobby-sign {
+    grid-area: sign;
+    justify-self: center;
+    align-self: end;
+  }
+
+  .lobby > .lobby-tagline {
+    grid-area: tagline;
+  }
+
+  .lobby > .lobby-mini-wheel {
+    grid-area: wheel;
+    justify-self: center;
+    align-self: start;
+    width: 14rem;
+    height: 14rem;
+    border-width: 8px;
+  }
+
+  .lobby > .lobby-fields {
+    display: grid;
+    grid-area: fields;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--spacing-4);
+  }
+
+  .lobby-fields > .choice-group-mode,
+  .lobby-fields > .choice-group-rounds,
+  .lobby-fields > button {
+    grid-column: 1 / -1;
+  }
+
+  .audio-controls {
+    max-width: calc(var(--content-max) + var(--rail-width) + var(--spacing-6));
+  }
+}
+
+/* Large desktop: a wider play area and scoreboard. */
+@media (min-width: 80rem) {
+  .game-layout {
+    grid-template-columns: minmax(0, 56rem) 22rem;
+    max-width: calc(56rem + 22rem + var(--spacing-6));
+  }
+
+  .game-layout > .scoreboard-rail {
+    width: 22rem;
+  }
+
+  .audio-controls {
+    max-width: calc(56rem + 22rem + var(--spacing-6));
+  }
+
+  .lobby {
+    max-width: 80rem;
+  }
+}
+
+/* Phone portrait: the game screen fits without scrolling (about 412 × 730). */
+@media (max-width: 47.99rem) {
+  .app-shell {
+    padding-block: var(--spacing-2);
+  }
+
+  .audio-controls {
+    margin-bottom: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-2);
+  }
+
+  .audio-controls .audio-panel-toggle {
+    display: inline-flex;
+  }
+
+  .audio-panel {
+    flex-basis: 100%;
+  }
+
+  .audio-panel:not([data-open="true"]) {
+    display: none;
+  }
+
+  .lobby,
+  .question-card,
+  .result,
+  .switch-turn,
+  .game-over,
+  .error-screen,
+  .wheel {
+    gap: var(--spacing-3);
+    padding-block: var(--spacing-2);
+  }
+
+  .game-main {
+    gap: var(--spacing-3);
+  }
+
+  .game-layout > .game-main {
+    order: -1;
+  }
+
+  .scoreboard > h2,
+  .scoreboard > h3 {
+    display: none;
+  }
+
+  .scoreboard[data-mode="rounds"] .scoreboard-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scoreboard-card {
+    padding: var(--spacing-2);
+    font-size: var(--font-size-sm);
+  }
+
+  .question-text {
+    font-size: var(--font-size-xl);
+  }
+
+  .quiz-question-inner {
+    padding: var(--spacing-2) var(--spacing-2) var(--spacing-2) var(--spacing-4);
+  }
+
+  .quiz-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: var(--font-size-xl);
+  }
+
+  .question-card .option-button.quiz-option {
+    padding-block: var(--spacing-2);
+  }
+}
+
+/* Phone landscape: about 914 × 340, so the content and the scoreboard sit
+   side by side and the wheel follows the available height. */
+@media (orientation: landscape) and (max-height: 32rem) {
+  .app-shell {
+    padding-block: var(--spacing-2);
+  }
+
+  .audio-controls {
+    margin-bottom: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-2);
+  }
+
+  .lobby,
+  .question-card,
+  .result,
+  .switch-turn,
+  .game-over,
+  .error-screen,
+  .wheel {
+    gap: var(--spacing-2);
+    padding-block: var(--spacing-2);
+  }
+
+  .game-main {
+    gap: var(--spacing-2);
+  }
+
+  .game-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 15rem;
+    align-items: start;
+    gap: var(--spacing-4);
+  }
+
+  .game-layout > .game-main {
+    grid-column: 1;
+    grid-row: 1;
+    order: 0;
+  }
+
+  .game-layout > .scoreboard-rail {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .scoreboard > h2,
+  .scoreboard > h3 {
+    display: none;
+  }
+
+  .wheel-disc,
+  .wheel-canvas {
+    width: min(380px, calc(100dvh - 8rem));
+  }
+
+  .question-text {
+    font-size: var(--font-size-lg);
+  }
+}
+
+@media (forced-colors: active) {
+  .lobby-tagline {
+    -webkit-text-fill-color: CanvasText;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -11,14 +11,15 @@ import {
   sectorIndicesCrossed,
 } from "../game/wheel";
 import type { WheelTickHandler } from "../game/wheel";
-import { playerColorIndex } from "./playerIdentity";
+import { playerColorIndex, playerInitial } from "./playerIdentity";
 import { Scoreboard } from "./Scoreboard";
 import { readWheelPalette } from "./wheelPalette";
 import { useMessages } from "../i18n";
 
-const CANVAS_SIZE = 320;
+const CANVAS_SIZE = 380;
 const MAX_DEVICE_PIXEL_RATIO = 3;
-const LABEL_FONT_SIZE = 12;
+const LABEL_FONT_SIZE = 14;
+const LABEL_HALO_BLUR = 6;
 const LABEL_INSET = 12;
 const RIM_THICKNESS = 6;
 const POINTER_HEIGHT = 26;
@@ -104,6 +105,8 @@ export function Wheel({
         rotation + (index + 0.5) * WHEEL_SLICE_ANGLE - Math.PI / 2,
       );
       context.fillStyle = palette.label;
+      context.shadowColor = palette.deep[category.name];
+      context.shadowBlur = LABEL_HALO_BLUR;
       context.font = `${LABEL_FONT_SIZE}px ${fontFamilyRef.current}`;
       context.textAlign = "right";
       context.textBaseline = "middle";
@@ -219,19 +222,26 @@ export function Wheel({
       />
       <div className="game-main">
         <p className="wheel-turn" data-player={playerColorIndex(currentPlayer)}>
-          {m.turnOf(players[currentPlayer].name)}
+          <span className="wheel-turn-initial" aria-hidden="true">
+            {playerInitial(players[currentPlayer].name)}
+          </span>
+          <span className="wheel-turn-text">
+            {m.turnOf(players[currentPlayer].name)}
+          </span>
         </p>
         <h2>{m.spinHeading}</h2>
         <div className="wheel-stage">
-          <canvas
-            ref={canvasRef}
-            width={CANVAS_SIZE}
-            height={CANVAS_SIZE}
-            className="wheel-canvas"
-            role="img"
-            aria-label={m.wheelName}
-            aria-describedby="wheel-category-list"
-          />
+          <div className="wheel-disc">
+            <canvas
+              ref={canvasRef}
+              width={CANVAS_SIZE}
+              height={CANVAS_SIZE}
+              className="wheel-canvas"
+              role="img"
+              aria-label={m.wheelName}
+              aria-describedby="wheel-category-list"
+            />
+          </div>
           {status !== "result" ? (
             <button
               type="button"

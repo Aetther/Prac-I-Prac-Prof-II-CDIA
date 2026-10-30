@@ -78,6 +78,7 @@ export const es: Messages = {
   loadingCategories: "Cargando categorías...",
   loadingQuestion: "Cargando pregunta...",
   sound: "Sonido",
+  soundOptions: "Opciones de sonido",
   soundOn: "Activar sonido",
   soundOff: "Silenciar sonido",
   volume: "Volumen",

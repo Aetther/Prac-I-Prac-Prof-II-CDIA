@@ -95,71 +95,83 @@ const SHIPPED_SOURCES = walk(SRC).filter((file) => {
   return /\.(ts|tsx|css)$/.test(normalized);
 });
 
-describe("palette v2 contrast", () => {
-  it("CTR-01 tokens.css declares palette v2, the six category colours and their deep variants", () => {
-    const expected: ReadonlyArray<readonly [string, string]> = [
-      ["--color-page-start", "#1d4ed8"],
-      ["--color-page-end", "#1e3a8a"],
-      ["--color-on-page", "#ffffff"],
-      ["--color-surface", "#ffffff"],
-      ["--color-surface-muted", "#f1f5f9"],
-      ["--color-text", "#111827"],
-      ["--color-text-secondary", "#4b5563"],
-      ["--color-control-border", "#6b7280"],
-      ["--color-border", "#e5e7eb"],
-      ["--color-action", "#22c55e"],
-      ["--color-action-hover", "#16a34a"],
-      ["--color-on-action", "#052e16"],
-      ["--color-action-shadow", "#15803d"],
-      ["--color-control-shadow", "#cbd5e1"],
-      ["--color-focus-ring", "#0b1220"],
-      ["--color-focus-ring-halo", "#fde047"],
-      ["--color-disabled-surface", "#e5e7eb"],
-      ["--color-disabled-text", "#4b5563"],
-      ["--color-success", "#15803d"],
-      ["--color-error", "#b91c1c"],
-      ["--color-sign-start", "#fde047"],
-      ["--color-sign-end", "#fb923c"],
-      ["--color-on-sign", "#111827"],
-      ["--color-shine", "rgb(255 255 255 / 0.55)"],
-      ["--color-player-1", "#f97316"],
-      ["--color-on-player-1", "#111827"],
-      ["--color-player-1-deep", "#9a3412"],
-      ["--color-player-2", "#0ea5e9"],
-      ["--color-on-player-2", "#111827"],
-      ["--color-player-2-deep", "#075985"],
-      ["--color-on-category", "#ffffff"],
-      ["--color-timer-fill", "#1d4ed8"],
-      ["--color-category-geografia", "#1d4ed8"],
-      ["--color-category-historia", "#b45309"],
-      ["--color-category-ciencia", "#0f766e"],
-      ["--color-category-arte", "#7e22ce"],
-      ["--color-category-entretenimiento", "#be185d"],
-      ["--color-category-deportes", "#15803d"],
-      ["--color-category-geografia-deep", "#1e3a8a"],
-      ["--color-category-historia-deep", "#78350f"],
-      ["--color-category-ciencia-deep", "#134e4a"],
-      ["--color-category-arte-deep", "#581c87"],
-      ["--color-category-entretenimiento-deep", "#831843"],
-      ["--color-category-deportes-deep", "#14532d"],
-    ];
-    for (const [token, value] of expected) {
+const CATEGORIES = [
+  "geografia",
+  "historia",
+  "ciencia",
+  "arte",
+  "entretenimiento",
+  "deportes",
+] as const;
+
+function bestBand(surface: string): number {
+  return Math.max(
+    ratioOf("--color-focus-ring", surface),
+    ratioOf("--color-focus-ring-halo", surface),
+  );
+}
+
+describe("palette v3 (dark) contrast", () => {
+  it("The token file declares palette v2 and keeps the six category colours: palette v3 values", () => {
+    const expected: Record<string, string> = {
+      "--color-page-start": "#141c38",
+      "--color-page-end": "#0b1022",
+      "--color-on-page": "#e6e9f2",
+      "--color-surface": "#1b2442",
+      "--color-surface-muted": "#232e52",
+      "--color-text": "#e6e9f2",
+      "--color-text-secondary": "#aab2c8",
+      "--color-control-border": "#7782a3",
+      "--color-border": "#33406a",
+      "--color-action": "#3fae6a",
+      "--color-action-hover": "#369a5d",
+      "--color-on-action": "#06210f",
+      "--color-action-shadow": "#1f6e40",
+      "--color-control-shadow": "#0a0f1f",
+      "--color-focus-ring": "#e6e9f2",
+      "--color-focus-ring-halo": "#05070f",
+      "--color-disabled-surface": "#2b3557",
+      "--color-disabled-text": "#9aa3bb",
+      "--color-success": "#6fd39a",
+      "--color-error": "#f29b93",
+      "--color-sign-start": "#f0c95a",
+      "--color-sign-end": "#e89a62",
+      "--color-on-sign": "#141414",
+      "--color-shine": "rgb(255 255 255 / 0.55)",
+      "--color-on-category": "#ffffff",
+      "--color-category-geografia": "#3d5fae",
+      "--color-category-geografia-deep": "#24386b",
+      "--color-category-historia": "#9c5b28",
+      "--color-category-historia-deep": "#5c3415",
+      "--color-category-ciencia": "#2d7a72",
+      "--color-category-ciencia-deep": "#1b4945",
+      "--color-category-arte": "#7b4fae",
+      "--color-category-arte-deep": "#47306a",
+      "--color-category-entretenimiento": "#a3466f",
+      "--color-category-entretenimiento-deep": "#622a43",
+      "--color-category-deportes": "#3c7a49",
+      "--color-category-deportes-deep": "#24492c",
+      "--color-player-1": "#e3925a",
+      "--color-on-player-1": "#111827",
+      "--color-player-1-deep": "#8a4a22",
+      "--color-player-2": "#5aaedb",
+      "--color-on-player-2": "#111827",
+      "--color-player-2-deep": "#2a5f80",
+      "--color-quiz-glow-start": "#9277ee",
+      "--color-quiz-glow-end": "#55c7e0",
+      "--color-option-a": "#f0a868",
+      "--color-option-b": "#c9d66a",
+      "--color-option-c": "#5cc9a7",
+      "--color-option-d": "#b896e6",
+      "--color-on-option": "#111827",
+    };
+    for (const [token, value] of Object.entries(expected)) {
       expect(declaredTokens.get(token), token).toBe(value);
     }
-    for (const retired of [
-      "--color-background",
-      "--color-primary",
-      "--color-secondary",
-      "--color-on-primary",
-      "--color-on-secondary",
-      "--color-wheel-hub",
-    ]) {
-      expect(declaredTokens.has(retired), retired).toBe(false);
-    }
-    expect(declaredTokens.get("--color-category-geografia")).toBe("#1d4ed8");
+    expect(declaredTokens.has("--color-wheel-hub")).toBe(false);
   });
 
-  it("PAL-01 the retired palette tokens and hex values exist nowhere in shipped source", () => {
+  it("PAL-01 the retired palette v1 and v2 values exist nowhere in shipped source", () => {
     const retired = [
       "--color-background",
       "--color-primary",
@@ -172,6 +184,13 @@ describe("palette v2 contrast", () => {
       "#0e7490",
       "#f8fafc",
       "#f9fafb",
+      "#1d4ed8",
+      "#22c55e",
+      "#f97316",
+      "#0ea5e9",
+      "#fde047",
+      "#b45309",
+      "#be185d",
     ];
     const hits: string[] = [];
     for (const file of SHIPPED_SOURCES) {
@@ -183,212 +202,127 @@ describe("palette v2 contrast", () => {
       }
     }
     expect(hits, hits.join("\n")).toEqual([]);
-    expect(TOKENS_CSS).toContain("--color-category-geografia: #1d4ed8");
+    expect(TOKENS_CSS).toContain("--color-category-geografia: #3d5fae");
     expect(
       readFileSync(join(SRC, "components/CategoryChips.tsx"), "utf-8"),
     ).toContain("var(--color-category-geografia)");
   });
 
-  it("CTR-02 text clears 4.5 on the page gradient and on both card surfaces", () => {
-    expect(ratioOf("--color-on-page", "--color-page-start")).toBeCloseTo(
-      6.7,
-      2,
-    );
-    expect(ratioOf("--color-on-page", "--color-page-end")).toBeCloseTo(
-      10.36,
-      2,
-    );
-    expect(ratioOf("--color-text", "--color-surface")).toBeCloseTo(17.74, 2);
+  it("CTR-02 text clears 4.5 on the dark page and on both card surfaces", () => {
+    expect(ratioOf("--color-text", "--color-page-start")).toBeCloseTo(13.81, 2);
+    expect(ratioOf("--color-text", "--color-page-end")).toBeCloseTo(15.57, 2);
+    expect(ratioOf("--color-text", "--color-surface")).toBeCloseTo(12.56, 2);
     expect(ratioOf("--color-text", "--color-surface-muted")).toBeCloseTo(
-      16.19,
+      10.92,
       2,
     );
     expect(ratioOf("--color-text-secondary", "--color-surface")).toBeCloseTo(
-      7.56,
+      7.19,
       2,
     );
     expect(
       ratioOf("--color-text-secondary", "--color-surface-muted"),
-    ).toBeCloseTo(6.9, 2);
-    for (const [fg, bg] of [
-      ["--color-on-page", "--color-page-start"],
-      ["--color-on-page", "--color-page-end"],
-      ["--color-text", "--color-surface"],
-      ["--color-text", "--color-surface-muted"],
-      ["--color-text-secondary", "--color-surface"],
-      ["--color-text-secondary", "--color-surface-muted"],
-    ] as const) {
-      assertPair(fg, bg, 4.5);
-    }
-  });
-
-  it("CTR-03 the action text clears 4.5 on the action green and its hover, and white on the action fails at 2.28", () => {
-    expect(ratioOf("--color-on-action", "--color-action")).toBeCloseTo(6.54, 2);
-    expect(ratioOf("--color-on-action", "--color-action-hover")).toBeCloseTo(
-      4.52,
+    ).toBeCloseTo(6.26, 2);
+    expect(ratioOf("--color-on-page", "--color-page-start")).toBeCloseTo(
+      13.81,
       2,
     );
-    assertPair("--color-on-action", "--color-action", 4.5);
-    assertPair("--color-on-action", "--color-action-hover", 4.5);
-    expect(contrastRatio("#ffffff", "#22c55e")).toBeCloseTo(2.28, 2);
-    expect(() => assertPair("#ffffff", "--color-action", 4.5)).toThrow(/2\.28/);
   });
 
-  it("CTR-04 white on each of the six category colours clears 4.5", () => {
-    const categories: ReadonlyArray<readonly [string, number]> = [
-      ["--color-category-geografia", 6.7],
-      ["--color-category-historia", 5.02],
-      ["--color-category-ciencia", 5.47],
-      ["--color-category-arte", 6.98],
-      ["--color-category-entretenimiento", 6.04],
-      ["--color-category-deportes", 5.02],
-    ];
-    for (const [token, expected] of categories) {
-      expect(ratioOf("--color-on-category", token), token).toBeCloseTo(
-        expected,
-        2,
-      );
-      assertPair("--color-on-category", token, 4.5);
-    }
+  it("CTR-03 the action text clears 4.5 on the action green and its hover, and white on the action fails", () => {
+    expect(ratioOf("--color-on-action", "--color-action")).toBeCloseTo(6.07, 2);
+    expect(ratioOf("--color-on-action", "--color-action-hover")).toBeCloseTo(
+      4.82,
+      2,
+    );
+    expect(ratioOf("#ffffff", "--color-action")).toBeCloseTo(2.81, 2);
   });
 
-  it("CTR-05 white on each category deep variant clears 4.5", () => {
-    const deep: ReadonlyArray<readonly [string, number]> = [
-      ["--color-category-geografia-deep", 10.36],
-      ["--color-category-historia-deep", 9.07],
-      ["--color-category-ciencia-deep", 9.48],
-      ["--color-category-arte-deep", 10.88],
-      ["--color-category-entretenimiento-deep", 9.65],
-      ["--color-category-deportes-deep", 9.11],
-    ];
-    for (const [token, expected] of deep) {
-      expect(ratioOf("--color-on-category", token), token).toBeCloseTo(
-        expected,
-        2,
-      );
-      assertPair("--color-on-category", token, 4.5);
-    }
+  it("CTR-04 white on each of the six softer category colours clears 5", () => {
+    const expected = [6.09, 5.33, 5.07, 5.88, 5.73, 5.16];
+    CATEGORIES.forEach((name, index) => {
+      expect(
+        ratioOf("--color-on-category", `--color-category-${name}`),
+        name,
+      ).toBeCloseTo(expected[index], 2);
+    });
   });
 
-  it("CTR-06 player, sign, status, disabled and control-boundary pairs clear their bars", () => {
+  it("CTR-05 white on each category deep variant clears 10", () => {
+    const expected = [11.33, 10.73, 10.07, 11.06, 10.87, 10.17];
+    CATEGORIES.forEach((name, index) => {
+      expect(
+        ratioOf("--color-on-category", `--color-category-${name}-deep`),
+        name,
+      ).toBeCloseTo(expected[index], 2);
+    });
+  });
+
+  it("CTR-06 player, Turno, sign, status, disabled and control-boundary pairs clear their bars", () => {
     expect(ratioOf("--color-on-player-1", "--color-player-1")).toBeCloseTo(
-      6.33,
+      7.2,
       2,
     );
     expect(ratioOf("--color-on-player-2", "--color-player-2")).toBeCloseTo(
-      6.4,
+      7.19,
       2,
     );
-    expect(ratioOf("--color-on-page", "--color-player-1-deep")).toBeCloseTo(
-      7.31,
+    expect(ratioOf("--color-on-category", "--color-player-1-deep")).toBeCloseTo(
+      6.81,
       2,
     );
-    expect(ratioOf("--color-on-page", "--color-player-2-deep")).toBeCloseTo(
-      7.56,
+    expect(ratioOf("--color-on-category", "--color-player-2-deep")).toBeCloseTo(
+      6.89,
       2,
     );
-    expect(ratioOf("--color-player-1-deep", "--color-surface")).toBeCloseTo(
-      7.31,
-      2,
-    );
-    expect(ratioOf("--color-player-2-deep", "--color-surface")).toBeCloseTo(
-      7.56,
-      2,
-    );
+    expect(ratioOf("--color-player-1", "--color-surface")).toBeCloseTo(6.19, 2);
+    expect(ratioOf("--color-player-2", "--color-surface")).toBeCloseTo(6.18, 2);
     expect(ratioOf("--color-on-sign", "--color-sign-start")).toBeCloseTo(
-      13.46,
+      11.59,
       2,
     );
-    expect(ratioOf("--color-on-sign", "--color-sign-end")).toBeCloseTo(7.84, 2);
-    expect(ratioOf("--color-success", "--color-surface")).toBeCloseTo(5.02, 2);
+    expect(ratioOf("--color-on-sign", "--color-sign-end")).toBeCloseTo(8.1, 2);
+    expect(ratioOf("--color-success", "--color-surface")).toBeCloseTo(8.32, 2);
     expect(ratioOf("--color-success", "--color-surface-muted")).toBeCloseTo(
-      4.58,
+      7.23,
       2,
     );
-    expect(ratioOf("--color-error", "--color-surface")).toBeCloseTo(6.47, 2);
+    expect(ratioOf("--color-error", "--color-surface")).toBeCloseTo(7.18, 2);
     expect(ratioOf("--color-error", "--color-surface-muted")).toBeCloseTo(
-      5.91,
+      6.24,
       2,
     );
     expect(
       ratioOf("--color-disabled-text", "--color-disabled-surface"),
-    ).toBeCloseTo(6.1, 2);
-    expect(ratioOf("--color-control-border", "--color-surface")).toBeCloseTo(
-      4.83,
-      2,
-    );
-    expect(
-      ratioOf("--color-control-border", "--color-surface-muted"),
-    ).toBeCloseTo(4.41, 2);
-
-    for (const [fg, bg] of [
-      ["--color-on-player-1", "--color-player-1"],
-      ["--color-on-player-2", "--color-player-2"],
-      ["--color-on-page", "--color-player-1-deep"],
-      ["--color-on-page", "--color-player-2-deep"],
-      ["--color-player-1-deep", "--color-surface", 4.5],
-      ["--color-player-2-deep", "--color-surface", 4.5],
-      ["--color-on-sign", "--color-sign-start"],
-      ["--color-on-sign", "--color-sign-end"],
-      ["--color-success", "--color-surface"],
-      ["--color-success", "--color-surface-muted"],
-      ["--color-error", "--color-surface"],
-      ["--color-error", "--color-surface-muted"],
-      ["--color-disabled-text", "--color-disabled-surface"],
+    ).toBeCloseTo(4.76, 2);
+    for (const [surface, ratio] of [
+      ["--color-surface", 4.0],
+      ["--color-surface-muted", 3.48],
+      ["--color-page-start", 4.39],
+      ["--color-page-end", 4.95],
     ] as const) {
-      assertPair(fg, bg, 4.5);
+      expect(ratioOf("--color-control-border", surface), surface).toBeCloseTo(
+        ratio,
+        2,
+      );
     }
-    assertPair("--color-control-border", "--color-surface", 3);
-    assertPair("--color-control-border", "--color-surface-muted", 3);
-    // Button boundaries: the white edge on page/player surfaces and the
-    // control border on white/muted cards.
-    assertPair("--color-on-page", "--color-page-start", 3);
-    assertPair("--color-on-page", "--color-page-end", 3);
-    assertPair("--color-on-page", "--color-player-1-deep", 3);
-    assertPair("--color-on-page", "--color-player-2-deep", 3);
-    expect(() =>
-      assertPair("--color-control-border", "--color-surface-muted", 4.5),
-    ).toThrow(/4\.41/);
   });
 
-  it("CTR-07 the two ring bands are 14.20 apart and the dark band is only rescued by the halo on the player surfaces", () => {
-    expect(
-      ratioOf("--color-focus-ring-halo", "--color-page-start"),
-    ).toBeCloseTo(5.08, 2);
-    expect(ratioOf("--color-focus-ring-halo", "--color-page-end")).toBeCloseTo(
-      7.86,
-      2,
-    );
-    expect(
-      ratioOf("--color-focus-ring-halo", "--color-player-1-deep"),
-    ).toBeCloseTo(5.54, 2);
-    expect(
-      ratioOf("--color-focus-ring-halo", "--color-player-2-deep"),
-    ).toBeCloseTo(5.74, 2);
-    expect(ratioOf("--color-focus-ring", "--color-surface")).toBeCloseTo(
-      18.72,
-      2,
-    );
-    expect(ratioOf("--color-focus-ring", "--color-action")).toBeCloseTo(
-      8.22,
-      2,
-    );
+  it("CTR-07 the two ring bands are 16.58 apart and the dark band rescues the action green", () => {
     expect(
       ratioOf("--color-focus-ring", "--color-focus-ring-halo"),
-    ).toBeCloseTo(14.2, 2);
-    expect(ratioOf("--color-focus-ring", "--color-player-1-deep")).toBeCloseTo(
-      2.56,
+    ).toBeCloseTo(16.58, 2);
+    expect(ratioOf("--color-focus-ring", "--color-action")).toBeLessThan(3);
+    expect(ratioOf("--color-focus-ring-halo", "--color-action")).toBeCloseTo(
+      7.16,
       2,
     );
-    expect(ratioOf("--color-focus-ring", "--color-player-2-deep")).toBeCloseTo(
-      2.48,
+    expect(
+      ratioOf("--color-focus-ring-halo", "--color-page-start"),
+    ).toBeLessThan(3);
+    expect(ratioOf("--color-focus-ring", "--color-page-start")).toBeCloseTo(
+      13.81,
       2,
-    );
-    expect(ratioOf("--color-focus-ring", "--color-player-1-deep")).toBeLessThan(
-      3,
-    );
-    expect(ratioOf("--color-focus-ring", "--color-player-2-deep")).toBeLessThan(
-      3,
     );
   });
 
@@ -401,24 +335,13 @@ describe("palette v2 contrast", () => {
       "--color-action",
       "--color-player-1-deep",
       "--color-player-2-deep",
-      "--color-category-geografia",
-      "--color-category-historia",
-      "--color-category-ciencia",
-      "--color-category-arte",
-      "--color-category-entretenimiento",
-      "--color-category-deportes",
-    ] as const;
+      ...CATEGORIES.map((name) => `--color-category-${name}`),
+      ...CATEGORIES.map((name) => `--color-category-${name}-deep`),
+    ];
     for (const surface of surfaces) {
-      const halo = ratioOf("--color-focus-ring-halo", surface);
-      const dark = ratioOf("--color-focus-ring", surface);
-      expect(Math.max(halo, dark), surface).toBeGreaterThanOrEqual(3);
+      expect(bestBand(surface), surface).toBeGreaterThanOrEqual(3);
     }
-    expect(ratioOf("--color-focus-ring", "--color-player-1-deep")).toBeLessThan(
-      3,
-    );
-    expect(
-      ratioOf("--color-focus-ring-halo", "--color-player-1-deep"),
-    ).toBeGreaterThanOrEqual(3);
+    expect(bestBand("--color-category-ciencia")).toBeCloseTo(4.18, 2);
   });
 
   it("CTR-09 the full sweep names the token pair and the ratio when it fails", () => {
@@ -431,24 +354,24 @@ describe("palette v2 contrast", () => {
       ["--color-text-secondary", "--color-surface-muted", 4.5],
       ["--color-on-action", "--color-action", 4.5],
       ["--color-on-action", "--color-action-hover", 4.5],
-      ["--color-on-category", "--color-category-geografia", 4.5],
-      ["--color-on-category", "--color-category-historia", 4.5],
-      ["--color-on-category", "--color-category-ciencia", 4.5],
-      ["--color-on-category", "--color-category-arte", 4.5],
-      ["--color-on-category", "--color-category-entretenimiento", 4.5],
-      ["--color-on-category", "--color-category-deportes", 4.5],
-      ["--color-on-category", "--color-category-geografia-deep", 4.5],
-      ["--color-on-category", "--color-category-historia-deep", 4.5],
-      ["--color-on-category", "--color-category-ciencia-deep", 4.5],
-      ["--color-on-category", "--color-category-arte-deep", 4.5],
-      ["--color-on-category", "--color-category-entretenimiento-deep", 4.5],
-      ["--color-on-category", "--color-category-deportes-deep", 4.5],
+      ...CATEGORIES.map(
+        (name) =>
+          ["--color-on-category", `--color-category-${name}`, 4.5] as const,
+      ),
+      ...CATEGORIES.map(
+        (name) =>
+          [
+            "--color-on-category",
+            `--color-category-${name}-deep`,
+            4.5,
+          ] as const,
+      ),
       ["--color-on-player-1", "--color-player-1", 4.5],
       ["--color-on-player-2", "--color-player-2", 4.5],
-      ["--color-on-page", "--color-player-1-deep", 4.5],
-      ["--color-on-page", "--color-player-2-deep", 4.5],
-      ["--color-player-1-deep", "--color-surface", 4.5],
-      ["--color-player-2-deep", "--color-surface", 4.5],
+      ["--color-on-category", "--color-player-1-deep", 4.5],
+      ["--color-on-category", "--color-player-2-deep", 4.5],
+      ["--color-player-1", "--color-surface", 4.5],
+      ["--color-player-2", "--color-surface", 4.5],
       ["--color-on-sign", "--color-sign-start", 4.5],
       ["--color-on-sign", "--color-sign-end", 4.5],
       ["--color-success", "--color-surface", 4.5],
@@ -456,29 +379,77 @@ describe("palette v2 contrast", () => {
       ["--color-error", "--color-surface", 4.5],
       ["--color-error", "--color-surface-muted", 4.5],
       ["--color-disabled-text", "--color-disabled-surface", 4.5],
+      ["--color-action", "--color-surface", 4.5],
+      ["--color-action", "--color-surface-muted", 4.5],
       ["--color-control-border", "--color-surface", 3],
       ["--color-control-border", "--color-surface-muted", 3],
       ["--color-focus-ring", "--color-surface", 3],
-      ["--color-focus-ring-halo", "--color-page-start", 3],
+      ["--color-focus-ring", "--color-page-start", 3],
+      ["--color-timer-urgent", "--color-timer-track", 3],
     ];
     for (const [fg, bg, bar] of pairs) assertPair(fg, bg, bar);
     expect(() =>
       assertPair(
-        "--color-on-action",
-        "--color-action",
+        "--color-text",
+        "--color-surface",
         4.5,
-        new Map(declaredTokens).set("--color-on-action", "#ffffff"),
+        new Map(declaredTokens).set("--color-text", "#111827"),
       ),
-    ).toThrow(/--color-on-action .* --color-action .*2\.28/);
+    ).toThrow(/--color-text on --color-surface is 1\.16:1/);
   });
 
-  it("CTR-10 the Reportar secondary text and border use the deep action colour on white", () => {
-    assertPair("--color-action-shadow", "--color-surface", 4.5);
-    assertPair("--color-action-shadow", "--color-surface-muted", 4.5);
-    expect(ratioOf("--color-action-shadow", "--color-surface")).toBeCloseTo(
-      5.02,
+  it("CTR-10 the Reportar secondary text and border use the action green on the dark card", () => {
+    expect(ratioOf("--color-action", "--color-surface")).toBeCloseTo(5.43, 2);
+    expect(ratioOf("--color-action", "--color-surface-muted")).toBeCloseTo(
+      4.72,
       2,
     );
-    expect(ratioOf("--color-action", "--color-surface")).toBeLessThan(3);
+    expect(ratioOf("--color-action-shadow", "--color-surface")).toBeLessThan(3);
+  });
+
+  it("CTR-11 the quiz letters and outlines clear their bars on the dark card", () => {
+    const letters = ["a", "b", "c", "d"] as const;
+    const onOption = [8.87, 11.24, 8.76, 7.22];
+    const outline = [7.63, 9.66, 7.53, 6.2];
+    letters.forEach((letter, index) => {
+      expect(
+        ratioOf("--color-on-option", `--color-option-${letter}`),
+        letter,
+      ).toBeCloseTo(onOption[index], 2);
+      expect(
+        ratioOf(`--color-option-${letter}`, "--color-surface"),
+        letter,
+      ).toBeCloseTo(outline[index], 2);
+    });
+    expect(ratioOf("--color-quiz-glow-start", "--color-page-end")).toBeCloseTo(
+      5.48,
+      2,
+    );
+    expect(ratioOf("--color-quiz-glow-end", "--color-page-end")).toBeCloseTo(
+      9.57,
+      2,
+    );
+  });
+
+  it("ADJ-06 the metallic tagline and the gold GIRAR keep their text readable", () => {
+    for (const stop of ["--color-metal-light", "--color-metal-mid"]) {
+      for (const surface of [
+        "--color-page-start",
+        "--color-page-end",
+        "--color-surface",
+        "--color-surface-muted",
+      ]) {
+        assertPair(stop, surface, 4.5);
+      }
+    }
+    expect(ratioOf("--color-metal-mid", "--color-surface-muted")).toBeCloseTo(
+      8.06,
+      2,
+    );
+    expect(ratioOf("--color-on-sign", "--color-sign-start")).toBeCloseTo(
+      11.59,
+      2,
+    );
+    expect(ratioOf("--color-on-sign", "--color-sign-end")).toBeCloseTo(8.1, 2);
   });
 });

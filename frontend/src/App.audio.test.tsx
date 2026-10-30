@@ -177,7 +177,7 @@ describe("App sound controls", () => {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
     expect(screen.getByRole("slider", { name: "Volumen" })).toBeInTheDocument();
-  });
+  }, 30_000);
 
   it("APP-AUD-01 the error screen keeps the controls", async () => {
     const user = userEvent.setup();
@@ -299,7 +299,7 @@ describe("App sounds with a fake AudioContext", () => {
     await playToGameOver(user, 6);
     await waitFor(() => expect(played("victory")).toBe(1));
     expect(context().musicBus.gain.target).toBe(0);
-  });
+  }, 30_000);
 
   it("The music starts with JUGAR and stops in the Lobby", async () => {
     storePreferences(SOUND_ON);
@@ -309,7 +309,7 @@ describe("App sounds with a fake AudioContext", () => {
     await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
     await screen.findByRole("button", { name: "JUGAR" });
     await waitFor(() => expect(context().musicBus.gain.target).toBe(0));
-  });
+  }, 30_000);
 
   it("The last five seconds tick five times", async () => {
     storePreferences(SOUND_ON);

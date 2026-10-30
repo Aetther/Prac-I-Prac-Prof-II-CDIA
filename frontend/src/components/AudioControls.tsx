@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { SoundControls } from "../audio";
 import { useMessages } from "../i18n";
 
@@ -42,50 +42,64 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
 
 export function AudioControls({ sound }: AudioControlsProps) {
   const volumeId = useId();
+  const panelId = useId();
   const m = useMessages();
+  const [open, setOpen] = useState(false);
   const { preferences } = sound;
 
   return (
     <section aria-label={m.sound} className="audio-controls">
       <button
         type="button"
-        className="touch-target button-secondary audio-mute"
-        onClick={() => sound.setMuted(!preferences.muted)}
+        className="touch-target button-secondary audio-panel-toggle"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
       >
         <SpeakerIcon muted={preferences.muted} />
-        <span>{preferences.muted ? m.soundOn : m.soundOff}</span>
+        <span>{m.soundOptions}</span>
       </button>
-      <div className="audio-volume">
-        <label htmlFor={volumeId}>{m.volume}</label>
-        <input
-          id={volumeId}
-          type="range"
-          className="touch-target"
-          min={0}
-          max={100}
-          step={5}
-          value={preferences.volume}
-          onChange={(event) =>
-            sound.setVolume(Number(event.currentTarget.value))
-          }
-        />
+      <div id={panelId} className="audio-panel" data-open={open}>
+        <button
+          type="button"
+          className="touch-target button-secondary audio-mute"
+          onClick={() => sound.setMuted(!preferences.muted)}
+        >
+          <SpeakerIcon muted={preferences.muted} />
+          <span>{preferences.muted ? m.soundOn : m.soundOff}</span>
+        </button>
+        <div className="audio-volume">
+          <label htmlFor={volumeId}>{m.volume}</label>
+          <input
+            id={volumeId}
+            type="range"
+            className="touch-target"
+            min={0}
+            max={100}
+            step={5}
+            value={preferences.volume}
+            onChange={(event) =>
+              sound.setVolume(Number(event.currentTarget.value))
+            }
+          />
+        </div>
+        <button
+          type="button"
+          className="touch-target button-secondary audio-toggle"
+          aria-pressed={preferences.effects}
+          onClick={() => sound.setEffects(!preferences.effects)}
+        >
+          {m.effects}
+        </button>
+        <button
+          type="button"
+          className="touch-target button-secondary audio-toggle"
+          aria-pressed={preferences.music}
+          onClick={() => sound.setMusic(!preferences.music)}
+        >
+          {m.music}
+        </button>
       </div>
-      <button
-        type="button"
-        className="touch-target button-secondary audio-toggle"
-        aria-pressed={preferences.effects}
-        onClick={() => sound.setEffects(!preferences.effects)}
-      >
-        {m.effects}
-      </button>
-      <button
-        type="button"
-        className="touch-target button-secondary audio-toggle"
-        aria-pressed={preferences.music}
-        onClick={() => sound.setMusic(!preferences.music)}
-      >
-        {m.music}
-      </button>
     </section>
   );
 }

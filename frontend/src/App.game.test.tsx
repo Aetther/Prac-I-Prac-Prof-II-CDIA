@@ -321,7 +321,7 @@ describe("App game flow with a mocked API", () => {
     const options = screen
       .getAllByRole("button")
       .filter((button) => !soundControls.contains(button))
-      .map((button) => button.textContent);
+      .map((button) => button.querySelector(".option-text")?.textContent);
     expect(options).toEqual(["Lima", "Quito", "Bogotá", "Buenos Aires"]);
   });
 

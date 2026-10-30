@@ -99,4 +99,24 @@ describe("AudioControls", () => {
       expect(control).toHaveClass("touch-target");
     }
   });
+
+  it("AUD-UI-06 the phone toggle opens and closes the panel it controls", async () => {
+    const user = userEvent.setup();
+    renderControls();
+    const toggle = screen.getByRole("button", { name: "Opciones de sonido" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const panel = document.getElementById(
+      toggle.getAttribute("aria-controls")!,
+    );
+    expect(panel).toHaveClass("audio-panel");
+    expect(panel).toHaveAttribute("data-open", "false");
+    expect(panel).toContainElement(
+      screen.getByRole("button", { name: "Activar sonido" }),
+    );
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(panel).toHaveAttribute("data-open", "true");
+    await user.click(toggle);
+    expect(panel).toHaveAttribute("data-open", "false");
+  });
 });

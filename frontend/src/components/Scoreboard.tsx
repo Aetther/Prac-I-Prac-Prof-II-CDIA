@@ -24,7 +24,11 @@ export function Scoreboard({
   const Heading = headingLevel === 3 ? "h3" : "h2";
 
   return (
-    <section className="scoreboard scoreboard-rail" aria-label={m.scoreboard}>
+    <section
+      className="scoreboard scoreboard-rail"
+      aria-label={m.scoreboard}
+      data-mode={progress.mode}
+    >
       <Heading>{m.scoreboard}</Heading>
       {progress.mode === "rounds" ? (
         <p>{m.roundOf(progress.round, progress.totalRounds)}</p>

@@ -432,7 +432,7 @@ describe("style guards", () => {
     ).toContain("overflow-wrap: anywhere");
   });
 
-  it("GUARD-13 the wheel is not padded like a card and the canvas keeps its 320 px rule", () => {
+  it("GUARD-13 the wheel is not padded like a card and the canvas keeps its 380 px rule", () => {
     const rules = cssRules(INDEX_CSS);
     const wheelRules = rules.filter((rule) =>
       selectorsOf(rule).includes(".wheel"),
@@ -450,7 +450,7 @@ describe("style guards", () => {
     );
     const canvas = ruleBody(INDEX_CSS, ".wheel-canvas");
     expect(canvas).not.toBeNull();
-    expect(canvas!).toContain("width: 320px");
+    expect(canvas!).toContain("width: 380px");
     expect(canvas!).toContain("max-width: 100%");
     expect(canvas!).toContain("height: auto");
     expect(
@@ -531,14 +531,21 @@ describe("style guards", () => {
     );
   });
 
-  it("SURF-01 index.css paints one shell gradient, declares the six category and two player remaps, and never paints body or html", () => {
+  it("SURF-01 index.css paints one shell background (glow, sheen and page gradient), declares the six category and two player remaps, and never paints body or html", () => {
     const shell = ruleBody(INDEX_CSS, ".app-shell");
     expect(shell).not.toBeNull();
+    expect(shell!.match(/background-image:/g)).toHaveLength(1);
     expect(
       shell!.match(
-        /background-image: linear-gradient\(\s*160deg,\s*var\(--color-page-start\),\s*var\(--color-page-end\)\s*\)/g,
+        /linear-gradient\(\s*160deg,\s*var\(--color-page-start\),\s*var\(--color-page-end\)\s*\)/g,
       ),
     ).toHaveLength(1);
+    expect(shell!).toMatch(
+      /radial-gradient\([^;]*color-mix\(in srgb, var\(--color-page-glow\) 38%, transparent\)/,
+    );
+    expect(shell!).toContain("var(--color-page-sheen) 50%");
+    expect(shell!).toContain("--color-page-glow: transparent");
+    expect(shell!).toContain("--color-page-sheen: transparent");
     expect(shell!).toContain("min-height: 100dvh");
     expect(shell!).toContain("color: var(--color-on-page)");
     const body = ruleBody(INDEX_CSS, "body");
@@ -558,11 +565,13 @@ describe("style guards", () => {
       const rule = ruleBody(INDEX_CSS, `[data-category-surface="${name}"]`);
       expect(rule, name).not.toBeNull();
       expect(rule!).toContain(
-        `--color-page-start: var(--color-category-${name})`,
+        `--color-page-start: var(--color-category-${name}-deep)`,
       );
       expect(rule!).toContain(
-        `--color-page-end: var(--color-category-${name}-deep)`,
+        `--color-page-glow: var(--color-category-${name})`,
       );
+      expect(rule!).toContain("--color-page-sheen: var(--color-sheen-soft)");
+      expect(rule!).not.toContain("--color-page-end");
     }
     expect(new Set(categories).size).toBe(6);
     for (const [surface, token] of [
@@ -770,18 +779,19 @@ describe("style guards", () => {
     }
   });
 
-  it("GUARD-14 the Turno marker uses the deep player colour on the white card", () => {
+  it("GUARD-14 the Turno marker uses the player colour on the dark card", () => {
     const turn = ruleBody(INDEX_CSS, ".scoreboard-turn");
     expect(turn).not.toBeNull();
-    expect(turn!).toContain("color: var(--scoreboard-player-deep)");
-    expect(turn!).not.toContain("color: var(--scoreboard-player)");
+    expect(turn!).toContain("color: var(--scoreboard-player)");
+    expect(turn!).not.toContain("player-deep");
     for (const [number, token] of [
-      ["1", "--color-player-1-deep"],
-      ["2", "--color-player-2-deep"],
+      ["1", "--color-player-1"],
+      ["2", "--color-player-2"],
     ] as const) {
       const card = ruleBody(INDEX_CSS, `.scoreboard-card-${number}`);
       expect(card, number).not.toBeNull();
-      expect(card!).toContain(`--scoreboard-player-deep: var(${token})`);
+      expect(card!).toContain(`--scoreboard-player: var(${token})`);
+      expect(card!).not.toContain("--scoreboard-player-deep");
     }
   });
 
@@ -850,18 +860,18 @@ describe("style guards", () => {
       join(SRC, "components", "QuestionCard.tsx"),
       "utf-8",
     );
-    expect(questionCard).toContain('className="option-button touch-target"');
+    expect(questionCard).toContain(
+      'className="option-button quiz-option touch-target"',
+    );
     expect(questionCard).not.toContain("option-button button-primary");
   });
 
-  it("GUARD-18 Reportar is a white secondary action without a chunky shadow", () => {
+  it("GUARD-18 Reportar is a card-surface secondary action in the action green without a chunky shadow", () => {
     const secondary = ruleBody(INDEX_CSS, "button.button-secondary");
     expect(secondary).not.toBeNull();
     expect(secondary!).toContain("background-color: var(--color-surface)");
-    expect(secondary!).toContain(
-      "border: 2px solid var(--color-action-shadow)",
-    );
-    expect(secondary!).toContain("color: var(--color-action-shadow)");
+    expect(secondary!).toContain("border: 2px solid var(--color-action)");
+    expect(secondary!).toContain("color: var(--color-action)");
     expect(secondary!).toContain("box-shadow: none");
     const hover = ruleBody(
       INDEX_CSS,
@@ -890,6 +900,190 @@ describe("style guards", () => {
     expect(result).toContain(
       'className="button-primary result-continue touch-target"',
     );
+  });
+
+  it("Each letter has its own colour and the grid adapts", () => {
+    const letters = ["a", "b", "c", "d"] as const;
+    const used = new Set<string>();
+    for (const letter of letters) {
+      const rule = ruleBody(INDEX_CSS, `.quiz-option[data-option="${letter}"]`);
+      expect(rule, letter).not.toBeNull();
+      expect(rule!).toContain(
+        `--quiz-option-color: var(--color-option-${letter})`,
+      );
+      used.add(letter);
+    }
+    expect(used.size).toBe(4);
+    const option = ruleBody(
+      INDEX_CSS,
+      ".question-card .option-button.quiz-option",
+    );
+    expect(option).not.toBeNull();
+    expect(option!).toContain("border: 3px solid var(--quiz-option-color)");
+    expect(option!).toContain("border-radius: var(--radius-pill)");
+    const badge = ruleBody(INDEX_CSS, ".quiz-letter");
+    expect(badge).not.toBeNull();
+    expect(badge!).toContain("background-color: var(--quiz-option-color)");
+    expect(badge!).toContain("color: var(--color-on-option)");
+    const grid = ruleBody(INDEX_CSS, ".option-list.quiz-options");
+    expect(grid).not.toBeNull();
+    expect(grid!).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(normalize(INDEX_CSS)).toMatch(
+      /@media \(min-width: 48rem\) \{\s*\.option-list\.quiz-options \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+    );
+    const capsule = ruleBody(INDEX_CSS, ".quiz-question");
+    expect(capsule).not.toBeNull();
+    expect(capsule!).toMatch(
+      /linear-gradient\(\s*90deg,\s*var\(--color-quiz-glow-start\),\s*var\(--color-quiz-glow-end\)\s*\)/,
+    );
+    expect(INDEX_CSS).not.toMatch(/quiz[^{]*::(before|after)/);
+  });
+
+  it("QUIZ-02 the base option rules still hold under the quiz capsule", () => {
+    const option = ruleBody(INDEX_CSS, ".option-button");
+    expect(option).toContain("border: 1px solid var(--color-control-border)");
+    expect(
+      compareSpecificity(
+        selectorSpecificity(".question-card .option-button.quiz-option"),
+        selectorSpecificity(".question-card .option-button"),
+      ),
+    ).toBeGreaterThan(0);
+    const quiz = ruleBody(
+      INDEX_CSS,
+      ".question-card .option-button.quiz-option",
+    );
+    expect(quiz!).not.toContain("background-color");
+  });
+
+  it("ADJ-01 GIRAR is gold like the TRIVIA sign, with readable text and its own shadow", () => {
+    const spin = ruleBody(INDEX_CSS, ".wheel-spin");
+    expect(spin).not.toBeNull();
+    expect(spin!).toMatch(
+      /linear-gradient\(\s*135deg,\s*var\(--color-sign-start\),\s*var\(--color-sign-end\)\s*\)/,
+    );
+    expect(spin!).toContain("color: var(--color-on-sign)");
+    expect(spin!).toContain(
+      "box-shadow: var(--shadow-chunky) var(--color-spin-shadow)",
+    );
+    expect(spin!).not.toContain("--color-action");
+  });
+
+  it("ADJ-02 the wheel has a metallic rim and a fixed sheen over the canvas", () => {
+    const disc = ruleBody(INDEX_CSS, ".wheel-disc");
+    expect(disc).toContain("position: relative");
+    expect(disc).toContain("width: 380px");
+    const onlyRule = (selector: string) =>
+      cssRules(INDEX_CSS).find((rule) => {
+        const selectors = selectorsOf(rule);
+        return selectors.length === 1 && selectors[0] === selector;
+      });
+    const shared = cssRules(INDEX_CSS).find((rule) => {
+      const selectors = selectorsOf(rule);
+      return (
+        selectors.includes(".wheel-disc::before") &&
+        selectors.includes(".wheel-disc::after")
+      );
+    });
+    expect(shared).toBeDefined();
+    expect(shared!.body).toContain("pointer-events: none");
+    expect(shared!.body).toContain("inset: 3.16%");
+    const rim = onlyRule(".wheel-disc::before");
+    expect(rim).toBeDefined();
+    expect(rim!.body).toContain("var(--color-metal-light)");
+    expect(rim!.body).toContain("var(--color-metal-dark)");
+    expect(rim!.body).toMatch(/mask-image: radial-gradient/);
+    const sheen = onlyRule(".wheel-disc::after");
+    expect(sheen).toBeDefined();
+    expect(sheen!.body).toContain("var(--color-sheen-strong)");
+    const cont = ruleBody(INDEX_CSS, ".wheel-continue");
+    expect(cont).toContain("align-self: center");
+    expect(cont).not.toMatch(/width: 100%/);
+  });
+
+  it("ADJ-03 the tagline is metallic, keeps a solid fallback colour and a forced-colours fallback", () => {
+    const tagline = ruleBody(INDEX_CSS, ".lobby-tagline");
+    expect(tagline).not.toBeNull();
+    expect(tagline!).toContain("color: var(--color-metal-light)");
+    expect(tagline!).toContain("background-clip: text");
+    expect(tagline!).toContain("var(--color-metal-mid)");
+    expect(normalize(INDEX_CSS)).toMatch(
+      /@media \(forced-colors: active\) \{\s*\.lobby-tagline \{\s*-webkit-text-fill-color: CanvasText;/,
+    );
+    const mini = ruleBody(INDEX_CSS, ".lobby-mini-wheel");
+    expect(mini!).toContain("var(--color-metal-mid)");
+    expect(mini!).toContain("var(--color-sheen-strong)");
+  });
+
+  it("ADJ-04 the acting player's halo has two layers in the player colour", () => {
+    const current = ruleBody(INDEX_CSS, ".scoreboard-card-current");
+    expect(current).not.toBeNull();
+    expect(current!).toContain("0 0 10px 1px var(--scoreboard-player)");
+    expect(current!).toContain(
+      "color-mix(in srgb, var(--scoreboard-player) 45%, transparent)",
+    );
+  });
+
+  it("ADJ-05 the phone and landscape layouts fit the screen", () => {
+    const css = normalize(INDEX_CSS);
+    const phone = css.slice(css.indexOf("@media (max-width: 47.99rem)"));
+    expect(phone).toContain(
+      '.audio-panel:not([data-open="true"]) { display: none;',
+    );
+    expect(phone).toContain(
+      ".audio-controls .audio-panel-toggle { display: inline-flex;",
+    );
+    expect(phone).toMatch(
+      /\.scoreboard\[data-mode="rounds"\] \.scoreboard-list \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+    );
+    expect(
+      ruleBody(INDEX_CSS, ".audio-controls .audio-panel-toggle"),
+    ).toContain("display: none");
+    const landscape = css.slice(
+      css.indexOf("@media (orientation: landscape) and (max-height: 32rem)"),
+    );
+    expect(landscape).toMatch(/width: min\(380px, calc\(100dvh - 8rem\)\)/);
+    expect(landscape).toMatch(/grid-template-columns: minmax\(0, 1fr\) 15rem/);
+  });
+
+  it("ADJ-07 the turn bubble carries the initial, a gloss and a pop that reduced motion stops", () => {
+    const turn = ruleBody(INDEX_CSS, ".wheel-turn");
+    expect(turn!).toContain("animation: turn-pop var(--duration-bounce)");
+    expect(turn!).toContain("overflow: hidden");
+    const gloss = ruleBody(INDEX_CSS, ".wheel-turn::before");
+    expect(gloss).not.toBeNull();
+    expect(gloss!).toContain("var(--color-sheen-strong)");
+    expect(gloss!).toContain("pointer-events: none");
+    for (const player of ["1", "2"] as const) {
+      const initial = ruleBody(
+        INDEX_CSS,
+        `.wheel-turn[data-player="${player}"] .wheel-turn-initial`,
+      );
+      expect(initial, player).toContain(
+        `background-color: var(--color-on-player-${player})`,
+      );
+      expect(initial, player).toContain(`color: var(--color-player-${player})`);
+    }
+    expect(INDEX_CSS).toMatch(/@keyframes\s+turn-pop\s*\{/);
+    const wheel = readFileSync(join(SRC, "components", "Wheel.tsx"), "utf-8");
+    expect(wheel).toContain(
+      '<span className="wheel-turn-initial" aria-hidden="true">',
+    );
+  });
+
+  it("ADJ-08 the desktop Lobby uses two columns and the large desktop widens the game", () => {
+    const css = normalize(INDEX_CSS);
+    const desktop = css.slice(
+      css.indexOf("/* Desktop: the Lobby uses the width in two columns. */"),
+    );
+    expect(desktop).toMatch(
+      /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1\.4fr\)/,
+    );
+    expect(desktop).toContain('"sign fields" "tagline fields" "wheel fields"');
+    expect(desktop).toMatch(
+      /\.lobby > \.lobby-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/,
+    );
+    const large = css.slice(css.indexOf("@media (min-width: 80rem)"));
+    expect(large).toMatch(/grid-template-columns: minmax\(0, 56rem\) 22rem/);
   });
 
   it("GUARD-19 the outcome icon is a visible 3.5rem block centered above the text", () => {

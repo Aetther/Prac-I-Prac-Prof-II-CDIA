@@ -191,7 +191,7 @@ describe("QuestionCard", () => {
 
     const options = screen
       .getAllByRole("button")
-      .map((button) => button.textContent);
+      .map((button) => button.querySelector(".option-text")?.textContent);
     expect(options).toEqual(["Lima", "Quito", "Bogotá", "Buenos Aires"]);
     expect(screen.getByText("Elegí una opción")).toBeVisible();
     expect(screen.queryByText("Correcta")).toBeNull();
@@ -494,5 +494,55 @@ describe("QuestionCard", () => {
     // Positive control: containment is checked in both directions.
     expect(rail).not.toContainElement(options[0]);
     expect(main).not.toContainElement(rail);
+  });
+
+  it("The four answers are lettered in API order without changing their names", () => {
+    renderCard();
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.map((button) => button.getAttribute("data-option"))).toEqual(
+      ["a", "b", "c", "d"],
+    );
+    const letters = buttons.map((button) =>
+      button.querySelector(".quiz-letter"),
+    );
+    expect(letters.map((letter) => letter?.textContent)).toEqual([
+      "A",
+      "B",
+      "C",
+      "D",
+    ]);
+    for (const letter of letters) {
+      expect(letter).toHaveAttribute("aria-hidden", "true");
+    }
+    for (const name of ["Lima", "Quito", "Bogotá", "Buenos Aires"]) {
+      expect(screen.getByRole("button", { name })).toHaveAccessibleName(name);
+    }
+    const capsule = document.querySelector(".quiz-question");
+    expect(capsule).not.toBeNull();
+    expect(capsule!.querySelector("h2.question-text")?.textContent).toBe(
+      "¿Capital de Francia?",
+    );
+    expect(capsule!.querySelector(".quiz-mark")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(capsule!.querySelector(".quiz-mark")?.textContent).toBe("?");
+  });
+
+  it("QUIZ-01 the letters follow the API position, not the answer text", () => {
+    renderCard({
+      question: {
+        ...question,
+        options: ["Buenos Aires", "Bogotá", "Quito", "Lima"],
+      },
+    });
+    expect(
+      screen
+        .getByRole("button", { name: "Buenos Aires" })
+        .getAttribute("data-option"),
+    ).toBe("a");
+    expect(
+      screen.getByRole("button", { name: "Lima" }).getAttribute("data-option"),
+    ).toBe("d");
   });
 });

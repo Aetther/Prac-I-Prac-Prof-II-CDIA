@@ -12,6 +12,9 @@ import { Scoreboard } from "./Scoreboard";
 import { Timer } from "./Timer";
 import { useMessages } from "../i18n";
 
+/** The answers are lettered by their API position, never by their text. */
+const OPTION_LETTERS = ["A", "B", "C", "D"] as const;
+
 interface QuestionCardProps {
   question: GameQuestion;
   lang: Lang;
@@ -94,17 +97,28 @@ export function QuestionCard({
         {isUntranslated(lang, question.lang) ? (
           <p className="untranslated-badge">{m.untranslated}</p>
         ) : null}
-        <h2 className="question-text">{question.question}</h2>
+        <div className="quiz-question">
+          <div className="quiz-question-inner">
+            <h2 className="question-text">{question.question}</h2>
+            <span className="quiz-mark" aria-hidden="true">
+              ?
+            </span>
+          </div>
+        </div>
         <p>{m.pickAnswer}</p>
-        <div className="option-list">
-          {question.options.map((option) => (
+        <div className="option-list quiz-options">
+          {question.options.map((option, index) => (
             <button
               key={option}
               type="button"
-              className="option-button touch-target"
+              className="option-button quiz-option touch-target"
+              data-option={OPTION_LETTERS[index].toLowerCase()}
               disabled={optionsDisabled}
               onClick={() => handleAnswer(option)}
             >
+              <span className="quiz-letter" aria-hidden="true">
+                {OPTION_LETTERS[index]}
+              </span>
               <span className="option-text">{option}</span>
             </button>
           ))}

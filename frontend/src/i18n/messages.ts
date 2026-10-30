@@ -84,6 +84,7 @@ export interface Messages {
   readonly loadingQuestion: string;
   // Sound
   readonly sound: string;
+  readonly soundOptions: string;
   readonly soundOn: string;
   readonly soundOff: string;
   readonly volume: string;

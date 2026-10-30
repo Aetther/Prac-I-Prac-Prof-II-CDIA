@@ -11,6 +11,12 @@ const TOKEN_NAMES = [
   "--color-category-arte",
   "--color-category-entretenimiento",
   "--color-category-deportes",
+  "--color-category-geografia-deep",
+  "--color-category-historia-deep",
+  "--color-category-ciencia-deep",
+  "--color-category-arte-deep",
+  "--color-category-entretenimiento-deep",
+  "--color-category-deportes-deep",
   "--color-wheel-pointer",
   "--color-wheel-label",
   "--color-wheel-stroke",
@@ -49,7 +55,7 @@ function contrast(first: string, second: string): number {
 }
 
 describe("wheel palette", () => {
-  it("reads the nine wheel tokens and trims every value", () => {
+  it("reads the fifteen wheel tokens and trims every value", () => {
     const calls: string[] = [];
     const style = {
       getPropertyValue(name: string): string {
@@ -69,6 +75,14 @@ describe("wheel palette", () => {
         entretenimiento: "sentinel-color-category-entretenimiento",
         deportes: "sentinel-color-category-deportes",
       },
+      deep: {
+        geografia: "sentinel-color-category-geografia-deep",
+        historia: "sentinel-color-category-historia-deep",
+        ciencia: "sentinel-color-category-ciencia-deep",
+        arte: "sentinel-color-category-arte-deep",
+        entretenimiento: "sentinel-color-category-entretenimiento-deep",
+        deportes: "sentinel-color-category-deportes-deep",
+      },
       pointer: "sentinel-color-wheel-pointer",
       label: "sentinel-color-wheel-label",
       stroke: "sentinel-color-wheel-stroke",
@@ -84,14 +98,22 @@ describe("wheel palette", () => {
 
     expect(palette).toEqual({
       sector: {
-        geografia: "#1d4ed8",
-        historia: "#b45309",
-        ciencia: "#0f766e",
-        arte: "#7e22ce",
-        entretenimiento: "#be185d",
-        deportes: "#15803d",
+        geografia: "#3d5fae",
+        historia: "#9c5b28",
+        ciencia: "#2d7a72",
+        arte: "#7b4fae",
+        entretenimiento: "#a3466f",
+        deportes: "#3c7a49",
       },
-      pointer: "#111827",
+      deep: {
+        geografia: "#24386b",
+        historia: "#5c3415",
+        ciencia: "#1b4945",
+        arte: "#47306a",
+        entretenimiento: "#622a43",
+        deportes: "#24492c",
+      },
+      pointer: "#e6e9f2",
       label: "#ffffff",
       stroke: "#ffffff",
     });
@@ -121,10 +143,10 @@ describe("wheel palette", () => {
     });
 
     expect(palette.sector.arte).toBe("");
-    expect(palette.sector.geografia).toBe("#1d4ed8");
-    expect(palette.sector.historia).toBe("#b45309");
-    expect(palette.sector.ciencia).toBe("#0f766e");
-    expect(palette.sector.entretenimiento).toBe("#be185d");
-    expect(palette.sector.deportes).toBe("#15803d");
+    expect(palette.sector.geografia).toBe("#3d5fae");
+    expect(palette.sector.historia).toBe("#9c5b28");
+    expect(palette.sector.ciencia).toBe("#2d7a72");
+    expect(palette.sector.entretenimiento).toBe("#a3466f");
+    expect(palette.sector.deportes).toBe("#3c7a49");
   });
 });
