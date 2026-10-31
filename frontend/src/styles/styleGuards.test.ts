@@ -1209,4 +1209,23 @@ describe("style guards", () => {
     expect(canvas).not.toBeNull();
     expect(canvas!).toContain("max-width: 100%");
   });
+
+  it("GUARD-24 buttons never grow wider than the screen, even with large text", () => {
+    const button = ruleBody(INDEX_CSS, "\nbutton");
+    expect(button).not.toBeNull();
+    expect(button!).toContain("max-width: 100%");
+    expect(button!).toContain("overflow-wrap: anywhere");
+    expect(ruleBody(INDEX_CSS, ".wheel-continue")!).toContain(
+      "min-width: min(12rem, 100%)",
+    );
+    expect(ruleBody(INDEX_CSS, ".switch-turn > button")!).toContain(
+      "min-width: min(14rem, 100%)",
+    );
+    for (const selector of [".surrender", ".surrender-confirm"]) {
+      const rule = ruleBody(INDEX_CSS, `\n${selector}`);
+      expect(rule).not.toBeNull();
+      expect(rule!).toContain("min-width: 0");
+      expect(rule!).toContain("max-width: 100%");
+    }
+  });
 });

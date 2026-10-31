@@ -206,9 +206,11 @@ legend {
 }
 
 button {
+  max-width: 100%;
   font-family: var(--font-family-body);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-heading);
+  overflow-wrap: anywhere;
   padding: var(--spacing-2) var(--spacing-4);
   border: 1px solid var(--color-control-border);
   border-radius: var(--radius-control);
@@ -806,13 +808,13 @@ button.button-secondary:disabled {
 
 .wheel-continue {
   align-self: center;
-  min-width: 12rem;
+  min-width: min(12rem, 100%);
   padding-inline: var(--spacing-6);
   border: 2px solid var(--color-on-page);
 }
 
 .switch-turn > button {
-  min-width: 14rem;
+  min-width: min(14rem, 100%);
   border: 2px solid var(--color-on-page);
 }
 
@@ -1926,6 +1928,8 @@ button.button-secondary:disabled {
 .surrender {
   display: flex;
   justify-content: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 button.button-secondary.surrender-button {
@@ -1939,6 +1943,8 @@ button.button-secondary.surrender-button {
   align-items: center;
   gap: var(--spacing-3);
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding: var(--spacing-3);
   border: 2px solid var(--color-error);
   border-radius: var(--radius-control);
