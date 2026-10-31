@@ -1197,4 +1197,16 @@ describe("style guards", () => {
     expect(shell).not.toBeNull();
     expect(shell!).toContain("padding-block: var(--spacing-4)");
   });
+
+  it("GUARD-23 the wheel shrinks with phones narrower than the 380px canvas", () => {
+    const stage = ruleBody(INDEX_CSS, ".wheel-stage");
+    expect(stage).not.toBeNull();
+    expect(stage!).toContain("grid-template-columns: minmax(0, 1fr)");
+    const disc = ruleBody(INDEX_CSS, ".wheel-disc");
+    expect(disc).not.toBeNull();
+    expect(disc!).toContain("max-width: 100%");
+    const canvas = ruleBody(INDEX_CSS, ".wheel-canvas");
+    expect(canvas).not.toBeNull();
+    expect(canvas!).toContain("max-width: 100%");
+  });
 });
