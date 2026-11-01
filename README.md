@@ -683,7 +683,7 @@ Estilo de juego casual de trivia para celular, propio (no usa nombres, logos, pe
 
 ### Estado actual
 
-El frontend se construye en 10 etapas. Están terminadas las nueve primeras:
+El frontend se construyó en 10 etapas, todas terminadas:
 
 | Etapa | Estado |
 |---|---|
@@ -696,14 +696,14 @@ El frontend se construye en 10 etapas. Están terminadas las nueve primeras:
 | Vista de administración (`/admin`): acceso y reportes | ✅ |
 | Vista de administración: editar, ocultar e historial de preguntas | ✅ |
 | Estilos finales y prueba en celular | ✅ |
-| Sonido y música | Pendiente |
+| Sonido y música | ✅ |
 
 ### Cómo está armado
 
 - **`src/api/`**: el **único** lugar que llama a la API. Valida a mano cada respuesta (que la pregunta tenga 4 opciones, que el idioma sea `es` o `en`, etc.) y convierte cualquier falla en un error con un tipo fijo: red, tiempo agotado (10 segundos), HTTP o validación. Una regla de ESLint impide usar `fetch` fuera de esta carpeta.
 - **`src/game/`**: las reglas del juego en TypeScript puro, sin interfaz: turnos, puntos, rondas, las reglas del modo de 6 categorías (quién sigue, las categorías de cada uno, el límite de turnos y quién gana), fin de partida, la ruleta (cuánto gira, cuánto tarda y en qué categoría frena) y el temporizador. Así se prueban sin navegador.
 - **`src/components/`**: las pantallas. Muestran el estado y avisan qué hizo el jugador; nunca llaman a la API directamente.
-- **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que va a usar el sonido. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
+- **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que hace sonar el tic de la ruleta. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
 - **El temporizador** guarda la hora en que se termina el tiempo y la compara con el reloj, en vez de contar segundos: así no se atrasa ni se congela si el navegador pone la pestaña en segundo plano (algo común en el celular). Cuando el tiempo se acaba, igual se le pregunta a la API (`POST /game/answer` con la respuesta "(sin respuesta)"), solo para mostrar la respuesta correcta: el turno cuenta siempre como incorrecto. Si el jugador elige una opción justo cuando se acaba el tiempo, se manda una sola respuesta, la que llegó primero.
 - **La respuesta correcta la decide siempre la API** (`POST /game/answer`): el frontend nunca la conoce antes de que el jugador elija.
 - **El juego solo usa los endpoints públicos** (`/categories`, una vez por partida para los nombres de la ruleta, `/game/question`, `/game/answer` y `/reports` para reportar). Nunca los de administración, que muestran las respuestas: esos los usa solo la vista `/admin`, con la API key.
@@ -1309,7 +1309,6 @@ Remove-Item audit_torch.txt
 **Juego**
 
 - La API entrega preguntas sueltas al azar; el frontend es el que evita repetirlas en una partida y lleva los turnos y el puntaje. La partida vive solo en el navegador: si se recarga la página, se pierde.
-- El frontend todavía no tiene sonido (ver [Estado actual](#estado-actual)).
 
 **Administración**
 
