@@ -785,7 +785,7 @@ flowchart LR
     D --> J[API FastAPI]
 ```
 
-1. **Clasificación *zero-shot***: el modelo [`MoritzLaurer/deberta-v3-large-zeroshot-v2.0`](https://huggingface.co/MoritzLaurer/deberta-v3-large-zeroshot-v2.0) evalúa, para cada categoría, qué tan probable es la frase *"This trivia question is about {descripción de la categoría}."* dado el texto. No necesita entrenamiento previo con estas preguntas.
+1. **Clasificación *zero-shot***: el modelo [`MoritzLaurer/deberta-v3-large-zeroshot-v2.0`](https://huggingface.co/MoritzLaurer/deberta-v3-large-zeroshot-v2.0) evalúa, para cada categoría, qué tan probable es la frase *"This trivia question is about {descripción de la categoría}."* dado el texto. No necesita entrenamiento previo con estas preguntas. El nombre tiene dos versiones: el modelo base es **DeBERTa-v3 large** (de Microsoft) y **zeroshot v2.0** es la versión de la serie de modelos *zero-shot* que Moritz Laurer entrenó sobre él. No es el modelo DeBERTa-v2.
 2. **El modelo ve la pregunta junto con su respuesta correcta**, que le da más contexto.
 3. **Umbral de confianza del 70%**: si la IA supera el umbral, la categorización se guarda automáticamente; si no, se deriva a una persona.
 4. **Revisión humana**: la persona ve la pregunta, la respuesta, la sugerencia de la IA y los scores de todas las categorías, y acepta la sugerencia, elige otra categoría o saltea la pregunta.
@@ -1107,15 +1107,15 @@ Medido con `evaluate` sobre las mismas 2.000 preguntas (semilla 42). "Coincidenc
 |---|---:|---:|---:|
 | BART, solo pregunta (inicial) | 68,5% | 26,9% | 94,8% |
 | BART + respuesta | 70,0% | 20,8% | 95,6% |
-| DeBERTa v2.0, solo pregunta | 77,0% | 79,5% | 92,9% |
-| DeBERTa v2.0 + respuesta | 77,5% | 81,2% | 92,8% |
-| **DeBERTa v2.0 + respuesta + descripciones nuevas (final)** | **77,8%** | **76,7%** | **94,0%** |
+| DeBERTa-v3 large (zero-shot v2.0), solo pregunta | 77,0% | 79,5% | 92,9% |
+| DeBERTa-v3 large (zero-shot v2.0) + respuesta | 77,5% | 81,2% | 92,8% |
+| **DeBERTa-v3 large (zero-shot v2.0) + respuesta + descripciones nuevas (final)** | **77,8%** | **76,7%** | **94,0%** |
 
 Con el mismo umbral del 70% y prácticamente la misma calidad, la automatización pasó del **27% al 77%**, y las revisiones manuales necesarias bajaron de ~19.600 a ~6.000. La configuración final se validó con otra muestra (semilla 7): top-1 de 78,2%, cobertura de 77,8% y coincidencia de 94,0%, lo que descarta que la mejora sea casualidad de una muestra (*overfitting*).
 
 Otros hallazgos:
 
-- **La frase de hipótesis casi no importa con DeBERTa v2.0**: tres variantes dieron el mismo top-1 (~77,5%); solo cambia la calibración de la confianza.
+- **La frase de hipótesis casi no importa con DeBERTa-v3 large**: tres variantes dieron el mismo top-1 (~77,5%); solo cambia la calibración de la confianza.
 - **El umbral depende del modelo**: DeBERTa da scores más altos que BART, así que un mismo umbral no significa lo mismo en los dos.
 - **Las descripciones nuevas** subieron el acierto en Arte de 41% a 63%, a costa de bajar Entretenimiento de 97,6% a 94,8%.
 
