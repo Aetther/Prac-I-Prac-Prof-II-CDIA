@@ -4,13 +4,13 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-4169E1?logo=postgresql&logoColor=white)
 ![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-383-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-389-brightgreen?logo=pytest&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 
-API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés.
+API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés: el idioma cambia las preguntas y toda la interfaz.
 
-El juego se juega desde un **frontend web** hecho con **React, Vite y TypeScript** (`frontend/`): dos personas en el mismo dispositivo, por turnos. Ver [Frontend (juego web)](#frontend-juego-web).
+El juego se puede jugar online en **[trivia-2hs.pages.dev](https://trivia-2hs.pages.dev/)**, desde un **frontend web** hecho con **React, Vite y TypeScript** (`frontend/`): dos personas en el mismo dispositivo, por turnos, con ruleta de categorías, dificultad, sonido y música. Ver [Frontend (juego web)](#frontend-juego-web).
 
 Proyecto de Práctica Profesional II — CDIA.
 
@@ -23,18 +23,19 @@ Proyecto de Práctica Profesional II — CDIA.
 5. [Requisitos](#requisitos)
 6. [Instalación y puesta en marcha](#instalación-y-puesta-en-marcha)
 7. [Uso de GPU (opcional)](#uso-de-gpu-opcional)
-8. [API](#api)
-9. [Frontend (juego web)](#frontend-juego-web)
-10. [Dataset](#dataset)
-11. [Categorización con IA](#categorización-con-ia)
-12. [Traducción con IA](#traducción-con-ia)
-13. [Scripts](#scripts)
-14. [Resultados](#resultados)
-15. [Tests](#tests)
-16. [Seguridad](#seguridad)
-17. [Problemas frecuentes](#problemas-frecuentes)
-18. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
-19. [Créditos y licencias](#créditos-y-licencias)
+8. [Publicación online](#publicación-online)
+9. [API](#api)
+10. [Frontend (juego web)](#frontend-juego-web)
+11. [Dataset](#dataset)
+12. [Categorización con IA](#categorización-con-ia)
+13. [Traducción con IA](#traducción-con-ia)
+14. [Scripts](#scripts)
+15. [Resultados](#resultados)
+16. [Tests](#tests)
+17. [Seguridad](#seguridad)
+18. [Problemas frecuentes](#problemas-frecuentes)
+19. [Limitaciones conocidas y posibles mejoras](#limitaciones-conocidas-y-posibles-mejoras)
+20. [Créditos y licencias](#créditos-y-licencias)
 
 ---
 
@@ -86,7 +87,7 @@ flowchart LR
 | IA | transformers, PyTorch, sentence-transformers, scikit-learn, SetFit |
 | Traducción | transformers (MarianMT), sentencepiece, sacremoses |
 | Tests | pytest, httpx |
-| Frontend | React 19, Vite 8, TypeScript 6 (modo estricto), React Router 7, CSS con variables, fuente Baloo 2 (OFL) |
+| Frontend | React 19, Vite 8, TypeScript 6 (modo estricto), React Router 7, Canvas API (ruleta), Web Audio API (sonido y música), textos en dos idiomas (i18n propio), CSS con variables, fuente Baloo 2 (OFL) |
 | Tests del frontend | Vitest, React Testing Library, jsdom, cobertura con v8 |
 
 ## Estructura del proyecto
@@ -96,7 +97,7 @@ flowchart LR
 │   ├── __init__.py
 │   ├── main.py                     # Endpoints de la API
 │   ├── schemas.py                  # Validación de los datos que recibe la API (Pydantic)
-│   ├── database.py                 # Conexión a PostgreSQL y sesión
+│   ├── database.py                 # Conexión a PostgreSQL (local o DATABASE_URL) y sesión
 │   ├── models.py                   # Tablas: questions (con traducción), categorizations, question_edits y reports
 │   ├── load_data.py                # Descarga, limpia y carga el dataset
 │   ├── categories.py               # Las 6 categorías y sus descripciones
@@ -134,6 +135,7 @@ flowchart LR
 │   │   ├── test_admin_edits.py
 │   │   ├── test_categories.py
 │   │   ├── test_classifier.py
+│   │   ├── test_database.py
 │   │   ├── test_glossary.py
 │   │   ├── test_human_review.py
 │   │   ├── test_load_data.py
@@ -167,6 +169,8 @@ flowchart LR
 ├── frontend/                       # Juego web (React + Vite + TypeScript), ver Frontend (juego web)
 │   ├── src/api/                    # Único lugar que llama a la API: valida cada respuesta
 │   ├── src/game/                   # Reglas del juego en TypeScript puro (sin interfaz)
+│   ├── src/audio/                  # Sonido: motor de Web Audio, efectos, música y preferencias del jugador
+│   ├── src/i18n/                   # Textos de la interfaz en español e inglés, e idioma elegido
 │   ├── src/components/             # Pantallas: lobby, ruleta, pregunta, resultado, cambio de turno, fin de partida
 │   ├── src/styles/                 # Estilos y variables de diseño (tokens.css)
 │   ├── public/fonts/               # Fuente Baloo 2 (licencia OFL) incluida en el proyecto
@@ -179,6 +183,7 @@ flowchart LR
 ├── .env.example                    # Plantilla de credenciales (copiar como .env)
 ├── pyproject.toml                  # Dependencias y configuración de pytest
 ├── poetry.lock                     # Versiones exactas de las dependencias
+├── requirements-api.txt            # Dependencias solo de la API (sin IA), para publicarla
 ├── EXERCISE.md                     # Consigna del ejercicio base
 ├── CONCEPTS.md                     # Conceptos del ejercicio base
 ├── EXERCISE_AI_CATEGORIZATION.md   # Consigna de la categorización con IA
@@ -403,8 +408,22 @@ En Windows, el PyTorch que instala Poetry es la versión **solo CPU**. Para usar
 
 > [!IMPORTANT]
 > Cada `poetry install` o `poetry add` vuelve a instalar la versión de CPU. Después de usarlos, verificar y repetir el paso 2 si hace falta.
+>
+> Si se había instalado `torchvision` con CUDA, después de un `poetry install` queda un torch de CPU con un torchvision de GPU, y los tests que cargan el modelo fallan con `operator torchvision::nms does not exist`. Se arregla volviendo a instalar el torch con CUDA de la misma versión (por ejemplo, `poetry run pip install "torch==2.14.1+cu130" --index-url https://download.pytorch.org/whl/cu130 --force-reinstall --no-deps`) o, si no se usa la GPU, desinstalando torchvision (`poetry run pip uninstall -y torchvision`).
 
 El código detecta la GPU automáticamente: si está disponible la usa, y si no, usa la CPU. La versión de CUDA no se fija en `pyproject.toml` para que el proyecto se pueda instalar en cualquier computadora.
+
+## Publicación online
+
+El juego está publicado en **[trivia-2hs.pages.dev](https://trivia-2hs.pages.dev/)**, con servicios gratuitos: el frontend en **Cloudflare Pages**, la API en **Render** y la base en **Neon** (PostgreSQL administrado).
+
+> [!NOTE]
+> Con el plan gratuito, Render apaga la API después de un rato sin uso. El primer pedido siguiente puede tardar alrededor de un minuto mientras se vuelve a levantar; después responde normal. Si el juego muestra "¿Está corriendo la API?", esperar y tocar **Reintentar**.
+
+- **Base en la nube**: si existe la variable `DATABASE_URL` (la dirección completa que da Neon, por ejemplo `postgresql://usuario:contraseña@host/base?sslmode=require`), `app/database.py` la usa en lugar de las variables `POSTGRES_*`, con el driver `psycopg2`. Las conexiones se verifican antes de usarse (`pool_pre_ping`), porque la base en la nube cierra las que quedan inactivas. Sin `DATABASE_URL`, todo sigue funcionando con la base de Docker.
+- **Dependencias de la API**: `requirements-api.txt` tiene solo lo que necesita la API (FastAPI, Uvicorn, SQLAlchemy, psycopg2 y python-dotenv), con las mismas versiones que `poetry.lock`. La API no usa los modelos de IA, así que no hace falta instalar PyTorch en el servidor.
+- **Datos**: la base se copió desde la local con `pg_dump` y `pg_restore` **antes** de levantar la API, para que llegue completa (preguntas, categorías, traducciones y correcciones). Los volcados (`*.dump`) no se suben al repositorio.
+- **Configuración en el servidor**: `DATABASE_URL`, `API_KEY` y `CORS_ORIGINS` (con la dirección del frontend publicado) se cargan como variables de entorno del servicio, nunca en el código. En el frontend, `VITE_API_URL` apunta a la API publicada.
 
 ## API
 
@@ -623,16 +642,28 @@ Después de exportar, hay que subir `data/admin_edits.csv` al repositorio.
 
 ## Frontend (juego web)
 
-Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celular o la computadora entre turnos. La interfaz está en español rioplatense; las preguntas, en el idioma que se elige al empezar.
+Juego de trivia para **dos personas en el mismo dispositivo**: se pasan el celular o la computadora entre turnos. Todo el juego (las preguntas y la interfaz) se muestra en **español rioplatense o en inglés**, según la bandera que se elige en el lobby. La vista de administración está en español.
 
 ### Cómo se juega
 
-1. **Lobby** (✨TRIVIA✨, "Poné a prueba tu conocimiento"): los nombres de los dos jugadores (obligatorios), el idioma de las preguntas (español o inglés), el tiempo por pregunta (10, 20 o 30 segundos) y el **modo de juego**: por rondas (3, 5 o 10; 5 por defecto) o juntar las 6 categorías. Se empieza con **JUGAR**.
+1. **Lobby** (✨TRIVIA✨, "Poné a prueba tu conocimiento"): los nombres de los dos jugadores (obligatorios) y, como botones grandes, el **idioma** (Español o English, cada uno con su bandera), la **dificultad** (**Fácil**, 30 segundos por pregunta; **Intermedia**, 20; **Difícil**, 10), el **modo de juego** (por rondas o juntar las 6 categorías) y, en el modo por rondas, la cantidad (3, 5 o 10; 5 por defecto). El idioma elegido se recuerda para la próxima partida. Se empieza con **JUGAR**.
 2. **Ruleta**: arriba dice "¡Turno de ...!", y el jugador toca **GIRAR**, en el centro de la ruleta. La ruleta, con las 6 categorías, da entre 4 y 6 vueltas y va frenando hasta detenerse; aparece un cartel con la categoría que salió (por ejemplo, "📜 ¡Historia!") y, con **Continuar**, la pregunta de esa categoría.
-3. **Pregunta**: aparece la pregunta con su categoría, sus 4 opciones y el **temporizador** (10, 20 o 30 segundos, según el lobby). En los últimos 5 segundos la barra se pone roja y aparece "Últimos 5 segundos". Si el tiempo se acaba, cuenta como respuesta incorrecta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
+3. **Pregunta**: la pregunta aparece en una tarjeta grande, estilo programa de preguntas de TV, con su categoría, sus 4 opciones (A, B, C y D, cada una con su color) y el **temporizador** (30, 20 o 10 segundos, según la dificultad). En los últimos 5 segundos la barra se pone roja y aparece "Últimos 5 segundos". Si el tiempo se acaba, cuenta como respuesta incorrecta. Si la pregunta no tiene traducción, aparece la etiqueta **"Sin traducir"**.
 4. **Resultado**: un ícono grande y "Correcta" (✔), "Incorrecta" (✖, con la opción elegida) o "Se acabó el tiempo" (⏱), junto con la respuesta correcta, el marcador y el botón **Continuar**. Desde acá también se puede **reportar la pregunta** (ver abajo).
-5. **Cambio de turno**: una pantalla del color del jugador siguiente ("¡Turno de ...!", "Pasale el dispositivo") con el botón **Estoy listo**, para que el otro jugador no vea la respuesta anterior.
-6. **Fin de la partida**: 🏆 "¡Ganó ...!" o "¡Empate!", con confeti, (ver los dos modos más abajo). **Jugar de nuevo** vuelve al lobby para empezar otra partida.
+5. **Cambio de turno**: una tarjeta del color del jugador siguiente ("¡Turno de ...!", "Pasale el dispositivo"), con la ronda, los dos jugadores enfrentados ("VS") y el botón **Estoy listo**, para que el otro jugador no vea la respuesta anterior.
+6. **Fin de la partida**: 🏆 "¡Ganó ...!" o "¡Empate!", con confeti (ver los dos modos más abajo); si alguien se rindió, lo aclara ("... se rindió."). **Jugar de nuevo** vuelve al lobby para empezar otra partida.
+
+**Rendirse**: en la ruleta, la pregunta, el resultado y el cambio de turno, el botón **Rendirse** termina la partida y el otro jugador gana, sin importar los puntos ni las categorías. Pide confirmación ("¿Seguro que querés rendirte, ...? Gana ...", con **Sí, me rindo** y **Cancelar**), para que no se active por un toque accidental. Se rinde el jugador que tiene el turno en esa pantalla.
+
+#### Sonido y música
+
+Arriba de todas las pantallas del juego hay una barra de sonido (en el celular, plegada en **Opciones de sonido**): **Activar sonido** / silenciar, el **volumen** y dos interruptores, **Efectos** y **Música**.
+
+- **Efectos**: el tic de la ruleta cada vez que un sector pasa por el puntero, el frenado, acierto, error, tiempo agotado, el tic del reloj en los últimos segundos y la victoria.
+- **Música** de fondo en loop, que suena durante la partida.
+- Todo se genera por código con la **Web Audio API**: no hay archivos de audio, así que no hay nada de terceros ni licencias que cuidar.
+- **Arranca en silencio**: los navegadores no dejan reproducir sonido hasta que la persona toca algo, así que se activa con el botón. El volumen y lo que se eligió (efectos y música) se recuerdan en el navegador para la próxima vez.
+- La vista de administración no tiene sonido.
 
 #### Modo por rondas
 
@@ -674,16 +705,18 @@ En `http://localhost:5173/admin`, separada del juego y sin sonido, para revisar 
 
 Estilo de juego casual de trivia para celular, propio (no usa nombres, logos, personajes ni íconos de ningún juego existente):
 
-- **Colores**: fondo azul vivo, y en la pregunta y el resultado, el color de la categoría que salió. Cada categoría tiene su color y su emoji (🌎 Geografía, 📜 Historia, 🔬 Ciencia, 🎨 Arte, 🎬 Entretenimiento, ⚽ Deportes), y cada jugador, el suyo.
+- **Tema oscuro**: fondo azul noche, con tarjetas un poco más claras. Cada categoría tiene su color y su emoji (🌎 Geografía, 📜 Historia, 🔬 Ciencia, 🎨 Arte, 🎬 Entretenimiento, ⚽ Deportes), y cada jugador, el suyo.
+- **Ruleta metálica**: borde plateado, separadores negros entre las categorías y el botón **GIRAR** dorado en el centro.
+- **Pregunta tipo programa de TV**: tarjeta grande con borde luminoso y opciones con letra y color propios.
 - **Tipografía**: [Baloo 2](https://fonts.google.com/specimen/Baloo+2), incluida en `frontend/public/fonts/` con su licencia libre (SIL Open Font License, en `OFL.txt`): no se descarga de ningún servicio externo.
 - **Botones** grandes y redondeados, con una sombra que se "hunde" al tocarlos; todos los controles miden al menos 48 × 48 px.
-- **Pensado primero para el celular**; desde 1024 px de ancho, el marcador pasa a una columna al costado de la ruleta y de la pregunta.
+- **Pensado primero para el celular** y adaptado a la computadora: desde 1024 px de ancho, el marcador pasa a una columna al costado de la ruleta y de la pregunta. En celulares de menos de 412 px de ancho la ruleta se achica, y los botones y la ruleta nunca se salen de la pantalla, aun con la letra agrandada en el sistema o en ventanas bajas.
 - **Accesible**: todas las combinaciones de texto y fondo cumplen el contraste mínimo WCAG AA (un test lo calcula desde `tokens.css`), el foco del teclado siempre se ve y los emojis son decorativos (el nombre de la categoría es el texto que lee un lector de pantalla).
 - **Movimiento reducido**: si el sistema tiene activada la opción de reducir el movimiento, no hay rebotes, temblores ni confeti, y la ruleta da un giro corto (algo más de 1 segundo) sin frenado gradual.
 
 ### Estado actual
 
-El frontend se construyó en 10 etapas, todas terminadas:
+El frontend se construyó en un plan de 10 etapas, al que después se sumaron 4 cambios más con el mismo proceso. Están todos terminados:
 
 | Etapa | Estado |
 |---|---|
@@ -697,13 +730,19 @@ El frontend se construyó en 10 etapas, todas terminadas:
 | Vista de administración: editar, ocultar e historial de preguntas | ✅ |
 | Estilos finales y prueba en celular | ✅ |
 | Sonido y música | ✅ |
+| Juego completo en español o inglés con banderas; dificultad, modo y rondas como botones | ✅ |
+| Tema oscuro, pregunta tipo programa de TV, ruleta metálica, celular y PC | ✅ |
+| Cambio de turno como tarjeta, separadores en la ruleta, ventanas bajas | ✅ |
+| Rendirse con confirmación | ✅ |
 
 ### Cómo está armado
 
 - **`src/api/`**: el **único** lugar que llama a la API. Valida a mano cada respuesta (que la pregunta tenga 4 opciones, que el idioma sea `es` o `en`, etc.) y convierte cualquier falla en un error con un tipo fijo: red, tiempo agotado (10 segundos), HTTP o validación. Una regla de ESLint impide usar `fetch` fuera de esta carpeta.
 - **`src/game/`**: las reglas del juego en TypeScript puro, sin interfaz: turnos, puntos, rondas, las reglas del modo de 6 categorías (quién sigue, las categorías de cada uno, el límite de turnos y quién gana), fin de partida, la ruleta (cuánto gira, cuánto tarda y en qué categoría frena) y el temporizador. Así se prueban sin navegador.
 - **`src/components/`**: las pantallas. Muestran el estado y avisan qué hizo el jugador; nunca llaman a la API directamente.
-- **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que hace sonar el tic de la ruleta. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
+- **`src/audio/`**: el sonido. Un motor de Web Audio, la "receta" de cada efecto (qué notas, con qué forma de onda y cuánto duran), la música y las preferencias del jugador (silencio, volumen, efectos y música), guardadas en el navegador. Si el navegador no tiene audio o no deja guardar, el juego funciona igual, sin sonido o sin recordar la elección.
+- **`src/i18n/`**: todos los textos de la interfaz en español y en inglés, los nombres de las categorías y los mensajes de error en los dos idiomas, y el idioma elegido, que también se guarda en el navegador.
+- **La ruleta** se dibuja con Canvas y frena con una curva *ease-out* (rápido al principio, cada vez más lento). La categoría ganadora se calcula en `src/game` con la misma cuenta que el dibujo, así que el resultado siempre coincide con lo que marca el puntero. Cada vez que un sector pasa por el puntero se emite un evento, que hace sonar el tic. En pantallas de alta densidad (celulares) se dibuja a la resolución real, para que no se vea borrosa. Los colores de las categorías son propios y salen de `tokens.css`.
 - **El temporizador** guarda la hora en que se termina el tiempo y la compara con el reloj, en vez de contar segundos: así no se atrasa ni se congela si el navegador pone la pestaña en segundo plano (algo común en el celular). Cuando el tiempo se acaba, igual se le pregunta a la API (`POST /game/answer` con la respuesta "(sin respuesta)"), solo para mostrar la respuesta correcta: el turno cuenta siempre como incorrecto. Si el jugador elige una opción justo cuando se acaba el tiempo, se manda una sola respuesta, la que llegó primero.
 - **La respuesta correcta la decide siempre la API** (`POST /game/answer`): el frontend nunca la conoce antes de que el jugador elija.
 - **El juego solo usa los endpoints públicos** (`/categories`, una vez por partida para los nombres de la ruleta, `/game/question`, `/game/answer` y `/reports` para reportar). Nunca los de administración, que muestran las respuestas: esos los usa solo la vista `/admin`, con la API key.
@@ -724,7 +763,7 @@ Desde `frontend/`:
 
 ### Cómo se desarrolla
 
-El frontend se construye con **desarrollo guiado por especificaciones** (*spec-driven development*), usando [OpenSpec](https://openspec.dev) y agentes de IA (opencode), en el entorno de trabajo que propone la cátedra. Cada etapa pasa por puntos de control con aprobación humana:
+El frontend se construyó con **desarrollo guiado por especificaciones** (*spec-driven development*), usando [OpenSpec](https://openspec.dev) y agentes de IA (opencode), en el entorno de trabajo que propone la cátedra. Cada etapa pasa por puntos de control con aprobación humana:
 
 1. **Propuesta y especificación**: qué se va a hacer, criterios de aceptación verificables, diseño y plan de pruebas. Se revisa y se aprueba antes de escribir código.
 2. **Implementación y revisión**: el código se revisa contra la especificación, con la salida real de los tests, el lint, la verificación de tipos y la compilación.
@@ -1168,11 +1207,11 @@ SetFit mejora en los casos difíciles (+8 puntos), pero son solo 5 preguntas de 
 
 ## Tests
 
-383 tests organizados en cuatro tipos:
+389 tests organizados en cuatro tipos:
 
 | Tipo | Carpeta | Qué verifica | Requisitos |
 |---|---|---|---|
-| Unitarios | `tests/unit/` | Funciones aisladas: categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento y glosario de la traducción, revisión humana, estadística, límite de reportes, resumen de las correcciones del admin | Ninguno |
+| Unitarios | `tests/unit/` | Funciones aisladas: dirección de la base (`DATABASE_URL` o `POSTGRES_*`), categorías, limpieza de datos, descarga verificada, versiones de modelos, post-procesamiento y glosario de la traducción, revisión humana, estadística, límite de reportes, resumen de las correcciones del admin | Ninguno |
 | Integración | `tests/integration/` | Varias piezas juntas: API + base de prueba, juego en dos idiomas, administración de preguntas (editar, ocultar, historial), reportes, exportar y restaurar las correcciones del admin, glosario sin pisar al admin, restauración de decisiones, columnas nuevas en una base vieja | Ninguno (usa SQLite en memoria) |
 | Calidad de datos | `tests/data_quality/` | Reglas sobre los datos reales: sin campos vacíos, 4 opciones distintas, sin errores de codificación, sin duplicados, umbral respetado, CSV coherentes, traducciones completas y sin opciones repetidas, glosario y correcciones del admin aplicados | PostgreSQL con datos (si no está, esos tests se saltean) |
 | Validación | `tests/validation/` | Entradas inválidas, autenticación y CORS en la API; calidad mínima del modelo de IA contra las decisiones humanas | Los del modelo cargan la IA y no corren por defecto |
@@ -1187,7 +1226,7 @@ Cada test recibe automáticamente el marcador del nombre de su carpeta (ver `tes
 
 ### Tests del frontend
 
-El frontend tiene sus propios **1031 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), la vista de administración (la clave, los filtros, la paginación, los cambios de estado, el editor de preguntas con sus validaciones y el historial), los estilos (contraste mínimo de cada combinación de colores, controles de 48 × 48 px), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
+El frontend tiene sus propios **1202 tests** con Vitest y React Testing Library, que corren desde `frontend/` con `npm test`. Cubren las reglas de los dos modos (incluidos los bordes del límite de 20 turnos), la matemática de la ruleta, el temporizador, la dificultad, rendirse en cada pantalla, el sonido (con un audio simulado: qué efecto suena en cada momento, el silencio, el volumen y la música), los dos idiomas de toda la interfaz (incluido un salto de reloj, como una pestaña en segundo plano), los reportes (cada respuesta posible de la API), la vista de administración (la clave, los filtros, la paginación, los cambios de estado, el editor de preguntas con sus validaciones y el historial), los estilos (contraste mínimo de cada combinación de colores, controles de 48 × 48 px), el cliente de la API (cada tipo de error, el `Retry-After`, el tiempo agotado), cada pantalla y partidas completas con la API simulada: nunca llaman a la API real, así que no hace falta tenerla levantada.
 
 - **Cobertura exigida: 100% de líneas y de ramas** en `src/game`, `src/api` y las reglas del editor de preguntas (`questionEditorForm.ts`).
 - Los tests de errores verifican el valor exacto de cada campo, y cada test tiene que poder fallar: una verificación que pasa aunque el código esté roto no cuenta.
@@ -1249,6 +1288,8 @@ Remove-Item audit_torch.txt
 |---|---|
 | `ModuleNotFoundError: No module named 'app'` | Ejecutar desde la raíz del proyecto y con `-m`: `poetry run python -m app.load_data`, no `python app/load_data.py` |
 | `No module named 'app.xxx'` | El archivo no está dentro de `app/`, tiene otro nombre o no está guardado |
+| Los tests fallan con `operator torchvision::nms does not exist` | Quedó un torch de CPU con un torchvision de GPU: ver la nota al final de [Uso de GPU](#uso-de-gpu-opcional) |
+| Tests de calidad de datos fallan con `column questions.is_active does not exist` o `relation "question_edits" does not exist` | La base de esa computadora es de una versión anterior. Copiar la base actualizada desde otra computadora con `pg_dump` (en la que está al día) y `pg_restore --clean` (en la vieja) |
 | PyTorch dice `+cpu` o `cuda.is_available()` da `False` | Reinstalar PyTorch con CUDA ([Uso de GPU](#uso-de-gpu-opcional)). Pasa después de cada `poetry install` o `poetry add` |
 | En el intérprete de Python 3.13 no se pueden escribir llaves `{ }` con teclado en español | Usar el intérprete clásico: `$env:PYTHON_BASIC_REPL = "1"` antes de `poetry run python` |
 | `poetry install` dice que no encuentra el paquete del proyecto | Ya está resuelto con `package-mode = false` en `pyproject.toml` |
@@ -1317,7 +1358,7 @@ Remove-Item audit_torch.txt
 
 **Proyecto**
 
-- Separar las dependencias de IA en un grupo opcional de Poetry, para que la API se pueda instalar sin PyTorch.
+- Separar las dependencias de IA en un grupo opcional de Poetry. Por ahora, para publicar la API sin PyTorch está `requirements-api.txt` (ver [Publicación online](#publicación-online)).
 - Si la API se publica en internet, limitar el tamaño de los pedidos en el servidor web que va delante (por ejemplo, `client_max_body_size` en nginx). Pydantic rechaza los textos demasiado largos, pero recién después de recibir el pedido completo.
 - Empaquetar la API en Docker junto con una copia de la base ya categorizada, para levantar todo con `docker compose up` sin instalar Python.
 - `starlette.testclient` avisa que en versiones futuras usará `httpx2` en lugar de `httpx`. Cuando el ecosistema complete la transición, habrá que migrar.
