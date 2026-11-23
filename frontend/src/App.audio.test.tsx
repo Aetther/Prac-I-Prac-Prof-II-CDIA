@@ -306,7 +306,7 @@ describe("App sounds with a fake AudioContext", () => {
     const user = userEvent.setup();
     await startToWheel(user);
     await playToGameOver(user, 6);
-    await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
+    await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
     await screen.findByRole("button", { name: "JUGAR" });
     await waitFor(() => expect(context().musicBus.gain.target).toBe(0));
   }, 30_000);

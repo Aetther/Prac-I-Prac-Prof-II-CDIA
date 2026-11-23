@@ -399,6 +399,22 @@ function App() {
     dispatch({ type: "SURRENDER" });
   };
 
+  /** Revancha: a new match at once with the same players and settings. */
+  const handleRematch = () => {
+    const config = game.config;
+    if (game.phase !== "GameOver" || config === null) return;
+    sound.unlock();
+    requestEpochRef.current += 1;
+    setRequest({ status: "idle" });
+    setReportingQuestionId(null);
+    setUnavailableQuestionId(null);
+    void runExclusive(async () => {
+      dispatch({ type: "RESET_GAME" });
+      dispatch({ type: "START_GAME", config });
+      await loadCategories();
+    });
+  };
+
   const handleBackToLobby = () => {
     requestEpochRef.current += 1;
     dispatch({ type: "RESET_GAME" });
@@ -457,6 +473,7 @@ function App() {
                   onChooseCategory={handleChooseCategory}
                   onRetry={handleRetry}
                   onBackToLobby={handleBackToLobby}
+                  onRematch={handleRematch}
                   reportingQuestionId={reportingQuestionId}
                   unavailableQuestionId={unavailableQuestionId}
                   onReport={handleReport}

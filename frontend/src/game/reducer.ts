@@ -25,6 +25,7 @@ export const INITIAL_GAME_STATE: GameState = {
   lastAnswer: null,
   result: null,
   ownedCategories: [[], []],
+  categoryHits: [{}, {}],
   turnsPlayed: [0, 0],
   matchId: 0,
   reportedQuestionIds: [],
@@ -144,6 +145,7 @@ function withAnswerReceived(
   if (config.mode === "six-categories") {
     const outcome = applySixCategoriesAnswer({
       ownedCategories: state.ownedCategories,
+      categoryHits: state.categoryHits,
       turnsPlayed: state.turnsPlayed,
       currentPlayer: state.currentPlayer,
       category: question.category,
@@ -153,6 +155,7 @@ function withAnswerReceived(
       ...state,
       phase: "Result",
       ownedCategories: outcome.ownedCategories,
+      categoryHits: outcome.categoryHits,
       turnsPlayed: outcome.turnsPlayed,
       result: outcome.result,
       lastAnswer: {
@@ -160,6 +163,7 @@ function withAnswerReceived(
         correct: action.correct,
         correctAnswer: action.correctAnswer,
         timedOut: action.timedOut,
+        ...(outcome.step === null ? {} : { crownStep: outcome.step }),
       },
     };
   }
@@ -243,6 +247,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         lastAnswer: null,
         result: null,
         ownedCategories: [[], []],
+        categoryHits: [{}, {}],
         turnsPlayed: [0, 0],
         matchId: state.matchId + 1,
         reportedQuestionIds: [],

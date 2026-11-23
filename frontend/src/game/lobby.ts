@@ -1,9 +1,18 @@
 import type {
+  GameMode,
   Lang,
   LobbyConfig,
   RoundsCount,
   SecondsPerQuestion,
 } from "./types";
+
+/** The longest player name, counted without the spaces at either end. */
+export const MAX_PLAYER_NAME_LENGTH = 15;
+
+/** The Lobby choices, in the order they are shown. */
+export const SECONDS_OPTIONS: readonly SecondsPerQuestion[] = [30, 20, 10];
+export const ROUNDS_OPTIONS: readonly RoundsCount[] = [3, 5, 10];
+export const GAME_MODES: readonly GameMode[] = ["rounds", "six-categories"];
 
 export type LobbyInput =
   | {
@@ -35,7 +44,8 @@ export const DEFAULT_LOBBY_SETTINGS: LobbyDefaults = {
 };
 
 export function isValidPlayerName(name: string): boolean {
-  return name.trim().length > 0;
+  const length = name.trim().length;
+  return length > 0 && length <= MAX_PLAYER_NAME_LENGTH;
 }
 
 export function createLobbyConfig(input: LobbyInput): LobbyConfig | null {

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { WheelCategory } from "../game/category";
 import type { MatchProgress } from "../game/progress";
 import type { Player, PlayerIndex } from "../game/types";
-import { CategoryChips } from "./CategoryChips";
+import { CrownProgress } from "./CrownProgress";
 import { PlayerCard } from "./PlayerCard";
 import { useMessages } from "../i18n";
 
@@ -44,7 +44,10 @@ export function Scoreboard({
           </div>
         )
       ) : (
-        <p>{m.turnLimit}</p>
+        <>
+          <p>{m.turnLimit}</p>
+          <p className="scoreboard-crown-rule">{m.crownRule}</p>
+        </>
       )}
       <ul className="scoreboard-list">
         {players.map((player, index) => {
@@ -69,10 +72,11 @@ export function Scoreboard({
                   <span className="scoreboard-stat">
                     {m.turnsCount(progress.turnsPlayed[index])}
                   </span>
-                  <CategoryChips
+                  <CrownProgress
                     playerName={player.name}
                     categories={categories}
                     owned={progress.ownedCategories[index]}
+                    hits={progress.categoryHits?.[index]}
                   />
                 </>
               )}

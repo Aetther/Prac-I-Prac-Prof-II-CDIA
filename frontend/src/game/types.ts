@@ -40,6 +40,19 @@ export type CategoryOwners = readonly [
 
 export type TurnsPlayed = readonly [number, number];
 
+/** Correct answers a player has in each category in the crowns mode. */
+export type CategoryTally = Readonly<Partial<Record<CategoryName, number>>>;
+export type CategoryHits = readonly [CategoryTally, CategoryTally];
+
+/** What a correct crowns-mode answer did to its category. */
+export interface CrownStep {
+  readonly category: CategoryName;
+  /** Correct answers in the category after this one, 1 to 3. */
+  readonly hits: number;
+  /** True when this answer completed the category's crown. */
+  readonly crowned: boolean;
+}
+
 export interface Player {
   readonly name: string;
   readonly score: number;
@@ -50,6 +63,8 @@ export interface LastAnswer {
   readonly correct: boolean;
   readonly correctAnswer: string;
   readonly timedOut: boolean;
+  /** Crowns mode only: the progress a correct answer made. */
+  readonly crownStep?: CrownStep;
 }
 
 export type RoundsGameResult =
@@ -74,6 +89,11 @@ export type SixCategoriesGameResult =
       readonly reason: "six-categories" | "turn-limit" | "surrender";
       /** Set when the match ended because this player surrendered. */
       readonly surrenderedBy?: PlayerIndex;
+      /**
+       * Set when the turn limit found equal crowns and the accumulated
+       * correct answers decided the winner.
+       */
+      readonly hits?: readonly [number, number];
     }
   | {
       readonly mode: "six-categories";
@@ -95,6 +115,7 @@ export interface GameState {
   readonly lastAnswer: LastAnswer | null;
   readonly result: GameResult | null;
   readonly ownedCategories: CategoryOwners;
+  readonly categoryHits: CategoryHits;
   readonly turnsPlayed: TurnsPlayed;
   readonly matchId: number;
   readonly reportedQuestionIds: readonly number[];

@@ -44,7 +44,7 @@ const SPANISH_COPY = [
   "Continuar",
   "Reportar",
   "Estoy listo",
-  "Jugar de nuevo",
+  "Revancha",
   "puntos",
   "Marcador",
   "Ronda ",
@@ -241,7 +241,7 @@ describe("The game in English", () => {
       await screen.findByRole("heading", { name: "Result" });
       await user.click(screen.getByRole("button", { name: "Continue" }));
     }
-    await screen.findByRole("button", { name: "Play again" });
+    await screen.findByRole("button", { name: "Rematch" });
     expect(
       screen.getByRole("heading", { name: "It's a tie!" }),
     ).toBeInTheDocument();

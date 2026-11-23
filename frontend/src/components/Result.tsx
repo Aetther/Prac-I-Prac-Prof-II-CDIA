@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { GameQuestion, ReportReason } from "../api/types";
+import { findCategoryLabel } from "../game/category";
 import type { WheelCategory } from "../game/category";
 import type { MatchProgress } from "../game/progress";
 import type { ReportSubmissionResult } from "../game/reporting";
@@ -32,6 +33,17 @@ interface ResultProps {
 function outcomeLabel(lastAnswer: LastAnswer, m: Messages): string {
   if (lastAnswer.timedOut) return m.timeUp;
   return lastAnswer.correct ? m.correct : m.wrong;
+}
+
+function crownStepText(
+  lastAnswer: LastAnswer,
+  categories: readonly WheelCategory[],
+  m: Messages,
+): string | null {
+  const step = lastAnswer.crownStep;
+  if (step === undefined) return null;
+  const label = findCategoryLabel(categories, step.category);
+  return step.crowned ? m.crownWon(label) : m.crownProgress(label, step.hits);
 }
 
 function outcomeKind(lastAnswer: LastAnswer): "correct" | "wrong" | "timeout" {
@@ -120,6 +132,7 @@ export function Result({
   };
 
   const iconKind = outcomeKind(lastAnswer);
+  const crownText = crownStepText(lastAnswer, categories, m);
 
   return (
     <section className="result game-layout">
@@ -136,6 +149,14 @@ export function Result({
           <ResultIcon kind={iconKind} />
           <span>{outcomeLabel(lastAnswer, m)}</span>
         </p>
+        {crownText === null ? null : (
+          <p
+            className="crown-step"
+            data-crowned={lastAnswer.crownStep?.crowned ? "true" : "false"}
+          >
+            {crownText}
+          </p>
+        )}
         <p role="status">{m.correctAnswerWas(lastAnswer.correctAnswer)}</p>
         {showChosen ? <p>{m.youChose(lastAnswer.chosenAnswer)}</p> : null}
         {reported ? (

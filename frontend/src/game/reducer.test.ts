@@ -179,6 +179,7 @@ describe("game reducer", () => {
       lastAnswer: null,
       result: null,
       ownedCategories: [[], []],
+      categoryHits: [{}, {}],
       turnsPlayed: [0, 0],
       matchId: 0,
       reportedQuestionIds: [],
@@ -200,6 +201,7 @@ describe("game reducer", () => {
       lastAnswer: null,
       result: null,
       ownedCategories: [[], []],
+      categoryHits: [{}, {}],
       turnsPlayed: [0, 0],
       matchId: 1,
       reportedQuestionIds: [],
@@ -951,7 +953,7 @@ describe("game reducer", () => {
     );
   });
 
-  it("RED-42 ANSWER_RECEIVED in six mode adds the served category, keeps the score at 0 and does not count a turn", () => {
+  it("RED-42 ANSWER_RECEIVED in six mode counts one hit in the served category, keeps the score at 0 and does not count a turn", () => {
     const next = gameReducer(
       sixState({
         currentQuestion: sixQuestion("geografia"),
@@ -961,7 +963,8 @@ describe("game reducer", () => {
       clickedCorrect,
     );
 
-    expect(next.ownedCategories).toStrictEqual([["geografia"], []]);
+    expect(next.ownedCategories).toStrictEqual([[], []]);
+    expect(next.categoryHits).toStrictEqual([{ geografia: 1 }, {}]);
     expect(next.turnsPlayed).toStrictEqual([0, 0]);
     expect(next.players).toEqual([
       { name: "Ana", score: 0 },
@@ -973,7 +976,30 @@ describe("game reducer", () => {
       correct: true,
       correctAnswer: "Lima",
       timedOut: false,
+      crownStep: { category: "geografia", hits: 1, crowned: false },
     });
+  });
+
+  it("RED-42b the third hit in a category wins its crown", () => {
+    const next = gameReducer(
+      sixState({
+        currentQuestion: sixQuestion("geografia"),
+        categoryHits: [{ geografia: 2, arte: 1 }, { geografia: 2 }],
+      }),
+      clickedCorrect,
+    );
+
+    expect(next.ownedCategories).toStrictEqual([["geografia"], []]);
+    expect(next.categoryHits).toStrictEqual([
+      { geografia: 3, arte: 1 },
+      { geografia: 2 },
+    ]);
+    expect(next.lastAnswer?.crownStep).toStrictEqual({
+      category: "geografia",
+      hits: 3,
+      crowned: true,
+    });
+    expect(next.result).toBeNull();
   });
 
   it("RED-43 ANSWER_RECEIVED in six mode on an owned category adds no second entry and does not count a turn", () => {
@@ -1002,6 +1028,7 @@ describe("game reducer", () => {
         currentPlayer: 0,
         currentQuestion: sixQuestion("deportes"),
         ownedCategories: [five, ["historia", "arte"]],
+        categoryHits: [{ deportes: 2 }, {}],
         turnsPlayed: [19, 19],
       }),
       clickedCorrect,
@@ -1025,6 +1052,7 @@ describe("game reducer", () => {
         currentPlayer: 1,
         currentQuestion: sixQuestion("deportes"),
         ownedCategories: [["historia", "arte"], five],
+        categoryHits: [{}, { deportes: 2 }],
         turnsPlayed: [20, 19],
       }),
       clickedCorrect,
@@ -1044,11 +1072,11 @@ describe("game reducer", () => {
     ).toBe("GameOver");
   });
 
-  it("RED-45 player 1 at 20 continues and player 2 at 20 ends", () => {
+  it("RED-45 player 1 at 30 continues and player 2 at 30 ends", () => {
     const playerOneEnds = gameReducer(
       sixState({
         currentPlayer: 0,
-        turnsPlayed: [19, 19],
+        turnsPlayed: [29, 29],
         ownedCategories: [
           ["geografia", "historia", "ciencia", "arte"],
           ["deportes", "entretenimiento"],
@@ -1058,7 +1086,7 @@ describe("game reducer", () => {
       wrongAnswer,
     );
 
-    expect(playerOneEnds.turnsPlayed).toStrictEqual([20, 19]);
+    expect(playerOneEnds.turnsPlayed).toStrictEqual([30, 29]);
     expect(playerOneEnds.result).toBeNull();
     expect(playerOneEnds.phase).toBe("Result");
 
@@ -1071,12 +1099,12 @@ describe("game reducer", () => {
     expect(advanced.phase).toBe("Wheel");
     expect(advanced.currentPlayer).toBe(1);
     expect(advanced.round).toBe(1);
-    expect(advanced.turnsPlayed).toStrictEqual([20, 19]);
+    expect(advanced.turnsPlayed).toStrictEqual([30, 29]);
 
     const playerTwoEnds = gameReducer(
       sixState({
         currentPlayer: 1,
-        turnsPlayed: [20, 19],
+        turnsPlayed: [30, 29],
         ownedCategories: [
           ["geografia", "historia", "ciencia", "arte"],
           ["deportes", "entretenimiento"],
@@ -1086,7 +1114,7 @@ describe("game reducer", () => {
       wrongAnswer,
     );
 
-    expect(playerTwoEnds.turnsPlayed).toStrictEqual([20, 20]);
+    expect(playerTwoEnds.turnsPlayed).toStrictEqual([30, 30]);
     expect(playerTwoEnds.result).toStrictEqual({
       mode: "six-categories",
       kind: "winner",
@@ -1099,7 +1127,7 @@ describe("game reducer", () => {
     ).toBe("GameOver");
   });
 
-  it("RED-46 a correct answer during player 2's twentieth turn sets no result and keeps the turn", () => {
+  it("RED-46 a correct answer during player 2's thirtieth turn sets no result and keeps the turn", () => {
     const five: readonly CategoryName[] = [
       "geografia",
       "historia",
@@ -1110,13 +1138,13 @@ describe("game reducer", () => {
     const next = gameReducer(
       sixState({
         currentPlayer: 1,
-        turnsPlayed: [20, 19],
+        turnsPlayed: [30, 29],
         ownedCategories: [["geografia", "historia", "ciencia", "arte"], five],
       }),
       clickedCorrect,
     );
 
-    expect(next.turnsPlayed).toStrictEqual([20, 19]);
+    expect(next.turnsPlayed).toStrictEqual([30, 29]);
     expect(next.result).toBeNull();
     expect(next.phase).toBe("Result");
     expect(gameReducer(next, { type: "CONTINUE_AFTER_ANSWER" })).toMatchObject({

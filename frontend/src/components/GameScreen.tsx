@@ -32,6 +32,7 @@ interface GameScreenProps {
   onSectorCross?: WheelTickHandler;
   onRetry: () => void;
   onBackToLobby: () => void;
+  onRematch: () => void;
   reportingQuestionId: number | null;
   unavailableQuestionId: number | null;
   onReport: (
@@ -87,6 +88,7 @@ function GamePhase({
   onSectorCross,
   onRetry,
   onBackToLobby,
+  onRematch,
   reportingQuestionId,
   unavailableQuestionId,
   onReport,
@@ -195,8 +197,10 @@ function GamePhase({
           players={game.players}
           categories={wheelCategories}
           ownedCategories={game.ownedCategories}
+          categoryHits={game.categoryHits}
           turnsPlayed={game.turnsPlayed}
-          onPlayAgain={onBackToLobby}
+          onRematch={onRematch}
+          onBackToLobby={onBackToLobby}
         />
       );
     case "Result": {

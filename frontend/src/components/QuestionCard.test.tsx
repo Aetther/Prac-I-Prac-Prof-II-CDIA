@@ -311,6 +311,7 @@ describe("QuestionCard", () => {
       onChooseCategory: vi.fn(),
       onRetry: vi.fn(),
       onBackToLobby: vi.fn(),
+      onRematch: vi.fn(),
       reportingQuestionId: null,
       unavailableQuestionId: null,
       onReport: vi.fn().mockResolvedValue({ ok: true }),
@@ -452,9 +453,9 @@ describe("QuestionCard", () => {
       },
     });
 
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
-    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(screen.getByText("Turnos: 2 de 20")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Coronas: 1 de 6")).toBeVisible();
+    expect(screen.getByText("Turnos: 2 de 30")).toBeVisible();
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(screen.getByText("¿Capital de Francia?")).toBeVisible();
     expect(screen.getAllByRole("button")).toHaveLength(4);

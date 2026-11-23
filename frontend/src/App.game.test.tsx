@@ -156,6 +156,8 @@ async function startToWheel(
   if (mode === "six-categories") {
     await chooseMode(user, "six-categories");
   } else {
+    // The Lobby opens with the last saved mode, so a rounds match picks it.
+    await chooseMode(user, "rounds");
     await chooseRounds(user, rounds);
   }
   const english = lang === "en";
@@ -645,9 +647,9 @@ describe("App game flow with a mocked API", () => {
     expect(screen.getByText("Beto: 10 puntos")).toBeVisible();
     expect(screen.queryByText("Turno")).toBeNull();
     expect(document.querySelectorAll(".category-chip")).toHaveLength(0);
-    expect(document.body.textContent).not.toMatch(/Categorías: \d+ de 6/);
+    expect(document.body.textContent).not.toMatch(/Coronas: \d+ de 6/);
     expect(document.body.textContent).not.toContain(
-      "Límite: 20 turnos por jugador",
+      "Límite: 30 turnos por jugador",
     );
     expectNoTimer();
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
@@ -659,7 +661,7 @@ describe("App game flow with a mocked API", () => {
     expect(postAnswer).toHaveBeenCalledTimes(6);
   });
 
-  it("returns to the Lobby with defaults from Jugar de nuevo after a rounds match, with no API call", async () => {
+  it("returns to the Lobby with the last settings and empty names from Volver al lobby after a rounds match, with no API call", async () => {
     const user = userEvent.setup();
 
     for (let index = 0; index < 6; index += 1) {
@@ -687,7 +689,7 @@ describe("App game flow with a mocked API", () => {
     const questionCalls = getQuestion.mock.calls.length;
     const answerCalls = postAnswer.mock.calls.length;
 
-    await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
+    await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
 
     expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
@@ -699,13 +701,54 @@ describe("App game flow with a mocked API", () => {
     expect(lobbyValue("language")).toBe("es");
     expect(lobbyValue("difficulty")).toBe("20");
     expect(lobbyValue("mode")).toBe("rounds");
-    expect(lobbyValue("rounds")).toBe("5");
+    expect(lobbyValue("rounds")).toBe("3");
+    expect(localStorage.getItem("trivia.lobby.v1")).not.toContain("Ana");
     expect(screen.queryByText("¡Empate!")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revancha" })).toBeNull();
     expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);
     expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
     expect(postAnswer).toHaveBeenCalledTimes(answerCalls);
-  });
+  }, 30_000);
+
+  it("REM-01 Revancha starts a new match at once with the same players and settings", async () => {
+    const user = userEvent.setup();
+
+    for (let index = 0; index < 6; index += 1) {
+      const id = 450 + index;
+      getQuestion.mockResolvedValueOnce(
+        question({ id, question: `Pregunta ${index + 1}` }),
+      );
+      if (index === 0) {
+        await startToWheel(user, { rounds: "3", seconds: "30" });
+      } else {
+        await continueToWheel(user);
+      }
+      await spinWheel(user);
+      await screen.findByText(`Pregunta ${index + 1}`);
+      postAnswer.mockResolvedValueOnce({
+        correct: index === 0,
+        correct_answer: "Lima",
+      });
+      await answer(user);
+      await continueFromResult(user);
+    }
+
+    expect(screen.getByText("¡Ganó Ana!")).toBeVisible();
+    const categoryCalls = getCategoriesMock.mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Revancha" }));
+
+    await screen.findByRole("button", { name: "Girar" });
+    expect(screen.queryByRole("heading", { name: "TRIVIA" })).toBeNull();
+    expect(screen.queryByLabelText("Jugador 1")).toBeNull();
+    expect(screen.queryByText("¡Ganó Ana!")).toBeNull();
+    expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
+    expect(screen.getByText("Beto: 0 puntos")).toBeVisible();
+    expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
+    expect(currentTurnRow()[0]).toHaveTextContent("Ana: 0 puntos");
+    expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls + 1);
+    expect(localStorage.getItem("trivia.lobby.v1")).not.toContain("Ana");
+  }, 30_000);
 
   it("APPT-17 Continue on the final Result with equal scores shows ¡Empate!", async () => {
     const user = userEvent.setup();
@@ -1029,7 +1072,7 @@ describe("App game flow with a mocked API", () => {
     }
   });
 
-  it("returns to the Lobby with defaults and no API call", async () => {
+  it("returns to the Lobby with the last settings and no API call", async () => {
     const user = userEvent.setup();
     getQuestion.mockResolvedValueOnce(question());
     postAnswer.mockResolvedValueOnce({
@@ -1061,7 +1104,7 @@ describe("App game flow with a mocked API", () => {
     );
     expect(lobbyValue("language")).toBe("es");
     expect(lobbyValue("difficulty")).toBe("20");
-    expect(lobbyValue("rounds")).toBe("5");
+    expect(lobbyValue("rounds")).toBe("3");
     expect(screen.queryByText("Marcador")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(getQuestion).toHaveBeenCalledTimes(7);
@@ -1742,11 +1785,11 @@ describe("App game flow with a mocked API", () => {
     expect(postAnswer).toHaveBeenCalledTimes(20);
     expect(screen.getByText("¡Empate!")).toBeVisible();
     expect(document.body.textContent).not.toContain(
-      "Se alcanzó el límite de 20 turnos.",
+      "Se alcanzó el límite de 30 turnos.",
     );
-    expect(document.body.textContent).not.toMatch(/Categorías: \d+ de 6/);
+    expect(document.body.textContent).not.toMatch(/Coronas: \d+ de 6/);
     expect(document.body.textContent).not.toContain(
-      "Límite: 20 turnos por jugador",
+      "Límite: 30 turnos por jugador",
     );
   }, 30_000);
 });
@@ -1775,6 +1818,42 @@ describe("App six-categories flow with a mocked API", () => {
     expect(document.body.textContent).not.toMatch(/(Ana|Beto): \d+/);
   }
 
+  function ring(name: string, category: string): HTMLElement {
+    const node = playerRow(name).querySelector<HTMLElement>(
+      `.crown-ring[data-category="${category}"]`,
+    );
+    if (node === null) throw new Error(`no ${category} ring for ${name}`);
+    return node;
+  }
+
+  /** Plays correct answers on the given wheel sectors, in order. */
+  async function correctOn(
+    user: UserEvent,
+    sectors: readonly number[],
+    { start = false, continueLast = true } = {},
+  ): Promise<void> {
+    for (const [index, sector] of sectors.entries()) {
+      if (index === 0 && start) {
+        await startToWheel(user, { mode: "six-categories" });
+      } else {
+        await screen.findByRole("button", { name: "Girar" });
+      }
+      await spinWheel(user, sector);
+      await screen.findByText("¿Capital de Francia?");
+      await answerCorrect();
+      await answer(user);
+      await screen.findByText("Correcta");
+      if (index < sectors.length - 1 || continueLast) {
+        await continueFromResult(user);
+      }
+    }
+  }
+
+  /** Three correct answers on each sector: the crown of each category. */
+  function crownsOn(sectors: readonly number[]): number[] {
+    return sectors.flatMap((sector) => [sector, sector, sector]);
+  }
+
   it("APS-01 starts in six mode on the Wheel with the six scoreboard and no Ronda", async () => {
     const user = userEvent.setup();
     await startToWheel(user, { mode: "six-categories" });
@@ -1782,10 +1861,14 @@ describe("App six-categories flow with a mocked API", () => {
     expect(
       screen.getByRole("heading", { name: "Girá la ruleta" }),
     ).toBeVisible();
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
-    expect(screen.getAllByText("Categorías: 0 de 6")).toHaveLength(2);
-    expect(screen.getAllByText("Turnos: 0 de 20")).toHaveLength(2);
-    expect(screen.getAllByText("Sin categorías")).toHaveLength(2);
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
+    expect(screen.getAllByText("Coronas: 0 de 6")).toHaveLength(2);
+    expect(screen.getAllByText("Turnos: 0 de 30")).toHaveLength(2);
+    expect(screen.getByText("Corona = 3 aciertos por categoría")).toBeVisible();
+    expect(document.querySelectorAll(".crown-ring")).toHaveLength(12);
+    expect(
+      document.querySelectorAll('.crown-ring:not([data-hits="0"])'),
+    ).toHaveLength(0);
     expectNoRoundLabel();
     expectNoPoints();
     expect(getCategoriesMock).toHaveBeenCalledTimes(1);
@@ -1804,9 +1887,10 @@ describe("App six-categories flow with a mocked API", () => {
 
     await screen.findByRole("heading", { name: "Resultado" });
     expect(screen.getByText("Correcta")).toBeVisible();
-    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
-    expect(within(playerRow("Ana")).getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByText("Geografía: 1 de 3")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 30")).toBeVisible();
+    expect(ring("Ana", "geografia")).toHaveAttribute("data-hits", "1");
     const questionCalls = getQuestion.mock.calls.length;
 
     await continueFromResult(user);
@@ -1836,16 +1920,14 @@ describe("App six-categories flow with a mocked API", () => {
     await screen.findByRole("heading", { name: "Resultado" });
     expect(screen.getByText("Incorrecta")).toBeVisible();
     expect(screen.getByText("Elegiste: Lima")).toBeVisible();
-    expect(
-      within(playerRow("Ana")).getByText("Categorías: 0 de 6"),
-    ).toBeVisible();
-    expect(screen.getByText("Turnos: 1 de 20")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(screen.getByText("Turnos: 1 de 30")).toBeVisible();
 
     await continueFromResult(user);
 
     expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
     expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
     expectNoRoundLabel();
     expect(currentTurnRow()).toHaveLength(1);
     expect(currentTurnRow()[0]).toHaveTextContent("Beto");
@@ -1876,18 +1958,18 @@ describe("App six-categories flow with a mocked API", () => {
     expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
     expect(screen.queryByText("Correcta")).toBeNull();
+    expect(within(playerRow("Ana")).getByText("Coronas: 0 de 6")).toBeVisible();
     expect(
-      within(playerRow("Ana")).getByText("Categorías: 0 de 6"),
-    ).toBeVisible();
-    expect(within(playerRow("Ana")).getByText("Sin categorías")).toBeVisible();
-    expect(screen.getByText("Turnos: 1 de 20")).toBeVisible();
+      playerRow("Ana").querySelectorAll('.crown-ring[data-hits="0"]'),
+    ).toHaveLength(6);
+    expect(screen.getByText("Turnos: 1 de 30")).toBeVisible();
 
     await continueFromResult(user);
     expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
     expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
   });
 
-  it("APS-05 a correct answer on an owned category requests it and adds no second chip", async () => {
+  it("APS-05 a second correct answer on a category requests it and fills its ring to two thirds", async () => {
     const user = userEvent.setup();
     getQuestion.mockResolvedValueOnce(question({ id: 42 }));
     await answerCorrect();
@@ -1911,92 +1993,70 @@ describe("App six-categories flow with a mocked API", () => {
 
     await answer(user);
     await screen.findByRole("heading", { name: "Resultado" });
-    expect(within(playerRow("Ana")).getAllByRole("listitem")).toHaveLength(1);
-    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
+    expect(screen.getByText("Geografía: 2 de 3")).toBeVisible();
+    expect(ring("Ana", "geografia")).toHaveAttribute("data-hits", "2");
+    expect(within(playerRow("Ana")).getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 30")).toBeVisible();
 
     await continueFromResult(user);
     await screen.findByRole("button", { name: "Girar" });
     expect(currentTurnRow()[0]).toHaveTextContent("Ana");
   });
 
-  it("APS-06 the sixth category reaches GameOver with the category sentence", async () => {
+  it("APS-06 the sixth crown reaches GameOver with the crowns sentence", async () => {
     const user = userEvent.setup();
     mockQuestionsEchoCategory();
 
-    for (let index = 0; index < 6; index += 1) {
-      if (index === 0) {
-        await startToWheel(user, { mode: "six-categories" });
-      } else {
-        await screen.findByRole("button", { name: "Girar" });
-      }
-      await spinWheel(user, index);
-      await screen.findByText("¿Capital de Francia?");
-      await answerCorrect();
-      await answer(user);
-      await screen.findByText("Correcta");
-      if (index < 5) {
-        await continueFromResult(user);
-      }
-    }
+    await correctOn(user, crownsOn([0, 1, 2, 3, 4, 5]), {
+      start: true,
+      continueLast: false,
+    });
 
-    expect(screen.getByText("Categorías: 6 de 6")).toBeVisible();
-    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
-    const chips = within(playerRow("Ana")).getAllByRole("listitem");
-    expect(chips).toHaveLength(6);
-    expect(
-      chips.map(
-        (chip) => chip.querySelector(".category-chip-label")?.textContent,
-      ),
-    ).toEqual([
-      "Geografía",
-      "Historia",
-      "Ciencia",
-      "Arte",
-      "Entretenimiento",
-      "Deportes",
+    expect(screen.getByText("¡Corona de Deportes! 👑")).toBeVisible();
+    expect(screen.getByText("Coronas: 6 de 6")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 30")).toBeVisible();
+    const rings = within(playerRow("Ana")).getAllByRole("listitem");
+    expect(rings).toHaveLength(6);
+    expect(rings.map((item) => item.dataset.category)).toEqual([
+      "geografia",
+      "historia",
+      "ciencia",
+      "arte",
+      "entretenimiento",
+      "deportes",
     ]);
+    for (const item of rings) {
+      expect(item).toHaveClass("crown-ring-won");
+    }
     const questionCalls = getQuestion.mock.calls.length;
     const answerCalls = postAnswer.mock.calls.length;
 
     await continueFromResult(user);
 
     await screen.findByText("¡Ganó Ana!");
-    expect(screen.getByText("Juntó las 6 categorías.")).toBeVisible();
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
-    expect(screen.getByText("Categorías: 6 de 6")).toBeVisible();
-    expect(screen.getByText("Categorías: 0 de 6")).toBeVisible();
+    expect(screen.getByText("Juntó las 6 coronas.")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Coronas: 6 de 6")).toBeVisible();
+    expect(screen.getByText("Coronas: 0 de 6")).toBeVisible();
     expect(screen.queryByText("Turno")).toBeNull();
     expectNoRoundLabel();
     expectNoPoints();
     expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
     expect(postAnswer).toHaveBeenCalledTimes(answerCalls);
-  });
+  }, 60_000);
 
-  it("returns to the Lobby with defaults from Jugar de nuevo after a six-mode match, with no API call", async () => {
+  it("returns to the Lobby with the last settings and empty names from Volver al lobby after a six-mode match, with no API call", async () => {
     const user = userEvent.setup();
     mockQuestionsEchoCategory();
 
-    for (let index = 0; index < 6; index += 1) {
-      if (index === 0) {
-        await startToWheel(user, { mode: "six-categories" });
-      } else {
-        await screen.findByRole("button", { name: "Girar" });
-      }
-      await spinWheel(user, index);
-      await screen.findByText("¿Capital de Francia?");
-      await answerCorrect();
-      await answer(user);
-      await screen.findByText("Correcta");
-      await continueFromResult(user);
-    }
+    await correctOn(user, crownsOn([0, 1, 2, 3, 4, 5]), { start: true });
 
     expect(screen.getByText("¡Ganó Ana!")).toBeVisible();
     const categoryCalls = getCategoriesMock.mock.calls.length;
     const questionCalls = getQuestion.mock.calls.length;
     const answerCalls = postAnswer.mock.calls.length;
 
-    await user.click(screen.getByRole("button", { name: "Jugar de nuevo" }));
+    await user.click(screen.getByRole("button", { name: "Volver al lobby" }));
 
     expect(screen.getByRole("heading", { name: "TRIVIA" })).toBeVisible();
     expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
@@ -2007,39 +2067,28 @@ describe("App six-categories flow with a mocked API", () => {
     );
     expect(lobbyValue("language")).toBe("es");
     expect(lobbyValue("difficulty")).toBe("20");
-    expect(lobbyValue("mode")).toBe("rounds");
-    expect(lobbyValue("rounds")).toBe("5");
+    expect(lobbyValue("mode")).toBe("six-categories");
+    expect(lobbyValue("rounds")).toBeNull();
     expect(screen.queryByText("¡Ganó Ana!")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Jugar de nuevo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revancha" })).toBeNull();
     expect(getCategoriesMock).toHaveBeenCalledTimes(categoryCalls);
     expect(getQuestion).toHaveBeenCalledTimes(questionCalls);
     expect(postAnswer).toHaveBeenCalledTimes(answerCalls);
-  });
+  }, 60_000);
 
-  it("APS-07 a fifth category keeps the match going", async () => {
+  it("APS-07 a fifth crown keeps the match going", async () => {
     const user = userEvent.setup();
     mockQuestionsEchoCategory();
 
-    for (let index = 0; index < 5; index += 1) {
-      if (index === 0) {
-        await startToWheel(user, { mode: "six-categories" });
-      } else {
-        await screen.findByRole("button", { name: "Girar" });
-      }
-      await spinWheel(user, index);
-      await screen.findByText("¿Capital de Francia?");
-      await answerCorrect();
-      await answer(user);
-      await screen.findByText("Correcta");
-      await continueFromResult(user);
-    }
+    await correctOn(user, crownsOn([0, 1, 2, 3, 4]), { start: true });
 
     await screen.findByRole("button", { name: "Girar" });
-    expect(screen.getByText("Categorías: 5 de 6")).toBeVisible();
-    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
-    expect(screen.queryByText("Juntó las 6 categorías.")).toBeNull();
+    expect(screen.getByText("Coronas: 5 de 6")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 30")).toBeVisible();
+    expect(screen.queryByText("Juntó las 6 coronas.")).toBeNull();
+    expect(ring("Ana", "deportes")).toHaveAttribute("data-hits", "0");
     expect(currentTurnRow()[0]).toHaveTextContent("Ana");
-  });
+  }, 60_000);
 
   it("APS-08 the six-mode screens never show a round label", async () => {
     const user = userEvent.setup();
@@ -2047,29 +2096,29 @@ describe("App six-categories flow with a mocked API", () => {
     await answerWrong();
     await startToWheel(user, { mode: "six-categories" });
 
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
     expectNoRoundLabel();
 
     await spinWheel(user);
     await screen.findByText("¿Capital de Francia?");
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
     expectNoRoundLabel();
 
     await answer(user);
     await screen.findByRole("heading", { name: "Resultado" });
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
     expectNoRoundLabel();
 
     await continueFromResult(user);
     expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
     expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
     expectNoRoundLabel();
 
     cleanup();
     await startToWheel(user);
     expect(screen.getByText("Ronda 1 de 3")).toBeVisible();
-    expect(screen.queryByText("Límite: 20 turnos por jugador")).toBeNull();
+    expect(screen.queryByText("Límite: 30 turnos por jugador")).toBeNull();
   });
 
   it("APS-09 the six-mode screens never show points", async () => {
@@ -2106,39 +2155,33 @@ describe("App six-categories flow with a mocked API", () => {
     await screen.findByText("Ana: 10 puntos");
   });
 
-  it("APS-10 the App renders chips in acquisition order with their token colours", async () => {
+  it("APS-10 the rings fill by thirds in their token colours and the third answer wins the crown", async () => {
     const user = userEvent.setup();
     mockQuestionsEchoCategory();
-    await startToWheel(user, { mode: "six-categories" });
 
-    await spinWheel(user, 0);
-    await screen.findByText("¿Capital de Francia?");
-    await answerCorrect();
-    await answer(user);
-    await screen.findByText("Correcta");
+    await correctOn(user, [2], { start: true, continueLast: false });
+    expect(screen.getByText("Ciencia: 1 de 3")).toBeVisible();
     await continueFromResult(user);
 
-    await screen.findByRole("button", { name: "Girar" });
-    await spinWheel(user, 2);
-    await screen.findByText("¿Capital de Francia?");
-    await answerCorrect();
-    await answer(user);
-    await screen.findByText("Correcta");
+    await correctOn(user, [2, 2], { continueLast: false });
+    expect(screen.getByText("¡Corona de Ciencia! 👑")).toBeVisible();
+    expect(screen.getByText("Coronas: 1 de 6")).toBeVisible();
 
-    const list = screen.getByRole("list", { name: "Categorías de Ana" });
-    const chips = within(list).getAllByRole("listitem");
-    expect(
-      chips.map(
-        (chip) => chip.querySelector(".category-chip-label")?.textContent,
-      ),
-    ).toEqual(["Geografía", "Ciencia"]);
-    expect(chips[0].style.backgroundColor).toBe(
-      "var(--color-category-geografia)",
-    );
-    expect(chips[1].style.backgroundColor).toBe(
+    const list = screen.getByRole("list", { name: "Coronas de Ana" });
+    const rings = within(list).getAllByRole("listitem");
+    expect(rings).toHaveLength(6);
+    const ciencia = ring("Ana", "ciencia");
+    expect(ciencia).toHaveClass("crown-ring-won");
+    expect(ciencia).toHaveAttribute("data-hits", "3");
+    expect(ciencia.style.getPropertyValue("--ring-color")).toBe(
       "var(--color-category-ciencia)",
     );
-  });
+    expect(ciencia.style.getPropertyValue("--ring-fill")).toBe("100%");
+    expect(within(ciencia).getByText("Ciencia: corona ganada")).toBeTruthy();
+    expect(ring("Ana", "geografia").style.getPropertyValue("--ring-fill")).toBe(
+      "0%",
+    );
+  }, 30_000);
 
   it("APS-11 categories stay with their player across the turn change", async () => {
     const user = userEvent.setup();
@@ -2173,14 +2216,14 @@ describe("App six-categories flow with a mocked API", () => {
 
     const anaRow = playerRow("Ana");
     const betoRow = playerRow("Beto");
-    expect(within(anaRow).getByText("Geografía")).toBeVisible();
-    expect(within(anaRow).queryByText("Historia")).toBeNull();
-    expect(within(betoRow).getByText("Historia")).toBeVisible();
-    expect(within(betoRow).queryByText("Geografía")).toBeNull();
-    expect(within(anaRow).getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(within(betoRow).getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(within(anaRow).getByText("Turnos: 1 de 20")).toBeVisible();
-    expect(within(betoRow).getByText("Turnos: 0 de 20")).toBeVisible();
+    expect(ring("Ana", "geografia")).toHaveAttribute("data-hits", "1");
+    expect(ring("Ana", "historia")).toHaveAttribute("data-hits", "0");
+    expect(ring("Beto", "historia")).toHaveAttribute("data-hits", "1");
+    expect(ring("Beto", "geografia")).toHaveAttribute("data-hits", "0");
+    expect(within(anaRow).getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(within(betoRow).getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(within(anaRow).getByText("Turnos: 1 de 30")).toBeVisible();
+    expect(within(betoRow).getByText("Turnos: 0 de 30")).toBeVisible();
   });
 
   it("APS-12 a repeated id is skipped in six mode", async () => {
@@ -2194,7 +2237,7 @@ describe("App six-categories flow with a mocked API", () => {
     await screen.findByText("Pregunta 7");
     await answer(user);
     await screen.findByRole("heading", { name: "Resultado" });
-    expect(screen.getByText("Turnos: 1 de 20")).toBeVisible();
+    expect(screen.getByText("Turnos: 1 de 30")).toBeVisible();
     await continueFromResult(user);
     await continueFromSwitchTurn(user);
 
@@ -2209,9 +2252,9 @@ describe("App six-categories flow with a mocked API", () => {
 
     await screen.findByText("Pregunta 8");
     expect(getQuestion).toHaveBeenCalledTimes(5);
-    expect(screen.getByText("Turnos: 1 de 20")).toBeVisible();
+    expect(screen.getByText("Turnos: 1 de 30")).toBeVisible();
     expect(
-      within(playerRow("Beto")).getByText("Categorías: 0 de 6"),
+      within(playerRow("Beto")).getByText("Coronas: 0 de 6"),
     ).toBeVisible();
     expect(currentTurnRow()[0]).toHaveTextContent("Beto");
   });
@@ -2251,14 +2294,14 @@ describe("App six-categories flow with a mocked API", () => {
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
 
     await screen.findByText("Pregunta 8");
-    expect(screen.getByText("Turnos: 1 de 20")).toBeVisible();
+    expect(screen.getByText("Turnos: 1 de 30")).toBeVisible();
     expect(
-      within(playerRow("Beto")).getByText("Categorías: 0 de 6"),
+      within(playerRow("Beto")).getByText("Coronas: 0 de 6"),
     ).toBeVisible();
     expect(currentTurnRow()[0]).toHaveTextContent("Beto");
   });
 
-  it("APS-14 a 404 fallback in six mode serves Historia and adds a Historia chip", async () => {
+  it("APS-14 a 404 fallback in six mode serves Historia and fills the Historia ring", async () => {
     const user = userEvent.setup();
     getQuestion.mockRejectedValueOnce(notFound());
     getQuestion.mockResolvedValueOnce(
@@ -2279,9 +2322,9 @@ describe("App six-categories flow with a mocked API", () => {
 
     await answer(user);
     await screen.findByRole("heading", { name: "Resultado" });
-    const anaRow = playerRow("Ana");
-    expect(within(anaRow).getByText("Historia")).toBeVisible();
-    expect(within(anaRow).queryByText("Geografía")).toBeNull();
+    expect(screen.getByText("Historia: 1 de 3")).toBeVisible();
+    expect(ring("Ana", "historia")).toHaveAttribute("data-hits", "1");
+    expect(ring("Ana", "geografia")).toHaveAttribute("data-hits", "0");
   });
 
   it("APS-15 all six 404 in six mode show the all-six message and keep the match", async () => {
@@ -2319,7 +2362,7 @@ describe("App six-categories flow with a mocked API", () => {
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
     await screen.findByRole("button", { name: "Girar" });
     expect(getQuestion).toHaveBeenCalledTimes(6);
-    expect(within(playerRow("Ana")).getByText("Turnos: 1 de 20")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 1 de 30")).toBeVisible();
 
     await spinWheel(user);
     await screen.findByRole("alert");
@@ -2335,14 +2378,14 @@ describe("App six-categories flow with a mocked API", () => {
 
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("¿Está corriendo la API?")).toBeVisible();
-    expect(screen.queryByText("Límite: 20 turnos por jugador")).toBeNull();
+    expect(screen.queryByText("Límite: 30 turnos por jugador")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
 
     await screen.findByText("¿Capital de Francia?");
     expect(getQuestion).toHaveBeenCalledTimes(2);
     expect(getQuestion.mock.calls[1]).toEqual(["geografia", "es"]);
-    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 30")).toBeVisible();
   });
 
   it("APS-17 a long correct streak does not count a turn", async () => {
@@ -2360,14 +2403,23 @@ describe("App six-categories flow with a mocked API", () => {
       await answer(user);
       await screen.findByText("Correcta");
       expect(
-        within(playerRow("Ana")).getByText("Turnos: 0 de 20"),
+        within(playerRow("Ana")).getByText("Turnos: 0 de 30"),
       ).toBeVisible();
       await continueFromResult(user);
     }
 
     await screen.findByRole("button", { name: "Girar" });
-    expect(screen.getByText("Categorías: 5 de 6")).toBeVisible();
-    expect(screen.queryByText("Juntó las 6 categorías.")).toBeNull();
+    expect(within(playerRow("Ana")).getByText("Coronas: 0 de 6")).toBeVisible();
+    for (const category of [
+      "geografia",
+      "historia",
+      "ciencia",
+      "arte",
+      "entretenimiento",
+    ]) {
+      expect(ring("Ana", category)).toHaveAttribute("data-hits", "1");
+    }
+    expect(screen.queryByText("Juntó las 6 coronas.")).toBeNull();
     expect(currentTurnRow()[0]).toHaveTextContent("Ana");
   });
 
@@ -2380,7 +2432,7 @@ describe("App six-categories flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
     await screen.findByText("Correcta");
-    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 30")).toBeVisible();
     await continueFromResult(user);
 
     getQuestion.mockResolvedValueOnce(question({ id: 2 }));
@@ -2389,15 +2441,15 @@ describe("App six-categories flow with a mocked API", () => {
     await screen.findByText("¿Capital de Francia?");
     await answer(user);
     await screen.findByText("Incorrecta");
-    expect(screen.getByText("Turnos: 1 de 20")).toBeVisible();
-    expect(screen.getByText("Turnos: 0 de 20")).toBeVisible();
+    expect(screen.getByText("Turnos: 1 de 30")).toBeVisible();
+    expect(screen.getByText("Turnos: 0 de 30")).toBeVisible();
 
     await continueFromResult(user);
     expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
     expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
   });
 
-  it("APS-19 a served category outside the six settles the answer but adds no chip or turn", async () => {
+  it("APS-19 a served category outside the six settles the answer but fills no ring or turn", async () => {
     const user = userEvent.setup();
     getQuestion.mockResolvedValueOnce(question({ category: "otra" }));
     await answerCorrect();
@@ -2408,11 +2460,12 @@ describe("App six-categories flow with a mocked API", () => {
     await answer(user);
     await screen.findByRole("heading", { name: "Resultado" });
 
-    expect(document.querySelectorAll(".category-chip")).toHaveLength(0);
     expect(
-      within(playerRow("Ana")).getByText("Categorías: 0 de 6"),
-    ).toBeVisible();
-    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 20")).toBeVisible();
+      document.querySelectorAll('.crown-ring:not([data-hits="0"])'),
+    ).toHaveLength(0);
+    expect(document.querySelector(".crown-step")).toBeNull();
+    expect(within(playerRow("Ana")).getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(within(playerRow("Ana")).getByText("Turnos: 0 de 30")).toBeVisible();
 
     await continueFromResult(user);
     await screen.findByRole("button", { name: "Girar" });

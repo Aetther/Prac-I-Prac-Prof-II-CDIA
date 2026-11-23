@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "../i18n";
+import { installRafQueue } from "../test/rafQueue";
 import { Lobby } from "./Lobby";
 
 function group(name: string): HTMLElement {
@@ -25,6 +26,10 @@ async function fillNames(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Jugador 1"), " Ana ");
   await user.type(screen.getByLabelText("Jugador 2"), "Beto");
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("Lobby", () => {
   it("Defaults are shown", () => {
@@ -68,11 +73,11 @@ describe("Lobby", () => {
     const user = userEvent.setup();
     render(<Lobby onStart={vi.fn()} />);
     await user.click(
-      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
+      screen.getByRole("radio", { name: "Juntar las 6 coronas" }),
     );
     expect(screen.queryByRole("group", { name: "Rondas" })).toBeNull();
     expect(checkedName("Dificultad")).toBe("Intermedia");
-    expect(checkedName("Modo de juego")).toBe("Juntar las 6 categorías");
+    expect(checkedName("Modo de juego")).toBe("Juntar las 6 coronas");
     expect(screen.getByRole("button", { name: "JUGAR" })).toBeDisabled();
     await user.click(screen.getByRole("radio", { name: "Por rondas" }));
     expect(checkedName("Rondas")).toBe("5 rondas");
@@ -128,7 +133,7 @@ describe("Lobby", () => {
     await user.click(screen.getByRole("radio", { name: "English" }));
     await user.click(screen.getByRole("radio", { name: "Fácil" }));
     await user.click(
-      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
+      screen.getByRole("radio", { name: "Juntar las 6 coronas" }),
     );
     await user.click(screen.getByRole("button", { name: "JUGAR" }));
     expect(onStart).toHaveBeenCalledWith({
@@ -175,7 +180,7 @@ describe("Lobby", () => {
     const user = userEvent.setup();
     render(<Lobby onStart={vi.fn()} />);
     await user.click(
-      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
+      screen.getByRole("radio", { name: "Juntar las 6 coronas" }),
     );
     for (const name of ["Idioma", "Dificultad", "Modo de juego"]) {
       expect(group(name)).toBeInTheDocument();
@@ -226,7 +231,7 @@ describe("Lobby", () => {
       screen.getByRole("radio", { name: "Por rondas" }),
     ).toHaveAccessibleDescription("Gana quien sume más puntos");
     expect(
-      screen.getByRole("radio", { name: "Juntar las 6 categorías" }),
+      screen.getByRole("radio", { name: "Juntar las 6 coronas" }),
     ).toHaveAccessibleDescription("Gana el primero en juntar las 6");
     const dots = document.querySelectorAll<HTMLElement>(".mode-dot");
     expect(dots).toHaveLength(6);
@@ -343,5 +348,114 @@ describe("Lobby", () => {
       screen.queryByRole("button", { name: /Comenzar/ }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "JUGAR" })).toBeVisible();
+  });
+
+  it("LOB-AV-01 each name field shows a decorative avatar with the number, then the initial", async () => {
+    const user = userEvent.setup();
+    render(<Lobby onStart={vi.fn()} />);
+    const fields = document.querySelectorAll<HTMLElement>(".lobby-field");
+    expect(fields[0]).toHaveAttribute("data-player", "1");
+    expect(fields[1]).toHaveAttribute("data-player", "2");
+    const avatars = document.querySelectorAll<HTMLElement>(".lobby-avatar");
+    expect(avatars).toHaveLength(2);
+    for (const avatar of avatars) {
+      expect(avatar).toHaveAttribute("aria-hidden", "true");
+    }
+    expect(avatars[0]).toHaveTextContent("1");
+    expect(avatars[1]).toHaveTextContent("2");
+
+    await user.type(screen.getByLabelText("Jugador 1"), " ana");
+    await user.type(screen.getByLabelText("Jugador 2"), "Beto");
+    expect(avatars[0]).toHaveTextContent("A");
+    expect(avatars[1]).toHaveTextContent("B");
+    expect(screen.getByLabelText("Jugador 1")).toHaveRole("textbox");
+
+    await user.clear(screen.getByLabelText("Jugador 1"));
+    expect(avatars[0]).toHaveTextContent("1");
+  });
+
+  it("LOB-NAME-01 a name field takes at most 15 characters", async () => {
+    const user = userEvent.setup();
+    render(<Lobby onStart={vi.fn()} />);
+    const first = screen.getByLabelText("Jugador 1") as HTMLInputElement;
+    const second = screen.getByLabelText("Jugador 2") as HTMLInputElement;
+    expect(first).toHaveAttribute("maxlength", "15");
+    expect(second).toHaveAttribute("maxlength", "15");
+    await user.type(first, "Maximiliano Gonzalez");
+    expect(first.value).toBe("Maximiliano Gon");
+  });
+
+  it("LOB-PREF-01 the Lobby opens with the last saved settings", () => {
+    localStorage.setItem(
+      "trivia.lobby.v1",
+      JSON.stringify({ secondsPerQuestion: 10, mode: "rounds", rounds: 10 }),
+    );
+    render(<Lobby onStart={vi.fn()} />);
+    expect(checkedName("Dificultad")).toBe("Difícil");
+    expect(checkedName("Modo de juego")).toBe("Por rondas");
+    expect(checkedName("Rondas")).toBe("10 rondas");
+    expect((screen.getByLabelText("Jugador 1") as HTMLInputElement).value).toBe(
+      "",
+    );
+  });
+
+  it("LOB-PREF-02 broken saved settings fall back to the defaults", () => {
+    localStorage.setItem("trivia.lobby.v1", "{roto");
+    render(<Lobby onStart={vi.fn()} />);
+    expect(checkedName("Dificultad")).toBe("Intermedia");
+    expect(checkedName("Modo de juego")).toBe("Por rondas");
+    expect(checkedName("Rondas")).toBe("5 rondas");
+  });
+
+  it("LOB-PREF-03 JUGAR saves the settings but never the names", async () => {
+    const user = userEvent.setup();
+    render(<Lobby onStart={vi.fn()} />);
+    await fillNames(user);
+    await user.click(screen.getByRole("radio", { name: "Difícil" }));
+    await user.click(
+      screen.getByRole("radio", { name: "Juntar las 6 coronas" }),
+    );
+    expect(localStorage.getItem("trivia.lobby.v1")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "JUGAR" }));
+    const stored = localStorage.getItem("trivia.lobby.v1");
+    expect(stored).not.toBeNull();
+    expect(JSON.parse(stored!)).toEqual({
+      secondsPerQuestion: 10,
+      mode: "six-categories",
+      rounds: 5,
+    });
+    expect(stored).not.toContain("Ana");
+    expect(stored).not.toContain("Beto");
+  });
+
+  it("LOB-ICON-01 the modes show the flag and the crown instead of emoji", () => {
+    render(<Lobby onStart={vi.fn()} />);
+    const rounds = screen
+      .getByRole("radio", { name: "Por rondas" })
+      .closest("label")!;
+    const six = screen
+      .getByRole("radio", { name: "Juntar las 6 coronas" })
+      .closest("label")!;
+    expect(rounds.querySelector(".mode-icon svg.mode-flag")).not.toBeNull();
+    expect(six.querySelector(".mode-icon svg.mode-crown")).not.toBeNull();
+    expect(rounds.querySelector(".mode-icon")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(document.body.textContent).not.toMatch(/🏁|🎯/u);
+  });
+
+  it("LOB-ICON-02 with motion allowed the selected mode flag and language flag wave", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query.includes("no-preference") })),
+    );
+    const queue = installRafQueue();
+    render(<Lobby onStart={vi.fn()} />);
+    expect(queue.pending()).toBe(2);
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    expect(cancelAnimationFrame).toHaveBeenCalled();
+    expect(queue.pending()).toBe(3);
   });
 });

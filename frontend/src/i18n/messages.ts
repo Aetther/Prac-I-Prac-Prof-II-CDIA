@@ -68,6 +68,8 @@ export interface Messages {
   readonly turn: string;
   readonly noCategories: string;
   categoriesOfPlayer(name: string): string;
+  readonly crownRule: string;
+  crownRing(category: string, hits: number): string;
   // SwitchTurn
   readonly passDevice: string;
   readonly ready: string;
@@ -76,8 +78,12 @@ export interface Messages {
   readonly tie: string;
   readonly collectedSix: string;
   readonly turnLimitReached: string;
+  tieBrokenByHits(winnerHits: number, otherHits: number): string;
   readonly gameOver: string;
-  readonly playAgain: string;
+  readonly rematch: string;
+  // Result in the crowns mode
+  crownWon(category: string): string;
+  crownProgress(category: string, hits: number): string;
   // Surrender
   readonly surrender: string;
   surrenderQuestion(name: string, opponent: string): string;

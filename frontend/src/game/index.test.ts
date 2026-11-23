@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import * as barrel from "./index";
 import {
   INITIAL_GAME_STATE,
+  HITS_PER_CROWN,
   INITIAL_PHASE,
   PHASES,
   TIMEOUT_ANSWER,
@@ -98,7 +99,8 @@ describe("game layer", () => {
   });
 
   it("BRL-05 the barrel exposes the six-categories rules and progress", () => {
-    expect(TURN_LIMIT).toBe(20);
+    expect(TURN_LIMIT).toBe(30);
+    expect(HITS_PER_CROWN).toBe(3);
     expect(
       applySixCategoriesAnswer({
         ownedCategories: [[], []],
@@ -108,10 +110,12 @@ describe("game layer", () => {
         correct: true,
       }),
     ).toStrictEqual({
-      ownedCategories: [["geografia"], []],
+      ownedCategories: [[], []],
+      categoryHits: [{ geografia: 1 }, {}],
       turnsPlayed: [0, 0],
       keepsTurn: true,
       result: null,
+      step: { category: "geografia", hits: 1, crowned: false },
     });
     expect(
       getMatchProgress(

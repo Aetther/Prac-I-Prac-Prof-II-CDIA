@@ -3,6 +3,7 @@ import type { WheelCategory } from "../game/category";
 import type { MatchProgress } from "../game/progress";
 import { isSixCategoriesResult } from "../game/sixCategories";
 import type {
+  CategoryHits,
   CategoryOwners,
   GameResult,
   Player,
@@ -29,8 +30,12 @@ interface GameOverProps {
   players: readonly [Player, Player];
   categories: readonly WheelCategory[];
   ownedCategories: CategoryOwners;
+  /** Correct answers per category in the crowns mode. */
+  categoryHits?: CategoryHits;
   turnsPlayed: TurnsPlayed;
-  onPlayAgain: () => void;
+  /** Starts a new match at once with the same players and settings. */
+  onRematch: () => void;
+  onBackToLobby: () => void;
 }
 
 function confettiStyle(index: number): CSSProperties {
@@ -59,6 +64,33 @@ function Confetti() {
   );
 }
 
+interface GameOverActionsProps {
+  onRematch: () => void;
+  onBackToLobby: () => void;
+}
+
+function GameOverActions({ onRematch, onBackToLobby }: GameOverActionsProps) {
+  const m = useMessages();
+  return (
+    <div className="game-over-actions">
+      <button
+        type="button"
+        className="button-primary touch-target"
+        onClick={onRematch}
+      >
+        {m.rematch}
+      </button>
+      <button
+        type="button"
+        className="button-secondary touch-target"
+        onClick={onBackToLobby}
+      >
+        {m.backToLobby}
+      </button>
+    </div>
+  );
+}
+
 function winnerHeading(
   result: GameResult,
   players: readonly [Player, Player],
@@ -74,8 +106,10 @@ export function GameOver({
   players,
   categories,
   ownedCategories,
+  categoryHits,
   turnsPlayed,
-  onPlayAgain,
+  onRematch,
+  onBackToLobby,
 }: GameOverProps) {
   const m = useMessages();
   if (isSixCategoriesResult(result)) {
@@ -83,6 +117,7 @@ export function GameOver({
       mode: "six-categories",
       ownedCategories,
       turnsPlayed,
+      ...(categoryHits === undefined ? {} : { categoryHits }),
     };
     return (
       <section className="game-over">
@@ -96,7 +131,12 @@ export function GameOver({
             ? m.surrendered(players[result.surrenderedBy].name)
             : result.reason === "six-categories"
               ? m.collectedSix
-              : m.turnLimitReached}
+              : result.kind === "winner" && result.hits !== undefined
+                ? m.tieBrokenByHits(
+                    result.hits[result.winnerIndex],
+                    result.hits[result.winnerIndex === 0 ? 1 : 0],
+                  )
+                : m.turnLimitReached}
         </p>
         <Scoreboard
           players={players}
@@ -105,13 +145,7 @@ export function GameOver({
           headingLevel={3}
         />
         <p>{m.gameOver}</p>
-        <button
-          type="button"
-          className="button-primary touch-target"
-          onClick={onPlayAgain}
-        >
-          {m.playAgain}
-        </button>
+        <GameOverActions onRematch={onRematch} onBackToLobby={onBackToLobby} />
       </section>
     );
   }
@@ -143,13 +177,7 @@ export function GameOver({
         </ul>
       </section>
       <p>{m.gameOver}</p>
-      <button
-        type="button"
-        className="button-primary touch-target"
-        onClick={onPlayAgain}
-      >
-        {m.playAgain}
-      </button>
+      <GameOverActions onRematch={onRematch} onBackToLobby={onBackToLobby} />
     </section>
   );
 }

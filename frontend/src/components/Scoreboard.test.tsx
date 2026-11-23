@@ -15,6 +15,14 @@ const roundsProgress: MatchProgress = {
   totalRounds: 3,
 };
 
+function ringOf(row: HTMLElement, category: string): HTMLElement {
+  const node = row.querySelector<HTMLElement>(
+    `.crown-ring[data-category="${category}"]`,
+  );
+  if (node === null) throw new Error(`no ${category} ring`);
+  return node;
+}
+
 function rows(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>(".scoreboard-row"));
 }
@@ -96,11 +104,11 @@ describe("Scoreboard", () => {
       />,
     );
 
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
-    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(screen.getByText("Turnos: 2 de 20")).toBeVisible();
-    expect(screen.getByText("Categorías: 0 de 6")).toBeVisible();
-    expect(screen.getByText("Turnos: 0 de 20")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Coronas: 1 de 6")).toBeVisible();
+    expect(screen.getByText("Turnos: 2 de 30")).toBeVisible();
+    expect(screen.getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(screen.getByText("Turnos: 0 de 30")).toBeVisible();
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
 
     rerender(
@@ -115,7 +123,7 @@ describe("Scoreboard", () => {
     expect(container.textContent).toMatch(/Ronda 1 de 3/);
   });
 
-  it("SB-04 the six scoreboard scopes each chip to its player", () => {
+  it("SB-04 the six scoreboard scopes each ring to its player", () => {
     render(
       <Scoreboard
         players={players}
@@ -129,10 +137,51 @@ describe("Scoreboard", () => {
     );
 
     const [anaRow, betoRow] = rows();
-    expect(within(anaRow).getByText("Geografía")).toBeVisible();
-    expect(within(anaRow).queryByText("Historia")).toBeNull();
-    expect(within(betoRow).getByText("Historia")).toBeVisible();
-    expect(within(betoRow).queryByText("Geografía")).toBeNull();
+    expect(ringOf(anaRow, "geografia")).toHaveClass("crown-ring-won");
+    expect(ringOf(anaRow, "historia")).not.toHaveClass("crown-ring-won");
+    expect(ringOf(betoRow, "historia")).toHaveClass("crown-ring-won");
+    expect(ringOf(betoRow, "geografia")).not.toHaveClass("crown-ring-won");
+    expect(
+      within(anaRow).getByText("Geografía: corona ganada"),
+    ).toBeInTheDocument();
+  });
+
+  it("SB-13 the rings show each player's correct answers by thirds and the crown rule", () => {
+    render(
+      <Scoreboard
+        players={players}
+        progress={{
+          mode: "six-categories",
+          ownedCategories: [["ciencia"], []],
+          categoryHits: [{ geografia: 2, ciencia: 3 }, { historia: 1 }],
+          turnsPlayed: [0, 0],
+        }}
+        categories={SIX_WHEEL_CATEGORIES}
+      />,
+    );
+
+    expect(screen.getByText("Corona = 3 aciertos por categoría")).toBeVisible();
+    const [anaRow, betoRow] = rows();
+    expect(
+      screen.getByRole("list", { name: "Coronas de Ana" }),
+    ).toBeInTheDocument();
+    expect(within(anaRow).getAllByRole("listitem")).toHaveLength(6);
+    const geografia = ringOf(anaRow, "geografia");
+    expect(geografia).toHaveAttribute("data-hits", "2");
+    expect(geografia.style.getPropertyValue("--ring-fill")).toMatch(/^66\.6/);
+    expect(geografia.style.getPropertyValue("--ring-color")).toBe(
+      "var(--color-category-geografia)",
+    );
+    expect(
+      within(anaRow).getByText("Geografía: 2 de 3 aciertos"),
+    ).toBeInTheDocument();
+    expect(ringOf(anaRow, "ciencia")).toHaveClass("crown-ring-won");
+    expect(ringOf(anaRow, "ciencia")).toHaveTextContent("👑");
+    expect(ringOf(anaRow, "arte")).toHaveAttribute("data-hits", "0");
+    expect(ringOf(betoRow, "historia")).toHaveAttribute("data-hits", "1");
+    expect(
+      ringOf(anaRow, "geografia").querySelector(".crown-ring-count"),
+    ).toHaveTextContent("2/3");
   });
 
   it("SB-05 six mode marks only the current player", () => {
@@ -178,8 +227,9 @@ describe("Scoreboard", () => {
     expect(document.querySelector("[aria-current]")).toBeNull();
     expect(screen.getByText("Ana")).toBeVisible();
     expect(screen.getByText("Beto")).toBeVisible();
-    expect(screen.getByText("Geografía")).toBeVisible();
-    expect(screen.getByText("Historia")).toBeVisible();
+    const [anaRow, betoRow] = rows();
+    expect(ringOf(anaRow, "geografia")).toHaveClass("crown-ring-won");
+    expect(ringOf(betoRow, "historia")).toHaveClass("crown-ring-won");
   });
 
   it("SB-07 six mode renders no points", () => {
@@ -211,7 +261,7 @@ describe("Scoreboard", () => {
     expect(container.textContent).toMatch(/Ana: 10 puntos/);
   });
 
-  it("SB-08 a player with no categories shows the empty state", () => {
+  it("SB-08 a player with no crowns shows six empty rings", () => {
     render(
       <Scoreboard
         players={players}
@@ -225,11 +275,12 @@ describe("Scoreboard", () => {
     );
 
     const [anaRow, betoRow] = rows();
-    expect(within(betoRow).getByText("Sin categorías")).toBeVisible();
-    expect(within(betoRow).getByText("Categorías: 0 de 6")).toBeVisible();
-    expect(betoRow.querySelectorAll(".category-chip")).toHaveLength(0);
-    expect(anaRow.querySelectorAll(".category-chip")).toHaveLength(1);
-    expect(within(anaRow).queryByText("Sin categorías")).toBeNull();
+    expect(within(betoRow).getByText("Coronas: 0 de 6")).toBeVisible();
+    expect(betoRow.querySelectorAll('.crown-ring[data-hits="0"]')).toHaveLength(
+      6,
+    );
+    expect(anaRow.querySelectorAll(".crown-ring-won")).toHaveLength(1);
+    expect(betoRow.querySelectorAll(".crown-ring-won")).toHaveLength(0);
   });
 
   it("SB-09 the six scoreboard renders the completed-turn boundary", () => {
@@ -248,10 +299,10 @@ describe("Scoreboard", () => {
       />,
     );
 
-    expect(screen.getByText("Turnos: 20 de 20")).toBeVisible();
-    expect(screen.getByText("Turnos: 19 de 20")).toBeVisible();
+    expect(screen.getByText("Turnos: 20 de 30")).toBeVisible();
+    expect(screen.getByText("Turnos: 19 de 30")).toBeVisible();
     expect(container.textContent).not.toContain(
-      "Se alcanzó el límite de 20 turnos.",
+      "Se alcanzó el límite de 30 turnos.",
     );
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(screen.getByText("Ana")).toBeVisible();
@@ -273,8 +324,8 @@ describe("Scoreboard", () => {
       />,
     );
 
-    const categorias = screen.getAllByText("Categorías: 1 de 6");
-    const turnos = screen.getAllByText("Turnos: 2 de 20");
+    const categorias = screen.getAllByText("Coronas: 1 de 6");
+    const turnos = screen.getAllByText("Turnos: 2 de 30");
     expect(categorias).toHaveLength(1);
     expect(turnos).toHaveLength(1);
     expect(categorias[0]).toHaveClass("scoreboard-stat");
@@ -286,7 +337,7 @@ describe("Scoreboard", () => {
     )) {
       const text = stat.textContent ?? "";
       expect(
-        text.includes("Categorías: 1 de 6") && text.includes("Turnos: 2 de 20"),
+        text.includes("Coronas: 1 de 6") && text.includes("Turnos: 2 de 30"),
       ).toBe(false);
     }
 
@@ -303,7 +354,7 @@ describe("Scoreboard", () => {
     expect(screen.getByText("Ana: 10 puntos")).toHaveClass("scoreboard-stat");
   });
 
-  it("SB-11 the six row keeps two stats per player outside the chip list", () => {
+  it("SB-11 the six row keeps two stats per player outside the ring list", () => {
     render(
       <Scoreboard
         players={players}
@@ -332,20 +383,20 @@ describe("Scoreboard", () => {
       anaRow.querySelectorAll<HTMLElement>(".scoreboard-stat"),
     );
     expect(anaStats).toHaveLength(2);
-    expect(anaRow.querySelectorAll(".category-chips")).toHaveLength(1);
-    expect(anaRow.querySelectorAll(".category-chip")).toHaveLength(6);
+    expect(anaRow.querySelectorAll(".crown-progress")).toHaveLength(1);
+    expect(anaRow.querySelectorAll(".crown-ring-won")).toHaveLength(6);
     for (const stat of anaStats) {
-      expect(stat.closest(".category-chips")).toBeNull();
+      expect(stat.closest(".crown-progress")).toBeNull();
     }
     expect(anaStats.map((stat) => stat.textContent)).toEqual([
-      "Categorías: 6 de 6",
-      "Turnos: 2 de 20",
+      "Coronas: 6 de 6",
+      "Turnos: 2 de 30",
     ]);
 
-    // Positive control: Beto's row has its own two stats and no chip list.
+    // Positive control: Beto's row has its own two stats and no crown yet.
     expect(betoRow.querySelectorAll(".scoreboard-stat")).toHaveLength(2);
-    expect(betoRow.querySelectorAll(".category-chips")).toHaveLength(0);
-    expect(within(betoRow).getByText("Sin categorías")).toBeVisible();
+    expect(betoRow.querySelectorAll(".crown-progress")).toHaveLength(1);
+    expect(betoRow.querySelectorAll(".crown-ring-won")).toHaveLength(0);
   });
 
   it("SB-12 the rounds total keeps the exact copy and a wrapping class while the six stats stay nowrap", () => {
@@ -384,8 +435,8 @@ describe("Scoreboard", () => {
     );
 
     const sixStats = [
-      screen.getByText("Categorías: 1 de 6"),
-      screen.getByText("Turnos: 2 de 20"),
+      screen.getByText("Coronas: 1 de 6"),
+      screen.getByText("Turnos: 2 de 30"),
     ];
     for (const stat of sixStats) {
       expect(stat).toHaveClass("scoreboard-stat");
@@ -450,7 +501,7 @@ describe("Scoreboard", () => {
     expect(document.querySelector("[aria-current]")).toBeNull();
   });
 
-  it("PLAYER-05 the six-mode card keeps its two stats and chips while carrying the initial and its player class", () => {
+  it("PLAYER-05 the six-mode card keeps its two stats and rings while carrying the initial and its player class", () => {
     render(
       <Scoreboard
         players={players}
@@ -470,8 +521,8 @@ describe("Scoreboard", () => {
     expect(ana.querySelector(".scoreboard-avatar")).toHaveTextContent("A");
     expect(beto.querySelector(".scoreboard-avatar")).toHaveTextContent("B");
     expect(ana.querySelectorAll(".scoreboard-stat")).toHaveLength(2);
-    expect(ana.querySelectorAll(".category-chips")).toHaveLength(1);
+    expect(ana.querySelectorAll(".crown-progress")).toHaveLength(1);
     expect(ana).not.toHaveTextContent("puntos");
-    expect(within(beto).getByText("Sin categorías")).toBeVisible();
+    expect(beto.querySelectorAll(".crown-ring-won")).toHaveLength(0);
   });
 });

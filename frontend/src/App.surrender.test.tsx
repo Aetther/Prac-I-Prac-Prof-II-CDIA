@@ -136,7 +136,7 @@ describe("Surrender in the App", () => {
       screen.getByRole("button", { name: "Rendirse" }),
     ).toBeInTheDocument();
     await surrender(user);
-    await screen.findByRole("button", { name: "Jugar de nuevo" });
+    await screen.findByRole("button", { name: "Revancha" });
     expect(screen.queryByRole("button", { name: "Rendirse" })).toBeNull();
   }, 30_000);
 
@@ -180,8 +180,8 @@ describe("Surrender in the App", () => {
       await screen.findByRole("heading", { name: "¡Ganó Beto!" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Ana se rindió.")).toBeInTheDocument();
-    expect(screen.queryByText("Juntó las 6 categorías.")).toBeNull();
-    expect(screen.queryByText("Se alcanzó el límite de 20 turnos.")).toBeNull();
+    expect(screen.queryByText("Juntó las 6 coronas.")).toBeNull();
+    expect(screen.queryByText("Se alcanzó el límite de 30 turnos.")).toBeNull();
   });
 
   it("The clock keeps running during the confirmation", async () => {
@@ -249,7 +249,7 @@ describe("Surrender in the App", () => {
     });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Jugar de nuevo" }),
+      screen.getByRole("button", { name: "Revancha" }),
     ).toBeInTheDocument();
   });
 

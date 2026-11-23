@@ -737,6 +737,45 @@ describe("style guards", () => {
     expect(properties.some((property) => !allowed.has(property))).toBe(true);
   });
 
+  it("ANIM-04 the mode icons move a few seconds after a selection and reduced motion stops them", () => {
+    const flag = ruleBody(
+      INDEX_CSS,
+      ".choice.choice-checked .mode-flag .flag-sway",
+    );
+    expect(flag).toMatch(/animation: flag-sway 1810ms ease-in-out 2;/);
+    for (const [part, name] of [
+      ["crown-body", "crown-hop"],
+      ["crown-shadow", "crown-shadow-hop"],
+      ["crown-beam", "crown-sweep"],
+      ["crown-spark", "crown-twinkle"],
+    ] as const) {
+      const rule = ruleBody(
+        INDEX_CSS,
+        `.choice.choice-checked .mode-crown .${part}`,
+      );
+      expect(rule, part).toContain(`animation: ${name} 3200ms`);
+      expect(rule, part).toMatch(/ 1;$/);
+      expect(INDEX_CSS).toMatch(new RegExp(`@keyframes\\s+${name}\\s*\\{`));
+    }
+    expect(INDEX_CSS).not.toMatch(/mode-(flag|crown)[^{]*\{[^}]*infinite/);
+    const block = blockAfter(
+      INDEX_CSS,
+      "@media (prefers-reduced-motion: reduce)",
+    );
+    const stopped = cssRules(block!).find((rule) =>
+      selectorsOf(rule).includes(".lobby-sign::after"),
+    );
+    for (const selector of [
+      ".choice.choice-checked .mode-flag .flag-sway",
+      ".choice.choice-checked .mode-crown .crown-body",
+      ".choice.choice-checked .mode-crown .crown-shadow",
+      ".choice.choice-checked .mode-crown .crown-beam",
+      ".choice.choice-checked .mode-crown .crown-spark",
+    ]) {
+      expect(selectorsOf(stopped!), selector).toContain(selector);
+    }
+  });
+
   it("ANIM-03 the reduce block stops every moving animation, turns the turn pop into a fade and hides the confetti", () => {
     const block = blockAfter(
       INDEX_CSS,
@@ -757,7 +796,9 @@ describe("style guards", () => {
       expect(selectorsOf(stopped!), selector).toContain(selector);
     }
     expect(normalize(stopped!.body)).toBe("animation: none;");
-    const fade = rules.find((rule) => selectorsOf(rule).includes(".wheel-turn"));
+    const fade = rules.find((rule) =>
+      selectorsOf(rule).includes(".wheel-turn"),
+    );
     expect(fade).toBeDefined();
     expect(selectorsOf(fade!)).toContain(".switch-turn-bubble");
     expect(normalize(fade!.body)).toBe("animation-name: fade-in;");

@@ -249,7 +249,7 @@ describe("Result", () => {
     );
   });
 
-  it("RES-09 a six-mode Result shows the chips and no points", () => {
+  it("RES-09 a six-mode Result shows the rings and no points", () => {
     const { container } = renderResult({
       progress: {
         mode: "six-categories",
@@ -258,18 +258,53 @@ describe("Result", () => {
       },
     });
 
-    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
-    expect(screen.getByText("Geografía")).toBeVisible();
-    const chip = document.querySelector<HTMLElement>(
-      '.category-chip[data-category="geografia"]',
+    expect(screen.getByText("Coronas: 1 de 6")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
+    const ring = document.querySelector<HTMLElement>(
+      '.crown-ring[data-category="geografia"]',
     );
-    expect(chip).not.toBeNull();
-    expect(chip!.style.backgroundColor).toBe("var(--color-category-geografia)");
+    expect(ring).not.toBeNull();
+    expect(ring).toHaveClass("crown-ring-won");
+    expect(ring!.style.getPropertyValue("--ring-color")).toBe(
+      "var(--color-category-geografia)",
+    );
+    expect(document.querySelector(".crown-step")).toBeNull();
     expect(container.textContent).not.toMatch(/puntos/i);
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Reportar" })).toBeEnabled();
+  });
+
+  it("RES-21 a correct crowns-mode answer shows its progress, and the third one the crown", () => {
+    const six = {
+      mode: "six-categories" as const,
+      ownedCategories: [[], []] as const,
+      turnsPlayed: [0, 0] as const,
+    };
+    const first = renderResult({
+      progress: six,
+      lastAnswer: {
+        ...correctAnswer,
+        crownStep: { category: "historia", hits: 2, crowned: false },
+      },
+    });
+    const step = document.querySelector(".crown-step");
+    expect(step).toHaveTextContent("Historia: 2 de 3");
+    expect(step).toHaveAttribute("data-crowned", "false");
+    first.unmount();
+
+    renderResult({
+      progress: six,
+      lastAnswer: {
+        ...correctAnswer,
+        crownStep: { category: "historia", hits: 3, crowned: true },
+      },
+    });
+    expect(screen.getByText("¡Corona de Historia! 👑")).toBeVisible();
+    expect(document.querySelector(".crown-step")).toHaveAttribute(
+      "data-crowned",
+      "true",
+    );
   });
 
   it("RES-10 the enabled action opens the inline form and makes no call", async () => {

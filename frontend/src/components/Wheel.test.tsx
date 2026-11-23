@@ -692,9 +692,9 @@ describe("Wheel", () => {
     expect(screen.getByRole("img")).toHaveAccessibleDescription(
       "Geografía, Historia, Ciencia, Arte, Entretenimiento, Deportes.",
     );
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
-    expect(screen.getByText("Categorías: 1 de 6")).toBeVisible();
-    expect(screen.getByText("Turnos: 2 de 20")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Coronas: 1 de 6")).toBeVisible();
+    expect(screen.getByText("Turnos: 2 de 30")).toBeVisible();
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(container.textContent).not.toMatch(/puntos/i);
     expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(1);

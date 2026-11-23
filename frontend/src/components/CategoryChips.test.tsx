@@ -17,7 +17,7 @@ describe("CategoryChips", () => {
       />,
     );
 
-    const list = screen.getByRole("list", { name: "Categorías de Ana" });
+    const list = screen.getByRole("list", { name: "Coronas de Ana" });
     const chips = within(list).getAllByRole("listitem");
     expect(chips).toHaveLength(2);
     expect(
@@ -36,7 +36,7 @@ describe("CategoryChips", () => {
     }
   });
 
-  it("CHIP-02 shows Sin categorías and no chip for an empty list", () => {
+  it("CHIP-02 shows Sin coronas and no chip for an empty list", () => {
     const { rerender } = render(
       <CategoryChips
         playerName="Beto"
@@ -45,7 +45,7 @@ describe("CategoryChips", () => {
       />,
     );
 
-    expect(screen.getByText("Sin categorías")).toBeVisible();
+    expect(screen.getByText("Sin coronas")).toBeVisible();
     expect(document.querySelectorAll(".category-chip")).toHaveLength(0);
 
     rerender(
@@ -56,7 +56,7 @@ describe("CategoryChips", () => {
       />,
     );
 
-    expect(screen.queryByText("Sin categorías")).toBeNull();
+    expect(screen.queryByText("Sin coronas")).toBeNull();
     expect(document.querySelectorAll(".category-chip")).toHaveLength(1);
     expect(screen.getByText("Arte")).toBeVisible();
   });
@@ -96,7 +96,7 @@ describe("CategoryChips", () => {
       />,
     );
 
-    const list = screen.getByRole("list", { name: "Categorías de Ana" });
+    const list = screen.getByRole("list", { name: "Coronas de Ana" });
     const chips = within(list).getAllByRole("listitem");
     expect(chips).toHaveLength(6);
     for (const [index, chip] of chips.entries()) {
@@ -117,7 +117,7 @@ describe("CategoryChips", () => {
       />,
     );
 
-    const list = screen.getByRole("list", { name: "Categorías de Ana" });
+    const list = screen.getByRole("list", { name: "Coronas de Ana" });
     const chips = within(list).getAllByRole("listitem");
     const emojis = ["🌎", "📜", "🔬", "🎨", "🎬", "⚽"];
     for (const [index, chip] of chips.entries()) {

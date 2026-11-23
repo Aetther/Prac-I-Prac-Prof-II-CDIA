@@ -2,6 +2,10 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LOBBY_SETTINGS,
+  GAME_MODES,
+  MAX_PLAYER_NAME_LENGTH,
+  ROUNDS_OPTIONS,
+  SECONDS_OPTIONS,
   createLobbyConfig,
   isValidPlayerName,
 } from "./lobby";
@@ -22,6 +26,31 @@ describe("lobby rules", () => {
     expect(isValidPlayerName("   ")).toBe(false);
     expect(isValidPlayerName("Ana")).toBe(true);
     expect(isValidPlayerName(" Ana ")).toBe(true);
+  });
+
+  it("LOBN-01 accepts names up to 15 characters and rejects longer ones", () => {
+    expect(MAX_PLAYER_NAME_LENGTH).toBe(15);
+    expect(isValidPlayerName("A".repeat(15))).toBe(true);
+    expect(isValidPlayerName("A".repeat(16))).toBe(false);
+    expect(isValidPlayerName(`  ${"A".repeat(15)}  `)).toBe(true);
+  });
+
+  it("LOBN-02 createLobbyConfig rejects a name longer than 15 characters", () => {
+    expect(
+      createLobbyConfig({
+        playerNames: ["Ana", "B".repeat(16)],
+        lang: "es",
+        secondsPerQuestion: 20,
+        mode: "rounds",
+        rounds: 5,
+      }),
+    ).toBeNull();
+  });
+
+  it("LOBN-03 lists the Lobby choices in their display order", () => {
+    expect(SECONDS_OPTIONS).toEqual([30, 20, 10]);
+    expect(ROUNDS_OPTIONS).toEqual([3, 5, 10]);
+    expect(GAME_MODES).toEqual(["rounds", "six-categories"]);
   });
 
   it("trims both names and returns the exact LobbyConfig", () => {

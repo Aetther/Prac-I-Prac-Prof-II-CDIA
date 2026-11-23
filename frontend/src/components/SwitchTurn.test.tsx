@@ -130,10 +130,10 @@ describe("SwitchTurn", () => {
 
     expect(screen.getByText("¡Turno de Beto!")).toBeVisible();
     expect(screen.getByText("Pasale el dispositivo")).toBeVisible();
-    expect(screen.getByText("Límite: 20 turnos por jugador")).toBeVisible();
+    expect(screen.getByText("Límite: 30 turnos por jugador")).toBeVisible();
     expect(container.textContent).not.toMatch(/Ronda \d+ de \d+/);
     expect(container.textContent).not.toContain(
-      "Se alcanzó el límite de 20 turnos.",
+      "Se alcanzó el límite de 30 turnos.",
     );
     const current = screen
       .getAllByRole("listitem")

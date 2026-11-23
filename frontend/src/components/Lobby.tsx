@@ -2,9 +2,17 @@ import { useState } from "react";
 import { CATEGORY_NAMES } from "../game/category";
 import {
   DEFAULT_LOBBY_SETTINGS,
+  MAX_PLAYER_NAME_LENGTH,
+  ROUNDS_OPTIONS,
+  SECONDS_OPTIONS,
   isValidPlayerName,
   type LobbyInput,
 } from "../game/lobby";
+import {
+  browserLobbyStorage,
+  loadLobbyPreferences,
+  saveLobbyPreferences,
+} from "../game/lobbyPreferences";
 import type {
   GameMode,
   Lang,
@@ -16,6 +24,9 @@ import { CATEGORY_COLOR_TOKENS } from "./CategoryChips";
 import { ChoiceGroup } from "./ChoiceGroup";
 import type { ChoiceOption } from "./ChoiceGroup";
 import { FlagIcon } from "./FlagIcon";
+import { ModeCrownIcon } from "./ModeCrownIcon";
+import { ModeFlagIcon } from "./ModeFlagIcon";
+import { playerInitial } from "./playerIdentity";
 
 interface LobbyProps {
   onStart: (input: LobbyInput) => void;
@@ -24,27 +35,59 @@ interface LobbyProps {
   onLanguageChange?: (language: Lang) => void;
 }
 
-const SECONDS_BY_DIFFICULTY: readonly SecondsPerQuestion[] = [30, 20, 10];
-const ROUND_COUNTS: readonly RoundsCount[] = [3, 5, 10];
 const LANGUAGE_NAMES: Readonly<Record<Lang, string>> = {
   es: "Español",
   en: "English",
 };
 
+interface PlayerNameFieldProps {
+  player: 1 | 2;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+/** A name field with the player's avatar: the number, then the initial. */
+function PlayerNameField({
+  player,
+  label,
+  value,
+  onChange,
+}: PlayerNameFieldProps) {
+  const id = `lobby-player-${player}`;
+  return (
+    <div className="lobby-field" data-player={player}>
+      <div className="lobby-field-head">
+        <span className="lobby-avatar" aria-hidden="true">
+          {playerInitial(value) || String(player)}
+        </span>
+        <label htmlFor={id}>{label}</label>
+      </div>
+      <input
+        id={id}
+        className="touch-target"
+        type="text"
+        maxLength={MAX_PLAYER_NAME_LENGTH}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
 export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
   const m = useMessages();
+  const [saved] = useState(() => loadLobbyPreferences(browserLobbyStorage()));
   const [first, setFirst] = useState("");
   const [second, setSecond] = useState("");
   const [lang, setLang] = useState<Lang>(
     language ?? DEFAULT_LOBBY_SETTINGS.lang,
   );
   const [seconds, setSeconds] = useState<SecondsPerQuestion>(
-    DEFAULT_LOBBY_SETTINGS.secondsPerQuestion,
+    saved.secondsPerQuestion,
   );
-  const [rounds, setRounds] = useState<RoundsCount>(
-    DEFAULT_LOBBY_SETTINGS.rounds,
-  );
-  const [mode, setMode] = useState<GameMode>(DEFAULT_LOBBY_SETTINGS.mode);
+  const [rounds, setRounds] = useState<RoundsCount>(saved.rounds);
+  const [mode, setMode] = useState<GameMode>(saved.mode);
 
   const canStart = isValidPlayerName(first) && isValidPlayerName(second);
 
@@ -55,6 +98,11 @@ export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
 
   const handleStart = () => {
     if (!canStart) return;
+    saveLobbyPreferences(browserLobbyStorage(), {
+      secondsPerQuestion: seconds,
+      mode,
+      rounds,
+    });
     if (mode === "six-categories") {
       onStart({
         playerNames: [first, second],
@@ -79,7 +127,7 @@ export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
       name: LANGUAGE_NAMES[value],
       content: (
         <>
-          <FlagIcon language={value} />
+          <FlagIcon language={value} waving={lang === value} />
           <span className="choice-title">{LANGUAGE_NAMES[value]}</span>
         </>
       ),
@@ -91,7 +139,7 @@ export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
     m.difficultyMedium,
     m.difficultyHard,
   ];
-  const difficultyOptions: ChoiceOption<string>[] = SECONDS_BY_DIFFICULTY.map(
+  const difficultyOptions: ChoiceOption<string>[] = SECONDS_OPTIONS.map(
     (value, index) => ({
       value: String(value),
       name: difficultyNames[index],
@@ -108,7 +156,7 @@ export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
       content: (
         <>
           <span className="mode-icon" aria-hidden="true">
-            🏁
+            <ModeFlagIcon active={mode === "rounds"} />
           </span>
           <span className="choice-title">{m.modeRounds}</span>
         </>
@@ -121,7 +169,7 @@ export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
       content: (
         <>
           <span className="mode-icon" aria-hidden="true">
-            🎯
+            <ModeCrownIcon />
           </span>
           <span className="choice-title">{m.modeSix}</span>
           <span className="mode-dots" aria-hidden="true">
@@ -139,7 +187,7 @@ export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
     },
   ];
 
-  const roundOptions: ChoiceOption<string>[] = ROUND_COUNTS.map((value) => ({
+  const roundOptions: ChoiceOption<string>[] = ROUNDS_OPTIONS.map((value) => ({
     value: String(value),
     name: m.roundsOption(value),
     content: (
@@ -163,26 +211,18 @@ export function Lobby({ onStart, language, onLanguageChange }: LobbyProps) {
       <p className="lobby-tagline">{m.tagline}</p>
       <div className="lobby-mini-wheel" aria-hidden="true" />
       <div className="lobby-fields">
-        <div className="lobby-field">
-          <label htmlFor="lobby-player-1">{m.player1}</label>
-          <input
-            id="lobby-player-1"
-            className="touch-target"
-            type="text"
-            value={first}
-            onChange={(event) => setFirst(event.target.value)}
-          />
-        </div>
-        <div className="lobby-field">
-          <label htmlFor="lobby-player-2">{m.player2}</label>
-          <input
-            id="lobby-player-2"
-            className="touch-target"
-            type="text"
-            value={second}
-            onChange={(event) => setSecond(event.target.value)}
-          />
-        </div>
+        <PlayerNameField
+          player={1}
+          label={m.player1}
+          value={first}
+          onChange={setFirst}
+        />
+        <PlayerNameField
+          player={2}
+          label={m.player2}
+          value={second}
+          onChange={setSecond}
+        />
         <ChoiceGroup
           legend={m.languageGroup}
           className="choice-group-language"
