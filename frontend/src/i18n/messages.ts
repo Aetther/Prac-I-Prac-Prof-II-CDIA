@@ -66,7 +66,6 @@ export interface Messages {
   categoriesCount(count: number): string;
   turnsCount(count: number): string;
   readonly turn: string;
-  readonly noCategories: string;
   categoriesOfPlayer(name: string): string;
   readonly crownRule: string;
   crownRing(category: string, hits: number): string;

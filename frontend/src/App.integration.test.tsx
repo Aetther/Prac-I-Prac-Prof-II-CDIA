@@ -586,7 +586,9 @@ describe("App integration through the real API client", () => {
     const init = fetchMock.mock.calls[2][1] as RequestInit;
     expect(init.body).toBe('{"question_id":42,"answer":"(sin respuesta)"}');
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
-    expect(document.querySelectorAll(".category-chip")).toHaveLength(0);
+    expect(
+      document.querySelectorAll('.crown-ring:not([data-hits="0"])'),
+    ).toHaveLength(0);
   });
 
   it("INTT-06 the six-mode 404 fallback goes to historia", async () => {

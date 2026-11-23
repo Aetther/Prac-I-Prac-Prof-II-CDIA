@@ -988,31 +988,6 @@ button.button-secondary:disabled {
   white-space: normal;
 }
 
-.category-chips {
-  display: flex;
-  flex-wrap: wrap;
-  min-width: 0;
-  gap: var(--spacing-1);
-  list-style: none;
-}
-
-.category-chip {
-  display: inline-flex;
-  max-width: 100%;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-page-end);
-  color: var(--color-on-category);
-  font-size: var(--font-size-sm);
-  overflow-wrap: anywhere;
-}
-
-.category-chip-label {
-  overflow-wrap: anywhere;
-}
-
 /* Crowns mode: one ring per category that fills by thirds. */
 .scoreboard-crown-rule {
   color: var(--color-text-secondary);
@@ -2508,7 +2483,6 @@ button.button-secondary.surrender-button {
     outline-offset: 2px;
   }
 
-  .category-chip,
   .category-banner,
   .crown-ring,
   .lobby-avatar,

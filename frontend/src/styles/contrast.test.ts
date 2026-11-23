@@ -204,7 +204,7 @@ describe("palette v3 (dark) contrast", () => {
     expect(hits, hits.join("\n")).toEqual([]);
     expect(TOKENS_CSS).toContain("--color-category-geografia: #3d5fae");
     expect(
-      readFileSync(join(SRC, "components/CategoryChips.tsx"), "utf-8"),
+      readFileSync(join(SRC, "components/categoryColors.ts"), "utf-8"),
     ).toContain("var(--color-category-geografia)");
   });
 

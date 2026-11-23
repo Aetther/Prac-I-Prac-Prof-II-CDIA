@@ -64,7 +64,6 @@ export const es: Messages = {
   categoriesCount: (count) => `Coronas: ${count} de 6`,
   turnsCount: (count) => `Turnos: ${count} de 30`,
   turn: "Turno",
-  noCategories: "Sin coronas",
   categoriesOfPlayer: (name) => `Coronas de ${name}`,
   crownRule: "Corona = 3 aciertos por categoría",
   crownRing: (category, hits) =>

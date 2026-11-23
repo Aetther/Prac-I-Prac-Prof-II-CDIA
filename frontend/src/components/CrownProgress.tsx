@@ -8,7 +8,7 @@ import type { WheelCategory } from "../game/category";
 import { HITS_PER_CROWN, hitsIn } from "../game/sixCategories";
 import type { CategoryName, CategoryTally } from "../game/types";
 import { useMessages } from "../i18n";
-import { CATEGORY_COLOR_TOKENS } from "./CategoryChips";
+import { CATEGORY_COLOR_TOKENS } from "./categoryColors";
 
 interface CrownProgressProps {
   playerName: string;

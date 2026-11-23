@@ -20,7 +20,7 @@ import type {
   SecondsPerQuestion,
 } from "../game/types";
 import { useMessages } from "../i18n";
-import { CATEGORY_COLOR_TOKENS } from "./CategoryChips";
+import { CATEGORY_COLOR_TOKENS } from "./categoryColors";
 import { ChoiceGroup } from "./ChoiceGroup";
 import type { ChoiceOption } from "./ChoiceGroup";
 import { FlagIcon } from "./FlagIcon";

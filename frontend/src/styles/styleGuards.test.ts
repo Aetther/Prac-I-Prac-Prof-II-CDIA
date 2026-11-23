@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
-import { CATEGORY_COLOR_TOKENS } from "../components/CategoryChips";
+import { CATEGORY_COLOR_TOKENS } from "../components/categoryColors";
 
 const SRC = join(process.cwd(), "src");
 const STYLES = join(SRC, "styles");
@@ -218,7 +218,7 @@ describe("style guards", () => {
       }
     }
 
-    expect(files.some((file) => file.endsWith("CategoryChips.tsx"))).toBe(true);
+    expect(files.some((file) => file.endsWith("CrownProgress.tsx"))).toBe(true);
     expect(files.some((file) => file.endsWith("fonts.css"))).toBe(true);
     expect(hits, hits.join("\n")).toEqual([]);
     expect(findColourLiterals('<div style={{ color: "#ff0000" }} />')).toEqual([
@@ -226,7 +226,7 @@ describe("style guards", () => {
     ]);
   });
 
-  it("GUARD-02 every category chip colour is a var() token and the Geografía token is the positive control", () => {
+  it("GUARD-02 every category colour is a var() token and the Geografía token is the positive control", () => {
     const entries = Object.entries(CATEGORY_COLOR_TOKENS);
     expect(entries).toHaveLength(6);
     for (const [name, value] of entries) {
@@ -327,11 +327,11 @@ describe("style guards", () => {
     expect(twoTracks.test(base!)).toBe(false);
   });
 
-  it("GUARD-08 .scoreboard-stat is nowrap and .category-chips still wraps", () => {
+  it("GUARD-08 .scoreboard-stat is nowrap and .crown-progress still wraps", () => {
     const stat = ruleBody(INDEX_CSS, ".scoreboard-stat");
     expect(stat).not.toBeNull();
     expect(stat!).toContain("white-space: nowrap");
-    const chips = ruleBody(INDEX_CSS, ".category-chips");
+    const chips = ruleBody(INDEX_CSS, ".crown-progress");
     expect(chips).not.toBeNull();
     expect(chips!).toContain("flex-wrap: wrap");
     expect(stat!).not.toContain("white-space: normal");

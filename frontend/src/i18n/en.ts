@@ -64,7 +64,6 @@ export const en: Messages = {
   categoriesCount: (count) => `Crowns: ${count} of 6`,
   turnsCount: (count) => `Turns: ${count} of 30`,
   turn: "Turn",
-  noCategories: "No crowns",
   categoriesOfPlayer: (name) => `${name}'s crowns`,
   crownRule: "Crown = 3 correct answers per category",
   crownRing: (category, hits) =>

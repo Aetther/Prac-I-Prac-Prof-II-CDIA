@@ -646,7 +646,7 @@ describe("App game flow with a mocked API", () => {
     expect(screen.getByText("Ana: 30 puntos")).toBeVisible();
     expect(screen.getByText("Beto: 10 puntos")).toBeVisible();
     expect(screen.queryByText("Turno")).toBeNull();
-    expect(document.querySelectorAll(".category-chip")).toHaveLength(0);
+    expect(document.querySelectorAll(".crown-ring")).toHaveLength(0);
     expect(document.body.textContent).not.toMatch(/Coronas: \d+ de 6/);
     expect(document.body.textContent).not.toContain(
       "Límite: 30 turnos por jugador",
