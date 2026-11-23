@@ -6,11 +6,25 @@ authors = [
     {name = "Aetther", email = "88803164+Aetther@users.noreply.github.com"}
 ]
 requires-python = ">=3.11,<3.14"
+# Solo lo que usa la API publicada (Vercel instala únicamente esta lista).
+# Las herramientas de IA están en el grupo "ai" de más abajo.
 dependencies = [
     "fastapi (>=0.143.0,<0.144.0)",
     "uvicorn (>=0.54.0,<0.55.0)",
     "sqlalchemy (>=2.1.4,<3.0.0)",
     "psycopg2-binary (>=2.9.13,<3.0.0)",
+    "python-dotenv (>=1.2.4,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+# Categorizar, traducir y entrenar (solo en local). Poetry lo instala con
+# `poetry install`, igual que antes; en Vercel no se instala.
+ai = [
     "pandas (>=3.0.6,<4.0.0)",
     "pyarrow (>=26.0.0,<27.0.0)",
     "requests (>=2.34.2,<3.0.0)",
@@ -21,17 +35,9 @@ dependencies = [
     "tqdm (>=4.70.1,<5.0.0)",
     "ftfy (>=6.3.1,<7.0.0)",
     "setfit (>=1.2.0,<2.0.0)",
-    "python-dotenv (>=1.2.4,<2.0.0)",
     "sentencepiece (>=0.2.2,<0.3.0)",
     "sacremoses (>=0.2.0,<0.3.0)"
 ]
-
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-[dependency-groups]
 dev = [
     "pytest (>=9.1.1,<10.0.0)",
     "httpx (>=0.28.1,<0.29.0)"
@@ -39,6 +45,11 @@ dev = [
 
 [tool.poetry]
 package-mode = false
+
+# El proyecto no es un paquete instalable: uv (el instalador de Vercel) solo
+# instala sus dependencias
+[tool.uv]
+package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
