@@ -105,6 +105,12 @@ h3 {
   font-size: var(--font-size-xl);
 }
 
+/* Short headings wrap into even lines; the question text opts out below. */
+h1,
+h2 {
+  text-wrap: balance;
+}
+
 p,
 li,
 dd {
@@ -607,6 +613,7 @@ button.button-secondary:disabled {
   font-weight: var(--font-weight-label);
   line-height: 1.5;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .result-icon-correct {
@@ -645,6 +652,7 @@ button.button-secondary:disabled {
   flex-direction: column;
   gap: var(--spacing-4);
   min-width: 0;
+  container: game / inline-size;
 }
 
 .wheel-turn {
@@ -1661,7 +1669,9 @@ button.button-secondary:disabled {
   gap: var(--spacing-3);
 }
 
-@media (min-width: 48rem) {
+/* Two columns once the play area itself has room, whatever the screen:
+   36rem keeps two columns on a 1024 px desktop with the scoreboard rail. */
+@container game (min-width: 36rem) {
   .option-list.quiz-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2170,31 +2180,87 @@ button.button-secondary.surrender-button {
   .question-text {
     font-size: var(--font-size-lg);
   }
+
+  /* The card is under the container breakpoint here, but two columns keep
+     the question on one screen without scrolling. */
+  .option-list.quiz-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (forced-colors: active) {
   .lobby-tagline {
     -webkit-text-fill-color: CanvasText;
   }
+
+  /* Shadows, glows and colour fills vanish in this mode, so every state that
+     relied on them gets a border or an outline in a system colour. */
+  .choice.choice-checked,
+  .scoreboard-card-current {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .category-chip,
+  .category-banner,
+  .wheel-turn,
+  .wheel-result,
+  .switch-turn-bubble,
+  .untranslated-badge,
+  .quiz-letter,
+  .timer-track {
+    border: 1px solid CanvasText;
+  }
+
+  .timer-fill,
+  .timer-urgent .timer-fill {
+    background-color: Highlight;
+  }
+
+  .round-dot.round-dot-filled {
+    background-color: CanvasText;
+  }
+
+  button:disabled {
+    border-color: GrayText;
+    color: GrayText;
+  }
 }
 
+/* Reduced motion, case by case: movement goes, colour and opacity changes
+   stay, and every element ends in its final state. */
 @media (prefers-reduced-motion: reduce) {
-  /* The preference must win over every component animation and transition. */
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0s !important;
-    animation-iteration-count: 1 !important;
-    animation-name: none !important;
-    transition-duration: 0s !important;
-    transition-property: none !important;
+  .lobby-sign::after,
+  .result-icon-correct,
+  .result-icon-wrong,
+  .wheel-result {
+    animation: none;
+  }
+
+  .wheel-turn,
+  .switch-turn-bubble {
+    animation-name: fade-in;
+  }
+
+  button {
+    transition-property: background-color, box-shadow;
+  }
+
+  .choice {
+    transition-property: box-shadow;
   }
 
   .timer-fill {
-    transition: none !important;
+    transition: none;
   }
 
   .game-over-confetti {
-    display: none !important;
+    display: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
 }

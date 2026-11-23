@@ -246,20 +246,21 @@ describe("style guards", () => {
     expect(rule!).toContain("outline-offset: 2px");
   });
 
-  it("GUARD-04 the reduced-motion block stops animations, hides the confetti and removes the timer width transition", () => {
+  it("GUARD-04 the reduced-motion block works case by case, keeps colour transitions, hides the confetti and removes the timer width transition", () => {
     const block = blockAfter(
       INDEX_CSS,
       "@media (prefers-reduced-motion: reduce)",
     );
     expect(block).not.toBeNull();
     const normalized = normalize(block!);
-    expect(normalized).toContain("animation-duration: 0s");
-    expect(normalized).toContain("animation-iteration-count: 1");
-    expect(normalized).toContain("animation-name: none");
-    expect(normalized).toContain("transition-property: none");
-    expect(normalized).toContain(".timer-fill");
+    expect(normalized).not.toContain("!important");
+    expect(normalized).not.toMatch(/(^|[\s,}])\*(::before|::after)?\s*[,{]/);
     expect(normalized).toMatch(/\.timer-fill \{ transition: none/);
     expect(normalized).toMatch(/\.game-over-confetti \{ display: none/);
+    expect(normalized).toMatch(
+      /button \{ transition-property: background-color, box-shadow;/,
+    );
+    expect(normalized).toMatch(/\.choice \{ transition-property: box-shadow;/);
   });
 
   it("GUARD-05 index.css never removes an outline without a replacement", () => {
@@ -736,17 +737,34 @@ describe("style guards", () => {
     expect(properties.some((property) => !allowed.has(property))).toBe(true);
   });
 
-  it("ANIM-03 the reduce block hides the confetti container and zeroes every animation", () => {
+  it("ANIM-03 the reduce block stops every moving animation, turns the turn pop into a fade and hides the confetti", () => {
     const block = blockAfter(
       INDEX_CSS,
       "@media (prefers-reduced-motion: reduce)",
     );
     expect(block).not.toBeNull();
-    const normalized = normalize(block!);
-    expect(normalized).toContain("animation-name: none");
-    expect(normalized).toContain("animation-duration: 0s");
-    expect(normalized).toContain("animation-iteration-count: 1");
-    expect(normalized).toMatch(/\.game-over-confetti \{ display: none/);
+    const rules = cssRules(block!);
+    const stopped = rules.find((rule) =>
+      selectorsOf(rule).includes(".lobby-sign::after"),
+    );
+    expect(stopped).toBeDefined();
+    for (const selector of [
+      ".lobby-sign::after",
+      ".result-icon-correct",
+      ".result-icon-wrong",
+      ".wheel-result",
+    ]) {
+      expect(selectorsOf(stopped!), selector).toContain(selector);
+    }
+    expect(normalize(stopped!.body)).toBe("animation: none;");
+    const fade = rules.find((rule) => selectorsOf(rule).includes(".wheel-turn"));
+    expect(fade).toBeDefined();
+    expect(selectorsOf(fade!)).toContain(".switch-turn-bubble");
+    expect(normalize(fade!.body)).toBe("animation-name: fade-in;");
+    const keyframes = blockAfter(INDEX_CSS, "@keyframes fade-in");
+    expect(keyframes).not.toBeNull();
+    expect(normalize(keyframes!)).toMatch(/from \{ opacity: 0; \}/);
+    expect(normalize(block!)).toMatch(/\.game-over-confetti \{ display: none/);
   });
 
   it("ADMIN-01 /admin adds no font, colour or button override and inherits the game's chunky controls and focus ring", () => {
@@ -930,8 +948,21 @@ describe("style guards", () => {
     const grid = ruleBody(INDEX_CSS, ".option-list.quiz-options");
     expect(grid).not.toBeNull();
     expect(grid!).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(ruleBody(INDEX_CSS, ".game-main")).toContain(
+      "container: game / inline-size",
+    );
     expect(normalize(INDEX_CSS)).toMatch(
-      /@media \(min-width: 48rem\) \{\s*\.option-list\.quiz-options \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+      /@container game \(min-width: 36rem\) \{\s*\.option-list\.quiz-options \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+    );
+    const phoneLandscape = normalize(
+      INDEX_CSS.slice(
+        INDEX_CSS.lastIndexOf(
+          "@media (orientation: landscape) and (max-height: 32rem) and (max-width: 63.99rem)",
+        ),
+      ),
+    );
+    expect(phoneLandscape).toMatch(
+      /\.option-list\.quiz-options \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/,
     );
     const capsule = ruleBody(INDEX_CSS, ".quiz-question");
     expect(capsule).not.toBeNull();
