@@ -22,6 +22,7 @@ const question: GameQuestion = {
   category: "geografia",
   options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
   lang: "es",
+  token: "tok-test",
 };
 
 const players: readonly [Player, Player] = [

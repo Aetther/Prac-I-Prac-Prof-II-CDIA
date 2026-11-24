@@ -55,6 +55,7 @@ describe("game api functions", () => {
       category: "geografia",
       options: ["A", "B", "C", "D"],
       lang: "es",
+      token: "tok-test",
     };
     (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(question)) as Response,
@@ -74,6 +75,7 @@ describe("game api functions", () => {
           category: "y",
           options: ["a", "b", "c", "d"],
           lang: "es",
+          token: "tok-test",
         }),
       ) as Response,
     );
@@ -88,7 +90,7 @@ describe("game api functions", () => {
         JSON.stringify({ correct: true, correct_answer: "B" }),
       ) as Response,
     );
-    const result = await submitAnswer(123, "B", "es");
+    const result = await submitAnswer(123, "B", "es", "tok");
     expect(result.correct).toBe(true);
     expect(result.correct_answer).toBe("B");
     expect(globalThis.fetch).toHaveBeenCalled();
@@ -98,7 +100,7 @@ describe("game api functions", () => {
     (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify({ correct: "yes" })) as Response,
     );
-    await expect(submitAnswer(123, "B", "es")).rejects.toMatchObject({
+    await expect(submitAnswer(123, "B", "es", "tok")).rejects.toMatchObject({
       kind: "validation",
     });
   });

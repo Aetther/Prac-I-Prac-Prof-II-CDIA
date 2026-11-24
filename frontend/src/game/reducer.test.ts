@@ -36,6 +36,7 @@ function question(id = 42): GameQuestion {
     category: "geografia",
     options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
     lang: "es",
+    token: "tok-test",
   };
 }
 
@@ -106,6 +107,7 @@ function sixQuestion(category: CategoryName = "geografia"): GameQuestion {
     category,
     options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
     lang: "es",
+    token: "tok-test",
   };
 }
 

@@ -54,6 +54,7 @@ function question(overrides: Partial<GameQuestion> = {}): GameQuestion {
     category: "geografia",
     options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
     lang: "es",
+    token: "tok-test",
     ...overrides,
   };
 }
@@ -408,7 +409,7 @@ describe("App game flow with a mocked API", () => {
     await screen.findByText("Sin traducir");
     await answer(user);
 
-    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es");
+    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es", "tok-test");
     await screen.findByRole("heading", { name: "Resultado" });
     expect(screen.getByText("Correcta")).toBeVisible();
   });
@@ -839,7 +840,7 @@ describe("App game flow with a mocked API", () => {
     expect(screen.queryByText("Ana: 10 puntos")).toBeNull();
     expectNoTimer();
     expect(postAnswer).toHaveBeenCalledTimes(2);
-    expect(postAnswer.mock.calls[1]).toEqual([42, "Lima", "es"]);
+    expect(postAnswer.mock.calls[1]).toEqual([42, "Lima", "es", "tok-test"]);
 
     retry.resolve({ correct: true, correct_answer: "Lima" });
     await screen.findByRole("heading", { name: "Resultado" });
@@ -910,7 +911,7 @@ describe("App game flow with a mocked API", () => {
 
     await screen.findByRole("heading", { name: "Resultado" });
     expect(postAnswer).toHaveBeenCalledTimes(2);
-    expect(postAnswer.mock.calls[1]).toEqual([42, "Lima", "es"]);
+    expect(postAnswer.mock.calls[1]).toEqual([42, "Lima", "es", "tok-test"]);
     expect(getQuestion).toHaveBeenCalledTimes(1);
   });
 
@@ -1516,7 +1517,7 @@ describe("App game flow with a mocked API", () => {
     advance(20_000);
 
     expect(postAnswer).toHaveBeenCalledTimes(1);
-    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es");
+    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es", "tok-test");
     expect(
       postAnswer.mock.calls.filter(([, value]) => value === "(sin respuesta)"),
     ).toHaveLength(0);
@@ -1595,7 +1596,12 @@ describe("App game flow with a mocked API", () => {
 
     await screen.findByRole("heading", { name: "Resultado" });
     expect(postAnswer).toHaveBeenCalledTimes(1);
-    expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
+    expect(postAnswer).toHaveBeenCalledWith(
+      42,
+      "(sin respuesta)",
+      "es",
+      "tok-test",
+    );
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
     expect(screen.queryByText(/Elegiste:/)).toBeNull();
     expect(screen.getByRole("status").textContent).toBe(
@@ -1638,7 +1644,12 @@ describe("App game flow with a mocked API", () => {
     advance(30_000);
 
     expect(postAnswer).toHaveBeenCalledTimes(1);
-    expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
+    expect(postAnswer).toHaveBeenCalledWith(
+      42,
+      "(sin respuesta)",
+      "es",
+      "tok-test",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Lima" }));
     expect(postAnswer).toHaveBeenCalledTimes(1);
@@ -1667,7 +1678,7 @@ describe("App game flow with a mocked API", () => {
     advance(5_000);
 
     expect(postAnswer).toHaveBeenCalledTimes(1);
-    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es");
+    expect(postAnswer).toHaveBeenCalledWith(42, "Lima", "es", "tok-test");
     expect(
       postAnswer.mock.calls.filter(([, value]) => value === "(sin respuesta)"),
     ).toHaveLength(0);
@@ -1688,7 +1699,12 @@ describe("App game flow with a mocked API", () => {
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("¿Está corriendo la API?")).toBeVisible();
     expect(postAnswer).toHaveBeenCalledTimes(1);
-    expect(postAnswer.mock.calls[0]).toEqual([42, "(sin respuesta)", "es"]);
+    expect(postAnswer.mock.calls[0]).toEqual([
+      42,
+      "(sin respuesta)",
+      "es",
+      "tok-test",
+    ]);
     expectNoTimer();
 
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
@@ -1698,7 +1714,12 @@ describe("App game flow with a mocked API", () => {
     expect(screen.getByText("Ana: 0 puntos")).toBeVisible();
     expectNoTimer();
     expect(postAnswer).toHaveBeenCalledTimes(2);
-    expect(postAnswer.mock.calls[1]).toEqual([42, "(sin respuesta)", "es"]);
+    expect(postAnswer.mock.calls[1]).toEqual([
+      42,
+      "(sin respuesta)",
+      "es",
+      "tok-test",
+    ]);
 
     retry.resolve({ correct: false, correct_answer: "Buenos Aires" });
     await screen.findByRole("heading", { name: "Resultado" });
@@ -1729,7 +1750,12 @@ describe("App game flow with a mocked API", () => {
 
     await screen.findByRole("heading", { name: "Resultado" });
     expect(postAnswer).toHaveBeenCalledTimes(1);
-    expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
+    expect(postAnswer).toHaveBeenCalledWith(
+      42,
+      "(sin respuesta)",
+      "es",
+      "tok-test",
+    );
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
 
     advance(250);
@@ -1955,7 +1981,12 @@ describe("App six-categories flow with a mocked API", () => {
 
     await screen.findByRole("heading", { name: "Resultado" });
     expect(postAnswer).toHaveBeenCalledTimes(1);
-    expect(postAnswer).toHaveBeenCalledWith(42, "(sin respuesta)", "es");
+    expect(postAnswer).toHaveBeenCalledWith(
+      42,
+      "(sin respuesta)",
+      "es",
+      "tok-test",
+    );
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
     expect(screen.queryByText("Correcta")).toBeNull();
     expect(within(playerRow("Ana")).getByText("Coronas: 0 de 6")).toBeVisible();

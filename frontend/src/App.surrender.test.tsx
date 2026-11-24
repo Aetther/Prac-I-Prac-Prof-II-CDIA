@@ -31,6 +31,7 @@ function question(): GameQuestion {
     category: "geografia",
     options: ["Lima", "Quito", "Bogotá", "París"],
     lang: "es",
+    token: "tok-test",
   };
 }
 
@@ -213,6 +214,7 @@ describe("Surrender in the App", () => {
       expect.any(Number),
       "(sin respuesta)",
       "es",
+      "tok-test",
     );
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });

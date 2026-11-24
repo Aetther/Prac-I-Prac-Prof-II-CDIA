@@ -21,6 +21,7 @@ function question(
     category: "geografia",
     options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
     lang: "es",
+    token: "tok-test",
     ...overrides,
   };
 }

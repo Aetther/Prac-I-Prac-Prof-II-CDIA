@@ -297,6 +297,8 @@ En el mismo `.env`, completar `API_KEY` con otra clave generada con el mismo com
 
 `CORS_ORIGINS` se puede dejar vacía: permite el frontend de Vite en desarrollo (ver [CORS](#cors)).
 
+`ANSWER_TOKEN_SECRET` también se puede dejar vacía en local: la API inventa una al arrancar (ver [Juego](#juego)). Para publicarla, completarla con otra clave generada con el mismo comando.
+
 Después, levantar la base:
 
 ```powershell
@@ -428,7 +430,7 @@ El juego está publicado en **[trivia-chi-three.vercel.app](https://trivia-chi-t
 - **Base en la nube**: si existe la variable `DATABASE_URL` (la dirección completa que da Neon, por ejemplo `postgresql://usuario:contraseña@host/base?sslmode=require`), `app/database.py` la usa en lugar de las variables `POSTGRES_*`, con el driver `psycopg2`. Las conexiones se verifican antes de usarse (`pool_pre_ping`), porque la base en la nube cierra las que quedan inactivas. Sin `DATABASE_URL`, todo sigue funcionando con la base de Docker.
 - **Dependencias de la API**: `requirements-api.txt` tiene solo lo que necesita la API (FastAPI, Uvicorn, SQLAlchemy, psycopg2 y python-dotenv), con las mismas versiones que `poetry.lock`, y es lo que instala Vercel (*Install Command*: `pip install -r requirements-api.txt`). En `pyproject.toml`, las herramientas de IA (PyTorch, Transformers, pandas, etc.) están en el grupo `ai`, que `poetry install` instala en local pero no se publica: la API no usa los modelos de IA, y con ellos el paquete superaría el límite de 500 MB de Vercel.
 - **Datos**: la base se copió desde la local con `pg_dump` y `pg_restore` **antes** de levantar la API, para que llegue completa (preguntas, categorías, traducciones y correcciones). Los volcados (`*.dump`) no se suben al repositorio.
-- **Configuración en el servidor**: en el proyecto de la API, `DATABASE_URL` (la dirección *pooled* de Neon, la recomendada para funciones serverless), `API_KEY` y `CORS_ORIGINS` (con la dirección del frontend publicado) se cargan como variables de entorno en el panel de Vercel, nunca en el código; `DATABASE_URL` y `API_KEY` están marcadas como sensibles. En el proyecto del frontend, `VITE_API_URL` apunta a la API publicada.
+- **Configuración en el servidor**: en el proyecto de la API, `DATABASE_URL` (la dirección *pooled* de Neon, la recomendada para funciones serverless), `API_KEY`, `ANSWER_TOKEN_SECRET` y `CORS_ORIGINS` (con la dirección del frontend publicado) se cargan como variables de entorno en el panel de Vercel, nunca en el código; `DATABASE_URL`, `API_KEY` y `ANSWER_TOKEN_SECRET` están marcadas como sensibles. `ANSWER_TOKEN_SECRET` es obligatoria ahí: Vercel corre la API en varias instancias a la vez, y todas tienen que usar el mismo secreto para aceptar los tokens que dio cualquiera de ellas. En el proyecto del frontend, `VITE_API_URL` apunta a la API publicada.
 
 ## API
 
@@ -468,18 +470,19 @@ Los endpoints del juego nunca muestran la respuesta correcta antes de que el jug
   "question": "Tres de estos animales hibernan. ¿Cuál no?",
   "category": "ciencia",
   "options": ["Rana", "Perezoso", "Serpiente", "Ratón"],
-  "lang": "es"
+  "lang": "es",
+  "token": "1795479600.Xb3k…"
 }
 ```
 
-Las opciones se mezclan en cada pedido.
+Las opciones se mezclan en cada pedido. El `token` hay que devolverlo al responder: prueba que la pregunta se sirvió en una partida (ver abajo).
 
 **Idioma** (`?lang=`): `es` (por defecto) o `en`. Cualquier otro valor responde **422**. La misma pregunta (mismo `id`) se puede pedir en los dos idiomas. Si se pide español y la pregunta no tiene traducción (ver [Traducción con IA](#traducción-con-ia)), viene en inglés, y el campo `lang` de la respuesta lo indica.
 
 **Responder** (`POST /game/answer?lang=es`), con el texto de la opción elegida:
 
 ```json
-{ "question_id": 1, "answer": "Rana" }
+{ "question_id": 1, "answer": "Rana", "token": "1795479600.Xb3k…" }
 ```
 
 ```json
@@ -488,7 +491,9 @@ Las opciones se mezclan en cada pedido.
 
 (La traducción automática había dado "Pereza", uno de los [errores conocidos](#errores-conocidos); se corrigió con el [glosario](#glosario-de-correcciones)).
 
-Acepta la respuesta en **cualquiera de los dos idiomas** ("Perezoso" o "Sloth"); `?lang=` solo define en qué idioma vuelve `correct_answer`. No distingue mayúsculas ni espacios al principio o al final. Responde **404** si la pregunta (o la categoría pedida) no existe.
+Acepta la respuesta en **cualquiera de los dos idiomas** ("Perezoso" o "Sloth"); `?lang=` solo define en qué idioma vuelve `correct_answer`. No distingue mayúsculas ni espacios al principio o al final. Responde **404** si la pregunta (o la categoría pedida) no existe o está oculta.
+
+**El token de respuesta**: sin él, cualquiera podía mandar `POST /game/answer` con ids del 1 en adelante y una respuesta inventada, y la API le devolvía la correcta de todas las preguntas, incluso de las ocultas. Ahora `GET /game/question` firma el id de la pregunta y una hora de vencimiento (5 minutos) con `ANSWER_TOKEN_SECRET` (HMAC-SHA256, `app/answer_token.py`), y `POST /game/answer` responde **403** si el token falta, fue alterado, es de otra pregunta o venció. No se guarda nada en la base: cualquier instancia de la API con el mismo secreto lo puede comprobar.
 
 ### Autenticación
 
@@ -1247,11 +1252,12 @@ Medidas aplicadas tras una revisión de seguridad del proyecto:
 | Cualquiera podía modificar datos o ver las respuestas | Los endpoints de administración piden una API key (ver [Autenticación](#autenticación)) |
 | Datos de entrada sin control | Validación con Pydantic: tipos, largos máximos, categorías válidas y campos permitidos (`app/schemas.py`) |
 | Trampa en el juego mirando la respuesta | Endpoints de juego que revelan la correcta recién después de responder (ver [Juego](#juego)) |
+| `POST /game/answer` revelaba la respuesta de cualquier pregunta (también de las ocultas) con solo recorrer ids | Solo responde con el token firmado que vino con la pregunta (`403` si falta, es de otra pregunta o venció) y nunca para preguntas ocultas (`404`) (ver [Juego](#juego)) |
 | Dataset o modelos cambiados sin aviso | Versiones fijas (commits) y verificación del hash del dataset (ver [Origen](#origen)) |
 | Modelo de traducción en formato antiguo (`pytorch_model.bin`, que en teoría puede ejecutar código al cargarse) | Versión fija, y PyTorch 2.6 o superior lo carga en modo restringido (`weights_only`), que solo lee los pesos |
 | Librerías con vulnerabilidades conocidas | Auditoría de dependencias con `pip-audit` (abajo) y alertas automáticas de Dependabot en GitHub |
 | Email personal visible en el repositorio | Commits y `pyproject.toml` con la dirección *noreply* de GitHub |
-| Respuestas incorrectas o sin documentar | `404` cuando una pregunta no existe (antes respondía `200` con un error) y respuestas `401`, `404` y `503` documentadas en `/docs` |
+| Respuestas incorrectas o sin documentar | `404` cuando una pregunta no existe (antes respondía `200` con un error) y respuestas `401`, `403`, `404` y `503` documentadas en `/docs` |
 | Documentación de la API siempre visible | Se puede ocultar con `ENABLE_DOCS=false` en el `.env` |
 | Otras páginas usando la API desde el navegador de quien las visita | CORS solo para las direcciones de `CORS_ORIGINS` (por defecto, el frontend en desarrollo), con los métodos y encabezados que usa la API, sin cookies y sin aceptar `*` (ver [CORS](#cors)) |
 | Reportes falsos en masa (`POST /reports` es público) | Validación estricta (motivos fijos, comentario de hasta 500 caracteres, pregunta existente y visible) y límite de 10 reportes por minuto por IP (`app/rate_limit.py`) |

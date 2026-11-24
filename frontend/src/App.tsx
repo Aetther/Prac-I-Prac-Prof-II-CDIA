@@ -48,6 +48,7 @@ interface RespinTarget {
 interface SubmitRetryTarget {
   readonly type: "submitAnswer";
   readonly questionId: number;
+  readonly token: string;
   readonly answer: string;
   readonly timedOut: boolean;
 }
@@ -203,6 +204,7 @@ function App() {
 
   async function submitAnswerWithRetry(
     questionId: number,
+    token: string,
     answer: string,
     lang: Lang,
     timedOut: boolean,
@@ -210,7 +212,7 @@ function App() {
     const epoch = requestEpochRef.current;
     setRequest({ status: "loading" });
     try {
-      const result = await submitAnswer(questionId, answer, lang);
+      const result = await submitAnswer(questionId, answer, lang, token);
       if (requestEpochRef.current !== epoch) return;
       dispatch({
         type: "ANSWER_RECEIVED",
@@ -236,7 +238,7 @@ function App() {
       setRequest({
         status: "error",
         message,
-        retry: { type: "submitAnswer", questionId, answer, timedOut },
+        retry: { type: "submitAnswer", questionId, token, answer, timedOut },
       });
     }
   }
@@ -259,7 +261,13 @@ function App() {
     if (question === null || config === null) return;
     if (game.lastAnswer !== null || request.status === "loading") return;
     void runExclusive(async () => {
-      await submitAnswerWithRetry(question.id, answer, config.lang, false);
+      await submitAnswerWithRetry(
+        question.id,
+        question.token,
+        answer,
+        config.lang,
+        false,
+      );
     });
   };
 
@@ -272,6 +280,7 @@ function App() {
     void runExclusive(async () => {
       await submitAnswerWithRetry(
         question.id,
+        question.token,
         TIMEOUT_ANSWER,
         config.lang,
         true,
@@ -383,6 +392,7 @@ function App() {
       } else {
         await submitAnswerWithRetry(
           target.questionId,
+          target.token,
           target.answer,
           lang,
           target.timedOut,

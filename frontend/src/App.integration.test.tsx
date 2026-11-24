@@ -25,6 +25,7 @@ const question: GameQuestion = {
   category: "geografia",
   options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
   lang: "es",
+  token: "tok-test",
 };
 
 function jsonResponse(
@@ -252,7 +253,9 @@ describe("App integration through the real API client", () => {
     const init = fetchMock.mock.calls[2][1] as RequestInit;
     expect(init.method).toBe("POST");
     expect(init.headers).toEqual({ "Content-Type": "application/json" });
-    expect(init.body).toBe('{"question_id":42,"answer":"Lima"}');
+    expect(init.body).toBe(
+      '{"question_id":42,"answer":"Lima","token":"tok-test"}',
+    );
 
     expect(screen.getByRole("status").textContent).toBe(
       "La respuesta correcta era: Lima",
@@ -338,6 +341,7 @@ describe("App integration through the real API client", () => {
           category: "historia",
           options: ["A", "B", "C", "D"],
           lang: "es",
+          token: "tok-test",
         }),
       );
 
@@ -369,6 +373,7 @@ describe("App integration through the real API client", () => {
           category: "geografia",
           options: ["solo una"],
           lang: "es",
+          token: "tok-test",
         }),
       );
 
@@ -460,7 +465,9 @@ describe("App integration through the real API client", () => {
     expect(requestUrls()[2]).toBe("http://localhost:8000/game/answer?lang=es");
     const init = fetchMock.mock.calls[2][1] as RequestInit;
     expect(init.method).toBe("POST");
-    expect(init.body).toBe('{"question_id":42,"answer":"(sin respuesta)"}');
+    expect(init.body).toBe(
+      '{"question_id":42,"answer":"(sin respuesta)","token":"tok-test"}',
+    );
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
     expect(screen.getByRole("status").textContent).toBe(
       "La respuesta correcta era: Buenos Aires",
@@ -519,10 +526,10 @@ describe("App integration through the real API client", () => {
     expect(requestUrls()[2]).toBe("http://localhost:8000/game/answer?lang=es");
     expect(requestUrls()[3]).toBe("http://localhost:8000/game/answer?lang=es");
     expect((fetchMock.mock.calls[2][1] as RequestInit).body).toBe(
-      '{"question_id":42,"answer":"(sin respuesta)"}',
+      '{"question_id":42,"answer":"(sin respuesta)","token":"tok-test"}',
     );
     expect((fetchMock.mock.calls[3][1] as RequestInit).body).toBe(
-      '{"question_id":42,"answer":"(sin respuesta)"}',
+      '{"question_id":42,"answer":"(sin respuesta)","token":"tok-test"}',
     );
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
   });
@@ -554,7 +561,9 @@ describe("App integration through the real API client", () => {
     expect(requestUrls()[2]).toBe("http://localhost:8000/game/answer?lang=es");
     const init = fetchMock.mock.calls[2][1] as RequestInit;
     expect(init.method).toBe("POST");
-    expect(init.body).toBe('{"question_id":42,"answer":"Lima"}');
+    expect(init.body).toBe(
+      '{"question_id":42,"answer":"Lima","token":"tok-test"}',
+    );
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(screen.getByText("Correcta")).toBeVisible();
 
@@ -584,7 +593,9 @@ describe("App integration through the real API client", () => {
     await screen.findByRole("heading", { name: "Resultado" });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const init = fetchMock.mock.calls[2][1] as RequestInit;
-    expect(init.body).toBe('{"question_id":42,"answer":"(sin respuesta)"}');
+    expect(init.body).toBe(
+      '{"question_id":42,"answer":"(sin respuesta)","token":"tok-test"}',
+    );
     expect(screen.getByText("Se acabó el tiempo")).toBeVisible();
     expect(
       document.querySelectorAll('.crown-ring:not([data-hits="0"])'),
@@ -603,6 +614,7 @@ describe("App integration through the real API client", () => {
           category: "historia",
           options: ["A", "B", "C", "D"],
           lang: "es",
+          token: "tok-test",
         }),
       );
 

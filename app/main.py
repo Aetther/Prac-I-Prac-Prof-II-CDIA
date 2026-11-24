@@ -10,6 +10,7 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.answer_token import issue_token, verify_token
 from app.categories import CATEGORIES, find_category_by_name
 from app.database import engine, get_db
 from app.glossary import options_are_distinct
@@ -288,13 +289,17 @@ def game_question(
         category=categorization.category_name,
         options=options,
         lang=served_lang,
+        token=issue_token(question.id),
     )
 
 
 @app.post(
     "/game/answer",
     response_model=GameResult,
-    responses=not_found("La pregunta no existe"),
+    responses={
+        **not_found("La pregunta no existe o está oculta"),
+        403: {"description": "Token inválido, vencido o de otra pregunta"},
+    },
 )
 def game_answer(
     data: GameAnswer,
@@ -306,9 +311,18 @@ def game_answer(
     """
     Comprueba la opción elegida y recién ahí revela la respuesta correcta.
     Acepta la respuesta en cualquiera de los dos idiomas.
+
+    Exige el token que vino con la pregunta: la respuesta solo se revela para
+    preguntas servidas por GET /game/question, y nunca para las ocultas.
     """
+    if not verify_token(data.token, data.question_id):
+        raise HTTPException(
+            status_code=403,
+            detail="La pregunta no se sirvió en esta partida o el tiempo para "
+            "responderla venció",
+        )
     question: Any = db.get(Question, data.question_id)
-    if question is None:
+    if question is None or not question.is_active:
         raise HTTPException(status_code=404, detail="Pregunta no encontrada")
 
     correct_answers = {question.answer.lower()}

@@ -77,6 +77,9 @@ export function validateCategories(data: unknown): Category[] {
   return data as Category[];
 }
 
+/** El mismo tope que acepta la API en POST /game/answer. */
+export const MAX_ANSWER_TOKEN_LENGTH = 200;
+
 export function validateGameQuestion(data: unknown): GameQuestion {
   if (typeof data !== "object" || data === null) {
     throw new ApiError("validation", "Respuesta inválida del servidor.", {
@@ -114,6 +117,15 @@ export function validateGameQuestion(data: unknown): GameQuestion {
   if (q.lang !== "es" && q.lang !== "en") {
     throw new ApiError("validation", "Respuesta inválida del servidor.", {
       detail: "idioma inválido",
+    });
+  }
+  if (
+    typeof q.token !== "string" ||
+    q.token === "" ||
+    q.token.length > MAX_ANSWER_TOKEN_LENGTH
+  ) {
+    throw new ApiError("validation", "Respuesta inválida del servidor.", {
+      detail: "token de respuesta inválido",
     });
   }
   return data as GameQuestion;

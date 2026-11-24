@@ -26,6 +26,7 @@ export async function submitAnswer(
   questionId: number,
   answer: string,
   lang: "es" | "en",
+  token: string,
 ): Promise<SubmitAnswerResult> {
   if (typeof answer !== "string" || answer === "" || answer.length > 300) {
     throw new ApiError("validation", "La respuesta no es válida.");
@@ -40,6 +41,7 @@ export async function submitAnswer(
       body: JSON.stringify({
         question_id: questionId,
         answer,
+        token,
       }),
     },
   );

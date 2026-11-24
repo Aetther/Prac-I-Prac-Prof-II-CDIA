@@ -10,6 +10,8 @@ export interface GameQuestion {
   category: string;
   options: [string, string, string, string];
   lang: "es" | "en";
+  /** Hay que devolverlo al responder (POST /game/answer). Vence a los minutos. */
+  token: string;
 }
 
 export interface SubmitAnswerResult {

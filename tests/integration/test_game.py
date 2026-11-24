@@ -8,8 +8,11 @@ Base de prueba (ver tests/conftest.py):
   id 3: ¿Quién pintó la Mona Lisa? -> Da Vinci (categorizada: arte)
 Ninguna está traducida, salvo en los tests que usan el fixture `translated`.
 """
+import time
+
 import pytest
 
+from app.answer_token import TOKEN_TTL_SECONDS, issue_token
 from app.models import Categorization, Question
 
 TRANSLATION = {
@@ -33,13 +36,22 @@ def translated(seeded_db):
     return france
 
 
+def body(question_id, answer):
+    """Cuerpo de POST /game/answer con un token válido para esa pregunta."""
+    return {
+        "question_id": question_id,
+        "answer": answer,
+        "token": issue_token(question_id),
+    }
+
+
 # --- GET /game/question ---
 
 def test_game_question_does_not_reveal_answer(anon_client):
     r = anon_client.get("/game/question")
     assert r.status_code == 200
     data = r.json()
-    assert set(data) == {"id", "question", "category", "options", "lang"}
+    assert set(data) == {"id", "question", "category", "options", "lang", "token"}
     assert "answer" not in data
 
 
@@ -114,43 +126,90 @@ def test_game_question_invalid_lang(anon_client):
 # --- POST /game/answer ---
 
 def test_game_answer_correct(anon_client):
-    r = anon_client.post("/game/answer", json={"question_id": 1, "answer": "París"})
+    r = anon_client.post("/game/answer", json=body(1, "París"))
     assert r.status_code == 200
     assert r.json() == {"correct": True, "correct_answer": "París"}
 
 
 def test_game_answer_wrong_reveals_correct_answer(anon_client):
-    r = anon_client.post("/game/answer", json={"question_id": 1, "answer": "Opción A"})
+    r = anon_client.post("/game/answer", json=body(1, "Opción A"))
     assert r.status_code == 200
     assert r.json() == {"correct": False, "correct_answer": "París"}
 
 
 def test_game_answer_ignores_case_and_spaces(anon_client):
-    r = anon_client.post("/game/answer", json={"question_id": 1, "answer": "  parís "})
+    r = anon_client.post("/game/answer", json=body(1, "  parís "))
     assert r.json()["correct"] is True
 
 
 def test_game_answer_unknown_question(anon_client):
-    r = anon_client.post("/game/answer", json={"question_id": 999, "answer": "París"})
+    r = anon_client.post("/game/answer", json=body(999, "París"))
     assert r.status_code == 404
 
 
-@pytest.mark.parametrize("body", [
-    {"question_id": 0, "answer": "París"},
-    {"question_id": "1", "answer": "París"},
-    {"question_id": 1},
-    {"question_id": 1, "answer": "París", "extra": True},
-], ids=["id-cero", "id-texto", "sin-respuesta", "campo-extra"])
-def test_game_answer_invalid_body(anon_client, body):
-    r = anon_client.post("/game/answer", json=body)
+@pytest.mark.parametrize("data", [
+    {"question_id": 0, "answer": "París", "token": "x"},
+    {"question_id": "1", "answer": "París", "token": "x"},
+    {"question_id": 1, "token": "x"},
+    {"question_id": 1, "answer": "París"},
+    {"question_id": 1, "answer": "París", "token": ""},
+    {"question_id": 1, "answer": "París", "token": "x" * 201},
+    {"question_id": 1, "answer": "París", "token": "x", "extra": True},
+], ids=[
+    "id-cero", "id-texto", "sin-respuesta", "sin-token", "token-vacio",
+    "token-largo", "campo-extra",
+])
+def test_game_answer_invalid_body(anon_client, data):
+    r = anon_client.post("/game/answer", json=data)
     assert r.status_code == 422
+
+
+# --- Token de respuesta ---
+
+def test_game_answer_with_token_from_game_question(anon_client):
+    """El recorrido real: el token que da GET /game/question sirve para responder."""
+    question = anon_client.get("/game/question").json()
+    r = anon_client.post("/game/answer", json={
+        "question_id": question["id"],
+        "answer": question["options"][0],
+        "token": question["token"],
+    })
+    assert r.status_code == 200
+
+
+def test_game_answer_rejects_forged_token(anon_client):
+    data = {**body(1, "París"), "token": "9999999999.firma-inventada"}
+    r = anon_client.post("/game/answer", json=data)
+    assert r.status_code == 403
+
+
+def test_game_answer_rejects_token_of_another_question(anon_client):
+    """Un token de la pregunta 3 no sirve para ver la respuesta de la 1."""
+    data = {**body(1, "París"), "token": issue_token(3)}
+    r = anon_client.post("/game/answer", json=data)
+    assert r.status_code == 403
+
+
+def test_game_answer_rejects_expired_token(anon_client):
+    old = issue_token(1, now=time.time() - TOKEN_TTL_SECONDS - 1)
+    r = anon_client.post("/game/answer", json={**body(1, "París"), "token": old})
+    assert r.status_code == 403
+
+
+def test_game_answer_hidden_question(anon_client, seeded_db):
+    """Una pregunta oculta no revela su respuesta, aunque el token sea válido."""
+    france = seeded_db.get(Question, 1)
+    france.is_active = False
+    seeded_db.commit()
+    r = anon_client.post("/game/answer", json=body(1, "París"))
+    assert r.status_code == 404
 
 
 # --- Idiomas en POST /game/answer ---
 
 @pytest.mark.parametrize("answer", ["París", "Respuesta traducida"], ids=["en", "es"])
 def test_game_answer_accepts_both_languages(anon_client, translated, answer):
-    r = anon_client.post("/game/answer", json={"question_id": 1, "answer": answer})
+    r = anon_client.post("/game/answer", json=body(1, answer))
     assert r.json()["correct"] is True
 
 
@@ -164,14 +223,14 @@ def test_game_answer_reveals_answer_in_requested_language(
     r = anon_client.post(
         "/game/answer",
         params={"lang": lang},
-        json={"question_id": 1, "answer": "Incorrecta 1"},
+        json=body(1, "Incorrecta 1"),
     )
     assert r.json() == {"correct": False, "correct_answer": expected}
 
 
 def test_game_answer_invalid_lang(anon_client):
     r = anon_client.post(
-        "/game/answer", params={"lang": "fr"}, json={"question_id": 1, "answer": "París"}
+        "/game/answer", params={"lang": "fr"}, json=body(1, "París")
     )
     assert r.status_code == 422
 

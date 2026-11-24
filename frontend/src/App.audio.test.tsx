@@ -66,6 +66,7 @@ function question(overrides: Partial<GameQuestion> = {}): GameQuestion {
     category: "geografia",
     options: ["Lima", "Quito", "Bogotá", "Buenos Aires"],
     lang: "es",
+    token: "tok-test",
     ...overrides,
   };
 }

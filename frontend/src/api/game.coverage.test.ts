@@ -15,14 +15,14 @@ describe("game api coverage", () => {
   });
 
   it("submitAnswer validates empty answer", async () => {
-    await expect(submitAnswer(1, "", "es")).rejects.toMatchObject({
+    await expect(submitAnswer(1, "", "es", "tok")).rejects.toMatchObject({
       kind: "validation",
     });
   });
 
   it("submitAnswer validates answer longer than 300 chars", async () => {
     const long = "a".repeat(301);
-    await expect(submitAnswer(1, long, "es")).rejects.toMatchObject({
+    await expect(submitAnswer(1, long, "es", "tok")).rejects.toMatchObject({
       kind: "validation",
     });
   });
@@ -33,7 +33,7 @@ describe("game api coverage", () => {
         JSON.stringify({ correct: true, correct_answer: "A" }),
       ) as Response,
     );
-    await submitAnswer(123, "Mi respuesta", "es");
+    await submitAnswer(123, "Mi respuesta", "es", "tok-123");
     const call = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock
       .calls[0];
     expect(call[0]).toContain("/game/answer?lang=es");
@@ -41,6 +41,7 @@ describe("game api coverage", () => {
     expect(JSON.parse(call[1].body)).toEqual({
       question_id: 123,
       answer: "Mi respuesta",
+      token: "tok-123",
     });
   });
 
@@ -50,7 +51,7 @@ describe("game api coverage", () => {
         JSON.stringify({ correct: false, correct_answer: "B" }),
       ) as Response,
     );
-    await submitAnswer(5, "X", "en");
+    await submitAnswer(5, "X", "en", "tok");
     const call = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock
       .calls[0];
     expect(call[0]).toContain("lang=en");
@@ -74,6 +75,7 @@ describe("game api coverage", () => {
       category: "c",
       options: ["a", "b", "c", "d"],
       lang: "en",
+      token: "tok-test",
     };
     (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(question)) as Response,

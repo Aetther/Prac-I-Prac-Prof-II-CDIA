@@ -137,6 +137,10 @@ class GameQuestion(BaseModel):
         description="Idioma en que viene la pregunta. Puede ser 'en' aunque se "
         "haya pedido 'es', si esa pregunta no tiene traducción."
     )
+    token: str = Field(
+        description="Hay que mandarlo en POST /game/answer para responder esta "
+        "pregunta. Vence a los pocos minutos."
+    )
 
 
 class GameAnswer(BaseModel):
@@ -146,12 +150,23 @@ class GameAnswer(BaseModel):
         extra="forbid",
         strict=True,
         json_schema_extra={
-            "examples": [{"question_id": 1, "answer": "Leonardo da Vinci"}]
+            "examples": [
+                {
+                    "question_id": 1,
+                    "answer": "Leonardo da Vinci",
+                    "token": "1795479600.firma-que-dio-GET-game-question",
+                }
+            ]
         },
     )
 
     question_id: int = Field(gt=0)
     answer: OptionText = Field(description="El texto de la opción elegida")
+    token: str = Field(
+        min_length=1,
+        max_length=200,
+        description="El token que vino con la pregunta en GET /game/question",
+    )
 
 
 class GameResult(BaseModel):

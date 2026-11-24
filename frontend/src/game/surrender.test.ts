@@ -123,6 +123,7 @@ describe("surrender rules", () => {
           category: "geografia",
           options: ["a", "b", "c", "d"],
           lang: "es",
+          token: "tok-test",
         },
       }),
     ).toBe(over);

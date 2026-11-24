@@ -68,6 +68,7 @@ function englishQuestion(): GameQuestion {
     category: "geografia",
     options: ["Lima", "Quito", "Bogotá", "Paris"],
     lang: "en",
+    token: "tok-test",
   };
 }
 

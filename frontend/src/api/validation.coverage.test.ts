@@ -9,6 +9,7 @@ import {
   validateAdminReport,
   validateAdminReportList,
   validateCategories,
+  MAX_ANSWER_TOKEN_LENGTH,
   validateGameQuestion,
   validateHiddenQuestion,
   validateReportQuestionResult,
@@ -72,6 +73,7 @@ describe("validation coverage", () => {
       category: "c",
       options: ["a", "b", "c", "d"],
       lang: "es",
+      token: "tok-test",
     };
     expect(() => validateGameQuestion({ ...base, id: 0 })).toThrow(ApiError);
     expect(() => validateGameQuestion({ ...base, id: 1.5 })).toThrow(ApiError);
@@ -84,6 +86,7 @@ describe("validation coverage", () => {
       category: "c",
       options: ["a", "b", "c", "d"],
       lang: "es",
+      token: "tok-test",
     };
     expect(() => validateGameQuestion({ ...base, question: "" })).toThrow(
       ApiError,
@@ -99,6 +102,7 @@ describe("validation coverage", () => {
       category: "c",
       options: ["a", "b", "c", "d"],
       lang: "es",
+      token: "tok-test",
     };
     expect(() => validateGameQuestion({ ...base, category: "" })).toThrow(
       ApiError,
@@ -114,6 +118,7 @@ describe("validation coverage", () => {
       category: "c",
       options: ["a", "b", "c", "d"],
       lang: "es",
+      token: "tok-test",
     };
     expect(() => validateGameQuestion({ ...base, options: [] })).toThrow(
       ApiError,
@@ -128,6 +133,37 @@ describe("validation coverage", () => {
       validateGameQuestion({ ...base, options: ["a", "b", "c", 123] }),
     ).toThrow(ApiError);
   });
+  it("validateGameQuestion - token invalid", () => {
+    const base = {
+      id: 1,
+      question: "q",
+      category: "c",
+      options: ["a", "b", "c", "d"],
+      lang: "es",
+      token: "tok-test",
+    };
+    const { token: _omitted, ...withoutToken } = base;
+    void _omitted;
+    expect(() => validateGameQuestion(withoutToken)).toThrow(ApiError);
+    expect(() => validateGameQuestion({ ...base, token: 123 })).toThrow(
+      ApiError,
+    );
+    expect(() => validateGameQuestion({ ...base, token: "" })).toThrow(
+      ApiError,
+    );
+    expect(() =>
+      validateGameQuestion({
+        ...base,
+        token: "x".repeat(MAX_ANSWER_TOKEN_LENGTH + 1),
+      }),
+    ).toThrow(ApiError);
+    expect(
+      validateGameQuestion({
+        ...base,
+        token: "x".repeat(MAX_ANSWER_TOKEN_LENGTH),
+      }).token,
+    ).toHaveLength(MAX_ANSWER_TOKEN_LENGTH);
+  });
   it("validateGameQuestion - lang invalid", () => {
     const base = {
       id: 1,
@@ -135,6 +171,7 @@ describe("validation coverage", () => {
       category: "c",
       options: ["a", "b", "c", "d"],
       lang: "es",
+      token: "tok-test",
     };
     expect(() => validateGameQuestion({ ...base, lang: "fr" })).toThrow(
       ApiError,
@@ -147,6 +184,7 @@ describe("validation coverage", () => {
       category: "c",
       options: ["a", "b", "c", "d"],
       lang: "en",
+      token: "tok-test",
     };
     const res = validateGameQuestion(q);
     expect(res.lang).toBe("en");

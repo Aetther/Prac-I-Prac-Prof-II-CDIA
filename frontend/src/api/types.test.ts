@@ -10,6 +10,7 @@ describe("api types", () => {
       category: "x",
       options: ["a", "b", "c", "d"],
       lang: "es",
+      token: "tok-test",
     };
     const r: SubmitAnswerResult = { correct: true, correct_answer: "a" };
     expect(c.name).toBe("x");
