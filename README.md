@@ -10,7 +10,7 @@
 
 API de preguntas de trivia estilo *Preguntados*, construida con **FastAPI**, **SQLAlchemy** y **PostgreSQL**. Las preguntas se cargan desde un dataset de Hugging Face, se categorizan con un modelo de IA (*zero-shot classification*), con **revisión humana** (*Human-in-the-Loop*) para los casos en que la IA no está segura, y se **traducen al español** con un modelo de traducción automática. Se puede jugar en español o en inglés: el idioma cambia las preguntas y toda la interfaz.
 
-El juego se puede jugar online en **[trivia-2hs.pages.dev](https://trivia-2hs.pages.dev/)**, desde un **frontend web** hecho con **React, Vite y TypeScript** (`frontend/`): dos personas en el mismo dispositivo, por turnos, con ruleta de categorías, dificultad, sonido y música. Ver [Frontend (juego web)](#frontend-juego-web).
+El juego se puede jugar online en **[trivia-chi-three.vercel.app](https://trivia-chi-three.vercel.app/)**, desde un **frontend web** hecho con **React, Vite y TypeScript** (`frontend/`): dos personas en el mismo dispositivo, por turnos, con ruleta de categorías, dificultad, sonido y música. Ver [Frontend (juego web)](#frontend-juego-web).
 
 Proyecto de Práctica Profesional II — CDIA.
 
@@ -175,6 +175,7 @@ flowchart LR
 │   ├── src/styles/                 # Estilos y variables de diseño (tokens.css)
 │   ├── public/fonts/               # Fuente Baloo 2 (licencia OFL) incluida en el proyecto
 │   ├── package.json                # Dependencias y comandos (npm)
+│   ├── vercel.json                 # Proyecto del frontend en Vercel: rutas como /admin al recargar
 │   └── .env.example                # Dirección de la API (VITE_API_URL)
 ├── .vscode/settings.json           # Configura VS Code para usar Poetry
 ├── prueba_clasificador.py          # Prueba rápida del clasificador
@@ -183,7 +184,8 @@ flowchart LR
 ├── .env.example                    # Plantilla de credenciales (copiar como .env)
 ├── pyproject.toml                  # Dependencias y configuración de pytest
 ├── poetry.lock                     # Versiones exactas de las dependencias
-├── requirements-api.txt            # Dependencias solo de la API (sin IA), para publicarla
+├── requirements-api.txt            # Dependencias solo de la API (sin IA), las que instala Vercel
+├── vercel.json                     # Proyecto de la API en Vercel: qué queda fuera del paquete
 ├── EXERCISE.md                     # Consigna del ejercicio base
 ├── CONCEPTS.md                     # Conceptos del ejercicio base
 ├── EXERCISE_AI_CATEGORIZATION.md   # Consigna de la categorización con IA
@@ -415,15 +417,18 @@ El código detecta la GPU automáticamente: si está disponible la usa, y si no,
 
 ## Publicación online
 
-El juego está publicado en **[trivia-2hs.pages.dev](https://trivia-2hs.pages.dev/)**, con servicios gratuitos: el frontend en **Cloudflare Pages**, la API en **Render** y la base en **Neon** (PostgreSQL administrado).
+El juego está publicado en **[trivia-chi-three.vercel.app](https://trivia-chi-three.vercel.app/)**, con servicios gratuitos: el frontend y la API en **Vercel** (plan Hobby) y la base en **Neon** (PostgreSQL administrado). La API publicada está en [trivia-api-eosin.vercel.app](https://trivia-api-eosin.vercel.app/).
 
 > [!NOTE]
-> Con el plan gratuito, Render apaga la API después de un rato sin uso. El primer pedido siguiente puede tardar alrededor de un minuto mientras se vuelve a levantar; después responde normal. Si el juego muestra "¿Está corriendo la API?", esperar y tocar **Reintentar**.
+> La API corre como una función de Vercel: si estuvo un rato sin uso, el primer pedido puede tardar unos segundos más mientras arranca; después responde normal.
+
+- **Dos proyectos en Vercel, desde el mismo repositorio**: la API se publica desde la raíz (preset FastAPI, que encuentra la app en `app/main.py`) y el frontend desde `frontend/` (preset Vite). El `vercel.json` de la raíz deja fuera del paquete de la API lo que no necesita (`frontend/`, `data/`, `tests/`, los `.md` y los volcados), y `frontend/vercel.json` manda cualquier ruta a `index.html`, para que direcciones como `/admin` funcionen al recargar.
+- **Despliegue automático**: cada push a `main` vuelve a publicar los dos proyectos. Un push a otra rama genera una versión de prueba (*Preview*) con otra dirección, que no puede hablar con la API porque `CORS_ORIGINS` solo acepta el frontend publicado.
 
 - **Base en la nube**: si existe la variable `DATABASE_URL` (la dirección completa que da Neon, por ejemplo `postgresql://usuario:contraseña@host/base?sslmode=require`), `app/database.py` la usa en lugar de las variables `POSTGRES_*`, con el driver `psycopg2`. Las conexiones se verifican antes de usarse (`pool_pre_ping`), porque la base en la nube cierra las que quedan inactivas. Sin `DATABASE_URL`, todo sigue funcionando con la base de Docker.
-- **Dependencias de la API**: `requirements-api.txt` tiene solo lo que necesita la API (FastAPI, Uvicorn, SQLAlchemy, psycopg2 y python-dotenv), con las mismas versiones que `poetry.lock`. La API no usa los modelos de IA, así que no hace falta instalar PyTorch en el servidor.
+- **Dependencias de la API**: `requirements-api.txt` tiene solo lo que necesita la API (FastAPI, Uvicorn, SQLAlchemy, psycopg2 y python-dotenv), con las mismas versiones que `poetry.lock`, y es lo que instala Vercel (*Install Command*: `pip install -r requirements-api.txt`). En `pyproject.toml`, las herramientas de IA (PyTorch, Transformers, pandas, etc.) están en el grupo `ai`, que `poetry install` instala en local pero no se publica: la API no usa los modelos de IA, y con ellos el paquete superaría el límite de 500 MB de Vercel.
 - **Datos**: la base se copió desde la local con `pg_dump` y `pg_restore` **antes** de levantar la API, para que llegue completa (preguntas, categorías, traducciones y correcciones). Los volcados (`*.dump`) no se suben al repositorio.
-- **Configuración en el servidor**: `DATABASE_URL`, `API_KEY` y `CORS_ORIGINS` (con la dirección del frontend publicado) se cargan como variables de entorno del servicio, nunca en el código. En el frontend, `VITE_API_URL` apunta a la API publicada.
+- **Configuración en el servidor**: en el proyecto de la API, `DATABASE_URL` (la dirección *pooled* de Neon, la recomendada para funciones serverless), `API_KEY` y `CORS_ORIGINS` (con la dirección del frontend publicado) se cargan como variables de entorno en el panel de Vercel, nunca en el código; `DATABASE_URL` y `API_KEY` están marcadas como sensibles. En el proyecto del frontend, `VITE_API_URL` apunta a la API publicada.
 
 ## API
 
@@ -1354,11 +1359,10 @@ Remove-Item audit_torch.txt
 **Administración**
 
 - Las correcciones del admin se exportan a mano con `export_admin_edits`. Si dos computadoras corrigen el mismo campo de la misma pregunta, queda el CSV que se suba último (git avisa del conflicto si los dos lo cambiaron).
-- El límite de reportes vive en la memoria de la API: se reinicia al reiniciarla, y si se corren varios procesos, cada uno cuenta por su lado. Detrás de un proxy (por ejemplo, nginx), todos los pedidos llegan con la IP del proxy: habría que configurarlo para que pase la IP real.
+- El límite de reportes vive en la memoria de la API: se reinicia al reiniciarla, y si se corren varios procesos, cada uno cuenta por su lado. En Vercel, cada instancia de la función lleva su propia cuenta, así que el límite es aproximado; queda pendiente guardarlo en la base y leer la IP real que manda Vercel en `X-Forwarded-For`.
 
 **Proyecto**
 
-- Separar las dependencias de IA en un grupo opcional de Poetry. Por ahora, para publicar la API sin PyTorch está `requirements-api.txt` (ver [Publicación online](#publicación-online)).
 - Si la API se publica en internet, limitar el tamaño de los pedidos en el servidor web que va delante (por ejemplo, `client_max_body_size` en nginx). Pydantic rechaza los textos demasiado largos, pero recién después de recibir el pedido completo.
 - Empaquetar la API en Docker junto con una copia de la base ya categorizada, para levantar todo con `docker compose up` sin instalar Python.
 - `starlette.testclient` avisa que en versiones futuras usará `httpx2` en lugar de `httpx`. Cuando el ecosistema complete la transición, habrá que migrar.
